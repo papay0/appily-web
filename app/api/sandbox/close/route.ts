@@ -18,7 +18,7 @@ export async function POST(request: Request) {
 
     // Connect to existing sandbox and kill it
     const sandbox = await Sandbox.connect(sandboxId, {
-      apiKey: process.env.NEXT_PUBLIC_E2B_API_KEY,
+      apiKey: process.env.E2B_API_KEY,
     });
 
     await sandbox.kill();

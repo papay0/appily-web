@@ -17,7 +17,7 @@ export async function createSandbox(): Promise<{
   sandbox: Sandbox;
   info: SandboxInfo;
 }> {
-  const apiKey = process.env.NEXT_PUBLIC_E2B_API_KEY;
+  const apiKey = process.env.E2B_API_KEY;
 
   if (!apiKey) {
     throw new Error("E2B_API_KEY is not configured");
