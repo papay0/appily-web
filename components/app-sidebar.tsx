@@ -1,6 +1,6 @@
 "use client";
 
-import { Home, Sparkles } from "lucide-react";
+import { Home, Sparkles, FolderKanban } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { DarkModeToggle } from "@/components/dark-mode-toggle";
 import {
@@ -22,7 +22,11 @@ const menuItems = [
     url: "/home",
     icon: Home,
   },
-  // Future menu items will go here (Milestone 3+)
+  {
+    title: "Projects",
+    url: "/home/projects",
+    icon: FolderKanban,
+  },
 ];
 
 export function AppSidebar() {

@@ -16,7 +16,7 @@ interface Project {
 
 interface ProjectListProps {
   projects: Project[];
-  onCreateNew: () => void;
+  onCreateNew?: () => void;
 }
 
 export function ProjectList({ projects, onCreateNew }: ProjectListProps) {
@@ -24,18 +24,20 @@ export function ProjectList({ projects, onCreateNew }: ProjectListProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Your Projects</h1>
-          <p className="text-muted-foreground mt-1">
-            Create and manage your mobile apps
-          </p>
+      {onCreateNew && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Your Projects</h1>
+            <p className="text-muted-foreground mt-1">
+              Create and manage your mobile apps
+            </p>
+          </div>
+          <Button onClick={onCreateNew} size="lg">
+            <PlusCircle className="mr-2 h-5 w-5" />
+            New Project
+          </Button>
         </div>
-        <Button onClick={onCreateNew} size="lg">
-          <PlusCircle className="mr-2 h-5 w-5" />
-          New Project
-        </Button>
-      </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {projects.map((project) => (

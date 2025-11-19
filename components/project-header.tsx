@@ -1,0 +1,126 @@
+"use client";
+
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Separator } from "@/components/ui/separator";
+import { AppBreadcrumbs } from "@/components/app-breadcrumbs";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Play, Loader2, Code2, Eye, Square } from "lucide-react";
+
+interface ProjectHeaderProps {
+  projectName?: string;
+
+  // Optional view controls (for project pages)
+  viewMode?: "preview" | "code";
+  onViewModeChange?: (mode: "preview" | "code") => void;
+
+  // Optional sandbox controls (for project pages)
+  sandboxStatus?: "idle" | "starting" | "ready" | "error";
+  onStartSandbox?: () => void;
+  onStopSandbox?: () => void;
+}
+
+export function ProjectHeader({
+  projectName,
+  viewMode,
+  onViewModeChange,
+  sandboxStatus,
+  onStartSandbox,
+  onStopSandbox,
+}: ProjectHeaderProps) {
+  const showControls = viewMode && onViewModeChange;
+  const showSandboxButton = sandboxStatus && (onStartSandbox || onStopSandbox);
+
+  const getStatusColor = () => {
+    switch (sandboxStatus) {
+      case "ready":
+        return "bg-emerald-500";
+      case "starting":
+        return "bg-amber-500";
+      case "error":
+        return "bg-rose-500";
+      default:
+        return "bg-slate-400";
+    }
+  };
+
+  const getStatusText = () => {
+    switch (sandboxStatus) {
+      case "ready":
+        return "Ready";
+      case "starting":
+        return "Starting...";
+      case "error":
+        return "Error";
+      default:
+        return "Not started";
+    }
+  };
+
+  return (
+    <header className="flex h-12 shrink-0 items-center border-b px-4 gap-4">
+      {/* Left: Sidebar trigger + Breadcrumbs */}
+      <div className="flex items-center gap-2 flex-1 min-w-0">
+        <SidebarTrigger className="h-8 w-8" />
+        <Separator orientation="vertical" className="h-4" />
+        <AppBreadcrumbs projectName={projectName} />
+      </div>
+
+      {/* Center: View mode tabs (only on project pages) - Unified button style */}
+      {showControls && (
+        <div className="flex items-center gap-2">
+          <Button
+            variant={viewMode === "preview" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => onViewModeChange("preview")}
+            className="h-8 px-3"
+          >
+            Preview
+          </Button>
+          <Button
+            variant={viewMode === "code" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => onViewModeChange("code")}
+            className="h-8 px-3"
+          >
+            Code
+          </Button>
+        </div>
+      )}
+
+      {/* Right: Sandbox controls (only on project pages) - Unified button style */}
+      {showSandboxButton && (
+        <div className="flex items-center gap-2">
+          {sandboxStatus === "idle" && onStartSandbox && (
+            <Button onClick={onStartSandbox} size="sm" className="h-8 px-3">
+              Start Sandbox
+            </Button>
+          )}
+          {sandboxStatus === "starting" && (
+            <Button disabled size="sm" variant="secondary" className="h-8 px-3 gap-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Starting...
+            </Button>
+          )}
+          {sandboxStatus === "ready" && onStopSandbox && (
+            <Button onClick={onStopSandbox} size="sm" variant="secondary" className="h-8 px-3 gap-2">
+              <Square className="h-3.5 w-3.5" />
+              Stop Sandbox
+            </Button>
+          )}
+          {sandboxStatus === "error" && onStartSandbox && (
+            <Button
+              onClick={onStartSandbox}
+              size="sm"
+              variant="secondary"
+              className="h-8 px-3 gap-2"
+            >
+              <div className="h-2 w-2 rounded-full bg-rose-500" />
+              Retry
+            </Button>
+          )}
+        </div>
+      )}
+    </header>
+  );
+}

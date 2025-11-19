@@ -8,16 +8,8 @@ import { Send, Bot } from "lucide-react";
 export function ChatPanel() {
   return (
     <div className="flex flex-col h-full">
-      {/* Chat Header */}
-      <div className="border-b p-4">
-        <div className="flex items-center gap-2">
-          <Bot className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold">AI Assistant</h3>
-        </div>
-      </div>
-
       {/* Chat Messages */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4 pt-6">
         <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
           <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
             <Bot className="h-6 w-6 text-muted-foreground" />

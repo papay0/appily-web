@@ -9,10 +9,13 @@ import { PreviewPanel } from "@/components/preview-panel";
 import { CodeEditor } from "@/components/code-editor";
 import { SegmentedControl } from "@/components/segmented-control";
 import { DebugPanel } from "@/components/debug-panel";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, Edit2, Check, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProjectHeader } from "@/components/project-header";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
 
 type ViewMode = "preview" | "code";
 type SandboxStatus = "idle" | "starting" | "ready" | "error";
@@ -21,6 +24,9 @@ interface Project {
   id: string;
   name: string;
   user_id: string;
+  e2b_sandbox_id: string | null;
+  e2b_sandbox_status: "idle" | "starting" | "ready" | "error" | null;
+  e2b_sandbox_created_at: string | null;
 }
 
 export default function ProjectPage() {
@@ -32,24 +38,26 @@ export default function ProjectPage() {
   // Project state
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [editedName, setEditedName] = useState("");
 
-  // E2B state
-  const [sandboxId, setSandboxId] = useState<string | null>(null);
+  // E2B state (now synced from database via realtime)
   const [sandboxStatus, setSandboxStatus] = useState<SandboxStatus>("idle");
   const [sandboxError, setSandboxError] = useState<string>();
   const [uptime, setUptime] = useState(0);
+  const [isReconnecting, setIsReconnecting] = useState(false);
 
   // UI state
   const [viewMode, setViewMode] = useState<ViewMode>("preview");
 
-  // Load project
+  // Load project and setup realtime subscription
   useEffect(() => {
-    async function loadProject() {
-      if (!user) return;
+    if (!user) return;
 
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    async function setupProjectSubscription() {
       try {
+        if (!user) return;
+
         const { data: userData } = await supabase
           .from("users")
           .select("id")
@@ -61,6 +69,7 @@ export default function ProjectPage() {
           return;
         }
 
+        // Initial load
         const { data: projectData, error } = await supabase
           .from("projects")
           .select("*")
@@ -74,16 +83,104 @@ export default function ProjectPage() {
         }
 
         setProject(projectData);
-        setEditedName(projectData.name);
-      } catch (error) {
-        console.error("Error loading project:", error);
-        router.push("/home");
-      } finally {
+
+        // Set initial sandbox status from database
+        if (projectData.e2b_sandbox_id && projectData.e2b_sandbox_status) {
+          // Try to reconnect to existing sandbox
+          setIsReconnecting(true);
+          setSandboxStatus("starting");
+
+          try {
+            const response = await fetch("/api/sandbox/connect", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sandboxId: projectData.e2b_sandbox_id }),
+            });
+
+            const data = await response.json();
+
+            if (data.connected) {
+              setSandboxStatus("ready");
+              // Calculate uptime
+              if (projectData.e2b_sandbox_created_at) {
+                const createdAt = new Date(projectData.e2b_sandbox_created_at);
+                const elapsed = Math.floor((Date.now() - createdAt.getTime()) / 1000);
+                setUptime(elapsed);
+              }
+            } else {
+              // Sandbox died, clear from database
+              await fetch("/api/sandbox/close", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  sandboxId: projectData.e2b_sandbox_id,
+                  projectId: projectData.id
+                }),
+              });
+              setSandboxStatus("idle");
+            }
+          } catch (error) {
+            console.error("Failed to reconnect to sandbox:", error);
+            setSandboxStatus("idle");
+          } finally {
+            setIsReconnecting(false);
+          }
+        } else {
+          setSandboxStatus("idle");
+        }
+
         setLoading(false);
+
+        // Subscribe to realtime changes
+        channel = supabase
+          .channel(`project:${projectId}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "UPDATE",
+              schema: "public",
+              table: "projects",
+              filter: `id=eq.${projectId}`,
+            },
+            (payload) => {
+              const updatedProject = payload.new as Project;
+              setProject(updatedProject);
+
+              // Sync sandbox status from database
+              if (updatedProject.e2b_sandbox_status) {
+                setSandboxStatus(updatedProject.e2b_sandbox_status as SandboxStatus);
+              } else {
+                setSandboxStatus("idle");
+              }
+
+              // Reset uptime when sandbox starts
+              if (updatedProject.e2b_sandbox_status === "ready" && updatedProject.e2b_sandbox_created_at) {
+                const createdAt = new Date(updatedProject.e2b_sandbox_created_at);
+                const elapsed = Math.floor((Date.now() - createdAt.getTime()) / 1000);
+                setUptime(elapsed);
+              }
+
+              // Clear uptime when sandbox stops
+              if (!updatedProject.e2b_sandbox_id) {
+                setUptime(0);
+              }
+            }
+          )
+          .subscribe();
+      } catch (error) {
+        console.error("Error setting up project subscription:", error);
+        router.push("/home");
       }
     }
 
-    loadProject();
+    setupProjectSubscription();
+
+    // Cleanup subscription on unmount
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
   }, [user, projectId, router]);
 
   // Uptime counter
@@ -97,27 +194,17 @@ export default function ProjectPage() {
     return () => clearInterval(interval);
   }, [sandboxStatus]);
 
-  // Cleanup sandbox on unmount
-  useEffect(() => {
-    return () => {
-      if (sandboxId) {
-        fetch("/api/sandbox/close", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sandboxId }),
-        });
-      }
-    };
-  }, [sandboxId]);
-
   const handleStartSandbox = async () => {
+    if (!project) return;
+
     setSandboxStatus("starting");
     setSandboxError(undefined);
-    setUptime(0);
 
     try {
       const response = await fetch("/api/sandbox/create", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id }),
       });
 
       if (!response.ok) {
@@ -125,9 +212,7 @@ export default function ProjectPage() {
         throw new Error(error.error || "Failed to create sandbox");
       }
 
-      const data = await response.json();
-      setSandboxId(data.sandboxId);
-      setSandboxStatus("ready");
+      // Status will be updated via realtime subscription
     } catch (error) {
       console.error("Failed to create sandbox:", error);
       setSandboxStatus("error");
@@ -135,24 +220,26 @@ export default function ProjectPage() {
     }
   };
 
-  const handleSaveName = async () => {
-    if (!editedName.trim() || !project) return;
+  const handleStopSandbox = async () => {
+    if (!project || !project.e2b_sandbox_id) return;
 
     try {
-      const { error } = await supabase
-        .from("projects")
-        .update({ name: editedName.trim() })
-        .eq("id", project.id);
+      await fetch("/api/sandbox/close", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sandboxId: project.e2b_sandbox_id,
+          projectId: project.id,
+        }),
+      });
 
-      if (error) throw error;
-
-      setProject({ ...project, name: editedName.trim() });
-      setIsEditingName(false);
+      // Status will be updated via realtime subscription
     } catch (error) {
-      console.error("Error updating project name:", error);
-      alert("Failed to update project name");
+      console.error("Failed to stop sandbox:", error);
+      setSandboxError(error instanceof Error ? error.message : "Unknown error");
     }
   };
+
 
   if (loading) {
     return (
@@ -168,104 +255,50 @@ export default function ProjectPage() {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="border-b p-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push("/home")}
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+    <>
+      {/* Unified Header */}
+      <ProjectHeader
+        projectName={project.name}
+        viewMode={viewMode}
+        onViewModeChange={(mode) => setViewMode(mode)}
+        sandboxStatus={isReconnecting ? "starting" : sandboxStatus}
+        onStartSandbox={handleStartSandbox}
+        onStopSandbox={handleStopSandbox}
+      />
 
-          {isEditingName ? (
-            <div className="flex items-center gap-2">
-              <Input
-                value={editedName}
-                onChange={(e) => setEditedName(e.target.value)}
-                className="h-8"
-                autoFocus
-              />
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8"
-                onClick={handleSaveName}
-              >
-                <Check className="h-4 w-4" />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8"
-                onClick={() => {
-                  setEditedName(project.name);
-                  setIsEditingName(false);
-                }}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+      {/* Resizable 2-Panel Layout */}
+      <div className="flex-1 -mx-4 -mb-4">
+        <ResizablePanelGroup direction="horizontal" className="h-full">
+          {/* Left Panel - Chat */}
+          <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
+            <ChatPanel />
+          </ResizablePanel>
+
+          <ResizableHandle withHandle />
+
+          {/* Right Panel - Preview/Code */}
+          <ResizablePanel defaultSize={70}>
+            <div className="h-full overflow-hidden">
+              {viewMode === "preview" ? (
+                <PreviewPanel
+                  sandboxStatus={sandboxStatus}
+                  onStartSandbox={handleStartSandbox}
+                />
+              ) : (
+                <CodeEditor />
+              )}
             </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold">{project.name}</h1>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8"
-                onClick={() => setIsEditingName(true)}
-              >
-                <Edit2 className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 3-Panel Layout */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Chat (30%) */}
-        <div className="w-[30%] border-r">
-          <ChatPanel />
-        </div>
-
-        {/* Center Panel - Preview/Code (70%) */}
-        <div className="w-[70%] flex flex-col">
-          {/* Segmented Control */}
-          <div className="border-b p-4">
-            <SegmentedControl
-              options={[
-                { value: "preview", label: "Preview" },
-                { value: "code", label: "Code" },
-              ]}
-              value={viewMode}
-              onChange={(value) => setViewMode(value as ViewMode)}
-            />
-          </div>
-
-          {/* Content */}
-          <div className="flex-1 overflow-hidden">
-            {viewMode === "preview" ? (
-              <PreviewPanel
-                sandboxStatus={sandboxStatus}
-                onStartSandbox={handleStartSandbox}
-              />
-            ) : (
-              <CodeEditor />
-            )}
-          </div>
-        </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </div>
 
       {/* Debug Panel */}
       <DebugPanel
-        sandboxId={sandboxId || undefined}
+        sandboxId={project.e2b_sandbox_id || undefined}
         sandboxStatus={sandboxStatus}
         uptime={uptime}
         error={sandboxError}
       />
-    </div>
+    </>
   );
 }

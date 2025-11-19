@@ -11,19 +11,71 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 
-export function AppBreadcrumbs() {
+interface AppBreadcrumbsProps {
+  projectName?: string;
+}
+
+export function AppBreadcrumbs({ projectName }: AppBreadcrumbsProps = {}) {
   const pathname = usePathname();
 
   // Split pathname and filter out empty strings
   const segments = pathname.split("/").filter(Boolean);
 
   // If we're at /home or root, show simple breadcrumb
-  if (segments.length === 0 || segments[0] === "home") {
+  if (segments.length === 0 || (segments.length === 1 && segments[0] === "home")) {
     return (
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbPage>Home</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+    );
+  }
+
+  // Check if we're on the projects list page
+  const isProjectsListPage = segments.length === 2 && segments[0] === "home" && segments[1] === "projects";
+
+  if (isProjectsListPage) {
+    return (
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link href="/home">Home</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>Projects</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+    );
+  }
+
+  // Check if we're on a specific project page
+  const isProjectPage = segments[0] === "home" && segments[1] === "projects" && segments[2];
+
+  if (isProjectPage && projectName) {
+    return (
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link href="/home">Home</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link href="/home/projects">Projects</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>{projectName}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>

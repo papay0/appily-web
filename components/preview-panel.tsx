@@ -39,31 +39,8 @@ export function PreviewPanel({ sandboxStatus, onStartSandbox }: PreviewPanelProp
 
   return (
     <div className="flex flex-col h-full">
-      {/* Preview Header */}
-      <div className="border-b p-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h3 className="font-semibold">Preview</h3>
-          <Badge variant="outline" className="gap-1.5">
-            <div className={`h-2 w-2 rounded-full ${getStatusColor()}`} />
-            {getStatusText()}
-          </Badge>
-        </div>
-        {sandboxStatus === "idle" && (
-          <Button onClick={onStartSandbox} size="sm">
-            <Play className="h-4 w-4 mr-2" />
-            Start Sandbox
-          </Button>
-        )}
-        {sandboxStatus === "starting" && (
-          <Button disabled size="sm">
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            Starting...
-          </Button>
-        )}
-      </div>
-
       {/* Preview Content */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-6 pt-8">
         <div className="flex flex-col items-center justify-center h-full">
           {sandboxStatus === "idle" && (
             <div className="text-center space-y-4">
