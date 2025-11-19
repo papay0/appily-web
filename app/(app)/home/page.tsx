@@ -1,84 +1,93 @@
-import { currentUser } from "@clerk/nextjs/server";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Sparkles, Plus } from "lucide-react";
+"use client";
 
-export default async function HomePage() {
-  const user = await currentUser();
+import { useEffect, useState } from "react";
+import { useUser } from "@clerk/nextjs";
+import { supabase } from "@/lib/supabase";
+import { ProjectCreationForm } from "@/components/project-creation-form";
+import { ProjectList } from "@/components/project-list";
+import { Skeleton } from "@/components/ui/skeleton";
+
+interface Project {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export default function HomePage() {
+  const { user } = useUser();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+
+  useEffect(() => {
+    async function loadProjects() {
+      if (!user) return;
+
+      try {
+        // Get user ID from Supabase
+        const { data: userData } = await supabase
+          .from("users")
+          .select("id")
+          .eq("clerk_id", user.id)
+          .single();
+
+        if (!userData) return;
+
+        // Fetch user's projects
+        const { data: projectsData } = await supabase
+          .from("projects")
+          .select("*")
+          .eq("user_id", userData.id)
+          .order("updated_at", { ascending: false });
+
+        setProjects(projectsData || []);
+      } catch (error) {
+        console.error("Error loading projects:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadProjects();
+  }, [user]);
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-12 w-64" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Skeleton className="h-32" />
+          <Skeleton className="h-32" />
+          <Skeleton className="h-32" />
+        </div>
+      </div>
+    );
+  }
+
+  // Show creation form if no projects or user clicked "New Project"
+  if (projects.length === 0 && !showCreateForm) {
+    return <ProjectCreationForm />;
+  }
+
+  if (showCreateForm) {
+    return (
+      <div>
+        <button
+          onClick={() => setShowCreateForm(false)}
+          className="mb-4 text-sm text-muted-foreground hover:text-foreground"
+        >
+          ← Back to projects
+        </button>
+        <ProjectCreationForm />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8">
-      {/* Welcome Section */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">
-          Welcome back, {user?.firstName || "there"}!
-        </h1>
-        <p className="text-muted-foreground mt-2">
-          Ready to build something amazing?
-        </p>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="border-dashed border-2 hover:border-primary/50 transition-colors cursor-pointer">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <Sparkles className="h-8 w-8 text-primary" />
-              <Button size="sm" variant="ghost">
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-            <CardTitle className="text-lg">Create New App</CardTitle>
-            <CardDescription>
-              Start building your app with AI assistance
-            </CardDescription>
-          </CardHeader>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Your Apps</CardTitle>
-            <CardDescription>
-              You haven't created any apps yet
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Click "Create New App" to get started!
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Getting Started</CardTitle>
-            <CardDescription>
-              Learn how to use Appily
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button variant="outline" className="w-full">
-              View Tutorial
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Empty State */}
-      <div className="flex flex-col items-center justify-center min-h-[400px] border-2 border-dashed rounded-lg p-8 text-center">
-        <Sparkles className="h-16 w-16 text-primary mb-4" />
-        <h2 className="text-2xl font-semibold mb-2">
-          Your app journey starts here
-        </h2>
-        <p className="text-muted-foreground max-w-md mb-6">
-          Create your first mobile app by chatting with AI.
-          Just describe your idea and we'll help bring it to life.
-        </p>
-        <Button size="lg">
-          <Plus className="mr-2 h-5 w-5" />
-          Create your first app
-        </Button>
-      </div>
-    </div>
+    <ProjectList
+      projects={projects}
+      onCreateNew={() => setShowCreateForm(true)}
+    />
   );
 }

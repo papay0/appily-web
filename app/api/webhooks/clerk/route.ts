@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { Webhook } from "svix";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // Webhook event types
 type ClerkWebhookEvent = {
@@ -18,18 +18,13 @@ type ClerkWebhookEvent = {
 };
 
 export async function POST(req: NextRequest) {
-  // TODO: Uncomment and configure after deployment
-  // You need to add CLERK_WEBHOOK_SECRET to your environment variables
-  // Get it from: Clerk Dashboard → Webhooks → Endpoint → Signing Secret
-
-  /*
   const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET;
 
   if (!WEBHOOK_SECRET) {
-    return NextResponse.json(
-      { error: "Webhook secret not configured" },
-      { status: 500 }
-    );
+    console.warn("⚠️ CLERK_WEBHOOK_SECRET not set - webhook verification disabled");
+    // For development/testing, allow unverified webhooks
+    const evt: ClerkWebhookEvent = await req.json();
+    return processWebhook(evt);
   }
 
   // Get headers for webhook verification
@@ -66,10 +61,11 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  */
 
-  // For local development, skip verification
-  const evt: ClerkWebhookEvent = await req.json();
+  return processWebhook(evt);
+}
+
+async function processWebhook(evt: ClerkWebhookEvent) {
 
   // Handle the webhook event
   try {
