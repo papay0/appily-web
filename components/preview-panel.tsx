@@ -4,13 +4,16 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Play, Loader2, QrCode } from "lucide-react";
+import Image from "next/image";
 
 interface PreviewPanelProps {
   sandboxStatus: "idle" | "starting" | "ready" | "error";
   onStartSandbox: () => void;
+  expoUrl?: string;
+  qrCode?: string;
 }
 
-export function PreviewPanel({ sandboxStatus, onStartSandbox }: PreviewPanelProps) {
+export function PreviewPanel({ sandboxStatus, onStartSandbox, expoUrl, qrCode }: PreviewPanelProps) {
   const getStatusColor = () => {
     switch (sandboxStatus) {
       case "ready":
@@ -69,17 +72,43 @@ export function PreviewPanel({ sandboxStatus, onStartSandbox }: PreviewPanelProp
           )}
 
           {sandboxStatus === "ready" && (
-            <Card className="w-full max-w-sm aspect-square bg-muted flex items-center justify-center">
-              <div className="text-center space-y-3">
-                <QrCode className="h-24 w-24 text-muted-foreground mx-auto" />
-                <p className="text-sm text-muted-foreground">
-                  QR Code will appear here
-                </p>
-                <p className="text-xs text-muted-foreground">
+            <div className="text-center space-y-4">
+              <Card className="w-full max-w-sm aspect-square bg-white dark:bg-muted flex items-center justify-center p-8 mx-auto">
+                {qrCode ? (
+                  <div className="relative w-full h-full">
+                    <Image
+                      src={qrCode}
+                      alt="Expo QR Code"
+                      fill
+                      className="object-contain"
+                      unoptimized
+                    />
+                  </div>
+                ) : (
+                  <div className="text-center space-y-3">
+                    <Loader2 className="h-16 w-16 text-muted-foreground mx-auto animate-spin" />
+                    <p className="text-sm text-muted-foreground">
+                      Generating QR code...
+                    </p>
+                  </div>
+                )}
+              </Card>
+              <div className="space-y-2">
+                <p className="text-sm font-medium">
                   Scan with Expo Go to preview your app
                 </p>
+                {expoUrl && (
+                  <div className="flex flex-col gap-2">
+                    <code className="text-xs bg-muted px-3 py-2 rounded-md text-muted-foreground break-all">
+                      {expoUrl}
+                    </code>
+                    <p className="text-xs text-muted-foreground">
+                      Open this URL in the Expo Go app on your device
+                    </p>
+                  </div>
+                )}
               </div>
-            </Card>
+            </div>
           )}
 
           {sandboxStatus === "error" && (

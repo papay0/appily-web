@@ -27,6 +27,8 @@ interface Project {
   e2b_sandbox_id: string | null;
   e2b_sandbox_status: "idle" | "starting" | "ready" | "error" | null;
   e2b_sandbox_created_at: string | null;
+  expo_url: string | null;
+  qr_code: string | null;
 }
 
 export default function ProjectPage() {
@@ -44,6 +46,8 @@ export default function ProjectPage() {
   const [sandboxError, setSandboxError] = useState<string>();
   const [uptime, setUptime] = useState(0);
   const [isReconnecting, setIsReconnecting] = useState(false);
+  const [expoUrl, setExpoUrl] = useState<string>();
+  const [qrCode, setQrCode] = useState<string>();
 
   // UI state
   const [viewMode, setViewMode] = useState<ViewMode>("preview");
@@ -153,6 +157,14 @@ export default function ProjectPage() {
                 setSandboxStatus("idle");
               }
 
+              // Update Expo URL and QR code from database
+              if (updatedProject.expo_url) {
+                setExpoUrl(updatedProject.expo_url);
+              }
+              if (updatedProject.qr_code) {
+                setQrCode(updatedProject.qr_code);
+              }
+
               // Reset uptime when sandbox starts
               if (updatedProject.e2b_sandbox_status === "ready" && updatedProject.e2b_sandbox_created_at) {
                 const createdAt = new Date(updatedProject.e2b_sandbox_created_at);
@@ -212,7 +224,8 @@ export default function ProjectPage() {
         throw new Error(error.error || "Failed to create sandbox");
       }
 
-      // Status will be updated via realtime subscription
+      // Status, Expo URL, and QR code will be updated via realtime subscription
+      // as the background setup completes
     } catch (error) {
       console.error("Failed to create sandbox:", error);
       setSandboxStatus("error");
@@ -232,6 +245,10 @@ export default function ProjectPage() {
           projectId: project.id,
         }),
       });
+
+      // Clear QR code and Expo URL when stopping sandbox
+      setExpoUrl(undefined);
+      setQrCode(undefined);
 
       // Status will be updated via realtime subscription
     } catch (error) {
@@ -283,6 +300,8 @@ export default function ProjectPage() {
                 <PreviewPanel
                   sandboxStatus={sandboxStatus}
                   onStartSandbox={handleStartSandbox}
+                  expoUrl={expoUrl}
+                  qrCode={qrCode}
                 />
               ) : (
                 <CodeEditor />
