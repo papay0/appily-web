@@ -151,107 +151,94 @@ export async function startExpo(
   try {
     console.log(`[startExpo] Starting Expo setup in ${projectDir}`);
 
-    // Get the E2B public hostname FIRST
+    // Get the E2B public hostname
     console.log("[startExpo] Getting E2B public hostname...");
     const hostname = await sandbox.getHost(8081);
     console.log(`[startExpo] ✓ E2B public hostname: ${hostname}`);
 
-    // Create a comprehensive debug log file
-    await sandbox.commands.run(
-      `cd ${projectDir} && echo "=== Appily Debug Log ===" > /home/user/appily-debug.log && echo "Timestamp: $(date)" >> /home/user/appily-debug.log && echo "Hostname: ${hostname}" >> /home/user/appily-debug.log && echo "" >> /home/user/appily-debug.log`
-    );
-
+    // Install npm dependencies
     console.log("[startExpo] Installing npm dependencies...");
     const installStartTime = Date.now();
-    const installResult = await sandbox.commands.run(`cd ${projectDir} && npm install 2>&1 | tee -a /home/user/appily-debug.log`, {
-      timeoutMs: 0, // No timeout for npm install (can take a while)
+    const installResult = await sandbox.commands.run(`cd ${projectDir} && npm install`, {
+      timeoutMs: 0, // No timeout for npm install
     });
     const installDuration = ((Date.now() - installStartTime) / 1000).toFixed(2);
 
     console.log(`[startExpo] npm install completed in ${installDuration}s`);
-    console.log("[startExpo] npm install stdout:", installResult.stdout);
-    console.log("[startExpo] npm install stderr:", installResult.stderr);
-    console.log("[startExpo] npm install exit code:", installResult.exitCode);
-
     if (installResult.exitCode !== 0) {
-      throw new Error(`npm install failed with exit code ${installResult.exitCode}: ${installResult.stderr}`);
+      throw new Error(`npm install failed: ${installResult.stderr}`);
     }
 
     // Install @expo/ngrok globally for tunnel mode
     console.log("[startExpo] Installing @expo/ngrok for tunnel mode...");
-    const ngrokInstallResult = await sandbox.commands.run(`npm install -g @expo/ngrok@^4.1.0 2>&1 | tee -a /home/user/appily-debug.log`, {
-      timeoutMs: 60000, // 1 minute timeout
-    });
+    const ngrokInstallResult = await sandbox.commands.run(
+      `npm install -g @expo/ngrok@^4.1.0`,
+      { timeoutMs: 60000 }
+    );
 
     if (ngrokInstallResult.exitCode !== 0) {
       throw new Error(`@expo/ngrok install failed: ${ngrokInstallResult.stderr}`);
     }
     console.log("[startExpo] ✓ @expo/ngrok installed");
 
-    // Start Expo with tunnel mode - simple and reliable!
+    // Start Expo with tunnel mode in background
     console.log("[startExpo] Starting Expo with tunnel mode...");
-
-    await sandbox.commands.run(
-      `cd ${projectDir} && cat > start-expo.sh << 'EOFSCRIPT'
-#!/bin/bash
-echo "" >> /home/user/appily-debug.log
-echo "=== Starting Expo with Tunnel ===" >> /home/user/appily-debug.log
-echo "Timestamp: $(date)" >> /home/user/appily-debug.log
-echo "" >> /home/user/appily-debug.log
-
-export NODE_OPTIONS="--max-old-space-size=3072"
-
-npx expo start --tunnel >> /home/user/appily-debug.log 2>&1 &
-EXPO_PID=$!
-echo "Expo PID: $EXPO_PID" >> /home/user/appily-debug.log
-echo $EXPO_PID > expo.pid
-
-sleep 10
-if ps -p $EXPO_PID > /dev/null; then
-  echo "✓ Expo is running with tunnel" >> /home/user/appily-debug.log
-else
-  echo "✗ Expo died" >> /home/user/appily-debug.log
-fi
-EOFSCRIPT
-chmod +x start-expo.sh
-./start-expo.sh`,
-      {
-        timeoutMs: 30000,
-      }
+    const expoProcess = await sandbox.commands.run(
+      `cd ${projectDir} && NODE_OPTIONS="--max-old-space-size=3072" npx expo start --tunnel > /home/user/expo.log 2>&1 &`,
+      { timeoutMs: 5000 }
     );
 
-    console.log("[startExpo] ✓ Expo start script executed");
+    console.log("[startExpo] Expo process started in background");
 
-    // Wait for Expo to start
-    console.log("[startExpo] Waiting 15 seconds for Expo to initialize...");
-    await new Promise((resolve) => setTimeout(resolve, 15000));
+    // Wait and monitor logs for Expo to be ready
+    console.log("[startExpo] Monitoring Expo startup logs...");
+    let expoReady = false;
+    const maxAttempts = 30; // 30 attempts * 2 seconds = 60 seconds max
 
-    // Check process status and logs
-    console.log("[startExpo] Checking Expo status...");
-    const statusCheckResult = await sandbox.commands.run(
-      `cd ${projectDir} && echo "=== Process Status ===" >> /home/user/appily-debug.log && ps aux | grep expo >> /home/user/appily-debug.log && echo "" >> /home/user/appily-debug.log && echo "=== Port 8081 Status ===" >> /home/user/appily-debug.log && netstat -tuln | grep 8081 >> /home/user/appily-debug.log || echo "Port 8081 not listening" >> /home/user/appily-debug.log`,
-      {
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait 2 seconds between checks
+
+      const logResult = await sandbox.commands.run(`tail -50 /home/user/expo.log`, {
         timeoutMs: 5000,
-      }
-    );
+      });
 
-    // Get the complete debug log
-    const debugLogResult = await sandbox.commands.run(
-      `cat /home/user/appily-debug.log`,
-      {
+      const logOutput = logResult.stdout + logResult.stderr;
+      console.log(`[startExpo] Attempt ${i + 1}/${maxAttempts} - Log sample:`, logOutput.slice(-200));
+
+      // Check if Expo tunnel is ready (look for typical Expo ready messages)
+      if (
+        logOutput.includes("Metro") ||
+        logOutput.includes("Tunnel ready") ||
+        logOutput.includes("exp://") ||
+        logOutput.includes("tunnel") && logOutput.includes("ready")
+      ) {
+        console.log("[startExpo] ✓ Expo appears to be ready");
+        expoReady = true;
+        break;
+      }
+
+      // Check if process died
+      const psResult = await sandbox.commands.run(`ps aux | grep "expo start" | grep -v grep`, {
         timeoutMs: 5000,
-      }
-    );
-    console.log("[startExpo] Complete debug log:", debugLogResult.stdout);
+      });
 
-    // The Expo URL for scanning with Expo Go
+      if (!psResult.stdout.trim()) {
+        console.error("[startExpo] ✗ Expo process not found, checking logs...");
+        const fullLog = await sandbox.commands.run(`cat /home/user/expo.log`, {
+          timeoutMs: 5000,
+        });
+        console.error("[startExpo] Full Expo log:", fullLog.stdout);
+        throw new Error("Expo process died during startup");
+      }
+    }
+
+    if (!expoReady) {
+      console.warn("[startExpo] Warning: Expo readiness not confirmed from logs, but proceeding...");
+    }
+
+    // Return the Expo URL for scanning with Expo Go
     const expoUrl = `exp://${hostname}`;
-    console.log(`[startExpo] ✓ Expo started successfully at: ${expoUrl}`);
-
-    // Add final status to debug log
-    await sandbox.commands.run(
-      `echo "" >> /home/user/appily-debug.log && echo "=== Setup Complete ===" >> /home/user/appily-debug.log && echo "Expo URL: ${expoUrl}" >> /home/user/appily-debug.log && echo "Timestamp: $(date)" >> /home/user/appily-debug.log`
-    );
+    console.log(`[startExpo] ✓ Expo URL: ${expoUrl}`);
 
     return expoUrl;
   } catch (error) {
