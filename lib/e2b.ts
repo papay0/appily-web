@@ -26,15 +26,16 @@ export async function createSandbox(): Promise<{
   }
 
   try {
-    console.log("[createSandbox] Creating E2B sandbox with template 1fzoj162ooq36dtkcdc1 (4GB RAM)...");
+    console.log("[createSandbox] Creating E2B sandbox with template 1fzoj162ooq36dtkcdc1 (4GB RAM, 1 hour timeout)...");
     const sandbox = await Sandbox.create(
       "1fzoj162ooq36dtkcdc1", // appily-autofix-v2 template with 4GB RAM (first parameter)
       {
         apiKey,
+        timeoutMs: 3600000, // 1 hour = 60 minutes * 60 seconds * 1000 milliseconds
       }
     );
 
-    console.log(`[createSandbox] ✓ Sandbox created: ${sandbox.sandboxId}`);
+    console.log(`[createSandbox] ✓ Sandbox created: ${sandbox.sandboxId} (timeout: 1 hour)`);
 
     return {
       sandbox,
