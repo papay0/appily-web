@@ -134,9 +134,13 @@ export async function executeClaudeCLI(
 
     // Create working directory if it doesn't exist
     console.log(`[CLI] Ensuring working directory exists: ${workingDirectory}`);
-    await sandbox.commands.run(`mkdir -p "${workingDirectory}"`, {
+    const mkdirResult = await sandbox.commands.run(`mkdir -p "${workingDirectory}"`, {
       cwd: "/home/user",
+      timeoutMs: 5000, // Quick timeout for mkdir
     });
+    if (mkdirResult.exitCode !== 0) {
+      throw new Error(`Failed to create directory: ${mkdirResult.stderr}`);
+    }
     console.log(`[CLI] ✓ Working directory ready`);
 
     // Build the CLI command using heredoc for safe multi-line prompts
@@ -149,14 +153,17 @@ export async function executeClaudeCLI(
         `claude -p "$(cat <<'PROMPT_EOF'\n${prompt}\nPROMPT_EOF\n)" --output-format stream-json --verbose --dangerously-skip-permissions`;
 
     console.log(`[CLI] Executing claude command (resuming: ${!!sessionId})`);
+    console.log(`[CLI] Command will run in BACKGROUND on E2B server`);
 
-    // Execute CLI with streaming output
+    // Execute CLI with streaming output in BACKGROUND mode
+    // This allows Vercel to return immediately while E2B continues execution
     const result = await sandbox.commands.run(command, {
       cwd: workingDirectory,
+      background: true, // Run independently on E2B server
       envs: {
         CLAUDE_CODE_OAUTH_TOKEN: process.env.CLAUDE_CODE_OAUTH_TOKEN,
       },
-      timeoutMs: 10 * 60 * 1000, // 10 minute timeout
+      timeoutMs: 0, // No timeout - runs until completion
       onStdout: (line) => {
         fullOutput += line + "\n";
 
@@ -222,6 +229,10 @@ export async function executeClaudeCLI(
 
     const duration = Date.now() - startTime;
 
+    // Log background process info
+    if (result.pid) {
+      console.log(`[CLI] ✓ Background process started (PID: ${result.pid})`);
+    }
     console.log(`[CLI] ✓ Complete (${Math.round(duration / 1000)}s, ${events.length} events)`);
     if (result.stderr) {
       console.error(`[CLI] Errors: ${result.stderr}`);
