@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
-import { supabase } from "@/lib/supabase";
+import { useUser, useSession } from "@clerk/nextjs";
+import { useSupabaseClient } from "@/lib/supabase-client";
 import { ChatPanel } from "@/components/chat-panel";
 import { PreviewPanel } from "@/components/preview-panel";
 import { CodeEditor } from "@/components/code-editor";
@@ -32,6 +32,8 @@ interface Project {
 }
 
 export default function ProjectPage() {
+  const { isLoaded } = useSession();
+  const supabase = useSupabaseClient();
   const params = useParams();
   const router = useRouter();
   const { user } = useUser();
@@ -54,7 +56,8 @@ export default function ProjectPage() {
 
   // Load project and setup realtime subscription
   useEffect(() => {
-    if (!user) return;
+    // Wait for both user and Clerk session to be fully loaded
+    if (!user || !isLoaded) return;
 
     let channel: ReturnType<typeof supabase.channel> | null = null;
 
@@ -87,6 +90,14 @@ export default function ProjectPage() {
         }
 
         setProject(projectData);
+
+        // Set initial Expo URL and QR code from database
+        if (projectData.expo_url) {
+          setExpoUrl(projectData.expo_url);
+        }
+        if (projectData.qr_code) {
+          setQrCode(projectData.qr_code);
+        }
 
         // Set initial sandbox status from database
         if (projectData.e2b_sandbox_id && projectData.e2b_sandbox_status) {
@@ -148,6 +159,23 @@ export default function ProjectPage() {
             },
             (payload) => {
               const updatedProject = payload.new as Project;
+
+              // Clean logging - only log meaningful changes
+              const changes: string[] = [];
+              if (updatedProject.expo_url && updatedProject.expo_url !== expoUrl) {
+                changes.push(`expo_url: ${updatedProject.expo_url}`);
+              }
+              if (updatedProject.qr_code && updatedProject.qr_code !== qrCode) {
+                changes.push("qr_code: updated");
+              }
+              if (updatedProject.e2b_sandbox_status !== sandboxStatus) {
+                changes.push(`status: ${updatedProject.e2b_sandbox_status}`);
+              }
+
+              if (changes.length > 0) {
+                console.log(`[ProjectPage] 📨 Project updated: ${changes.join(", ")}`);
+              }
+
               setProject(updatedProject);
 
               // Sync sandbox status from database
@@ -178,7 +206,16 @@ export default function ProjectPage() {
               }
             }
           )
-          .subscribe();
+          .subscribe((status, err) => {
+            console.log(`[ProjectPage] Subscription status change: ${status}`, err);
+            if (status === "SUBSCRIBED") {
+              console.log("[ProjectPage] ✓ Subscribed to project updates");
+            } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+              console.error(`[ProjectPage] ✗ Subscription failed: ${status}`, err);
+              console.error(`[ProjectPage] Full subscription state:`, channel?.state);
+            }
+          });
+
       } catch (error) {
         console.error("Error setting up project subscription:", error);
         router.push("/home");
@@ -193,7 +230,7 @@ export default function ProjectPage() {
         supabase.removeChannel(channel);
       }
     };
-  }, [user, projectId, router]);
+  }, [user, projectId, router, isLoaded]);
 
   // Uptime counter
   useEffect(() => {
@@ -272,7 +309,7 @@ export default function ProjectPage() {
   }
 
   return (
-    <>
+    <div className="flex flex-col h-full">
       {/* Unified Header */}
       <ProjectHeader
         projectName={project.name}
@@ -284,11 +321,14 @@ export default function ProjectPage() {
       />
 
       {/* Resizable 2-Panel Layout */}
-      <div className="flex-1 -mx-4 -mb-4">
+      <div className="flex-1 min-h-0">
         <ResizablePanelGroup direction="horizontal" className="h-full">
           {/* Left Panel - Chat */}
           <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
-            <ChatPanel />
+            <ChatPanel
+              projectId={projectId}
+              sandboxId={project.e2b_sandbox_id || undefined}
+            />
           </ResizablePanel>
 
           <ResizableHandle withHandle />
@@ -302,6 +342,8 @@ export default function ProjectPage() {
                   onStartSandbox={handleStartSandbox}
                   expoUrl={expoUrl}
                   qrCode={qrCode}
+                  sandboxId={project.e2b_sandbox_id || undefined}
+                  projectId={projectId}
                 />
               ) : (
                 <CodeEditor />
@@ -318,6 +360,6 @@ export default function ProjectPage() {
         uptime={uptime}
         error={sandboxError}
       />
-    </>
+    </div>
   );
 }
