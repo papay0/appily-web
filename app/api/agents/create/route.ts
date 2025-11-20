@@ -24,8 +24,7 @@
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { executeClaudeCLI } from "@/lib/agent/cli-executor";
-import { parseNDJSONLine, storeEventInSupabase } from "@/lib/agent/ndjson-parser";
+import { executeClaudeInE2B } from "@/lib/agent/cli-executor";
 import { createSandbox } from "@/lib/e2b";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import type { Sandbox } from "e2b";
@@ -194,17 +193,19 @@ Focus ONLY on implementing the user's request. Expo is already set up.`;
 
     console.log(`[API] Starting agent for feature implementation...`);
 
-    // Execute CLI in background
-    // Don't await - return immediately and process asynchronously
-    executeCLIInBackground(
-      sandbox,
+    // Execute Claude in E2B with direct Supabase streaming
+    // This uploads a script to E2B that runs independently and posts events to Supabase
+    const { pid } = await executeClaudeInE2B(
       systemPrompt,
       cwd,
+      undefined, // No session ID for new sessions
+      sandbox,
       projectId,
-      userId,
-      false, // Don't cleanup - sandbox is used for Metro
-      expoUrl
+      userId
     );
+
+    console.log(`[API] ✓ Agent started in E2B (PID: ${pid})`);
+    console.log(`[API] Script will continue running independently`);
 
     // Return immediately with Expo URL so user can scan
     return NextResponse.json({
@@ -232,79 +233,3 @@ Focus ONLY on implementing the user's request. Expo is already set up.`;
   }
 }
 
-/**
- * Execute Claude CLI in the background
- *
- * This function runs asynchronously and processes the CLI execution.
- * It streams events to Supabase for real-time frontend updates.
- *
- * Features:
- * - Real-time event streaming to agent_events table
- * - Automatic session tracking in agent_sessions table
- * - Sandbox cleanup on completion
- * - Error handling and recovery
- */
-async function executeCLIInBackground(
-  sandbox: Sandbox,
-  prompt: string,
-  workingDirectory: string,
-  projectId: string,
-  userId: string,
-  shouldCleanupSandbox: boolean,
-  existingExpoUrl?: string | null
-) {
-  try {
-    console.log(`[Background] Executing Claude CLI in sandbox: ${sandbox.sandboxId}`);
-
-    // Execute CLI with streaming
-    // Session will be stored automatically when session ID is received
-    const result = await executeClaudeCLI(
-      prompt,
-      workingDirectory,
-      undefined, // No session ID for new sessions
-      sandbox,
-      projectId,
-      userId
-    );
-
-    console.log(`[Background] ✓ CLI execution ${result.success ? "succeeded" : "failed"}`);
-    console.log(`[Background] Session ID: ${result.sessionId}`);
-    console.log(`[Background] Duration: ${Math.round(result.duration_ms / 1000)}s`);
-
-    // Session and events are automatically stored in Supabase via:
-    // 1. storeCliSession() when session ID is first received
-    // 2. storeEventInSupabase() for each event in real-time
-
-    // Expo URL should already be stored from server-side setup
-    // But if the agent somehow found a different URL, log it
-    if (result.expoUrl && result.expoUrl !== existingExpoUrl) {
-      console.log(`[Background] ⚠️ Agent found different Expo URL: ${result.expoUrl}`);
-      console.log(`[Background] Expected URL: ${existingExpoUrl}`);
-      console.log(`[Background] This shouldn't happen - using server-provided URL`);
-    }
-
-    if (!result.success) {
-      console.error(`[Background] CLI error: ${result.error}`);
-    }
-  } catch (error) {
-    console.error(`[Background] Fatal error executing CLI:`, error);
-  } finally {
-    // DON'T cleanup sandbox! Keep it alive for:
-    // 1. Metro dev server running in background
-    // 2. User can send follow-up messages
-    // 3. E2B will auto-terminate after 1 hour timeout
-    console.log(`[Background] ✓ Sandbox kept alive (${sandbox.sandboxId})`);
-    console.log(`[Background] E2B will auto-terminate after timeout`);
-
-    // Sandbox ID is already stored from server-side setup,
-    // but update status to show agent is done
-    const { supabaseAdmin } = await import("@/lib/supabase-admin");
-    await supabaseAdmin
-      .from("projects")
-      .update({
-        e2b_sandbox_status: "ready",
-      })
-      .eq("id", projectId);
-    console.log(`[Background] ✓ Agent finished, sandbox still ready`);
-  }
-}

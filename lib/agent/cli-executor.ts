@@ -39,7 +39,141 @@ export interface CLIExecutionResult {
 }
 
 /**
+ * Result from executing Claude in E2B (new approach)
+ */
+export interface E2BExecutionResult {
+  pid: number;
+  sandboxId: string;
+  scriptPath: string;
+}
+
+/**
+ * Execute Claude CLI in E2B with direct Supabase streaming
+ *
+ * **NEW APPROACH:** This function uploads a Node.js script to E2B that runs
+ * independently and posts events directly to Supabase. Vercel can return
+ * immediately without waiting for completion.
+ *
+ * Architecture:
+ * 1. Read stream-to-supabase.js from filesystem
+ * 2. Upload script to E2B sandbox
+ * 3. Install @supabase/supabase-js (if not in template)
+ * 4. Run script with background: true
+ * 5. Return immediately with PID
+ * 6. Script continues running on E2B for up to 1 hour
+ * 7. Events posted directly to Supabase
+ * 8. Frontend receives updates via realtime subscriptions
+ *
+ * @param prompt - The user's prompt to Claude
+ * @param workingDirectory - Directory where Claude runs
+ * @param sessionId - Optional session ID to resume conversation
+ * @param sandbox - Existing E2B sandbox
+ * @param projectId - Project ID for linking events
+ * @param userId - User ID for session tracking
+ * @returns Execution result with PID and sandbox ID
+ */
+export async function executeClaudeInE2B(
+  prompt: string,
+  workingDirectory: string,
+  sessionId: string | undefined,
+  sandbox: Sandbox,
+  projectId: string,
+  userId: string
+): Promise<E2BExecutionResult> {
+  const { readFileSync } = await import('fs');
+  const { join } = await import('path');
+
+  console.log("[E2B] Starting Claude execution with direct Supabase streaming");
+  console.log(`[E2B] Project: ${projectId}, User: ${userId}`);
+  console.log(`[E2B] Session: ${sessionId || '(new)'}`);
+  console.log(`[E2B] Sandbox: ${sandbox.sandboxId}`);
+
+  try {
+    // Step 1: Read the script file from filesystem
+    const scriptPath = join(process.cwd(), 'lib/agent/e2b-scripts/stream-to-supabase.js');
+    console.log(`[E2B] Reading script from: ${scriptPath}`);
+    const scriptContent = readFileSync(scriptPath, 'utf-8');
+    console.log(`[E2B] ✓ Script loaded (${scriptContent.length} bytes)`);
+
+    // Step 2: Upload script to E2B
+    const e2bScriptPath = '/home/user/stream-to-supabase.js';
+    console.log(`[E2B] Uploading script to E2B: ${e2bScriptPath}`);
+    await sandbox.files.write(e2bScriptPath, scriptContent);
+    console.log(`[E2B] ✓ Script uploaded`);
+
+    // Step 3: Install @supabase/supabase-js if not already installed
+    console.log(`[E2B] Installing @supabase/supabase-js...`);
+    const installResult = await sandbox.commands.run(
+      'npm list @supabase/supabase-js || npm install @supabase/supabase-js',
+      {
+        cwd: '/home/user',
+        timeoutMs: 60000, // 1 minute timeout for npm install
+      }
+    );
+
+    if (installResult.exitCode !== 0 && !installResult.stdout.includes('@supabase/supabase-js')) {
+      console.warn(`[E2B] ⚠️ npm install warning: ${installResult.stderr}`);
+      // Continue anyway - might already be installed
+    } else {
+      console.log(`[E2B] ✓ @supabase/supabase-js ready`);
+    }
+
+    // Step 4: Prepare environment variables
+    const envVars = {
+      SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      CLAUDE_CODE_OAUTH_TOKEN: process.env.CLAUDE_CODE_OAUTH_TOKEN!,
+      PROJECT_ID: projectId,
+      USER_ID: userId,
+      USER_PROMPT: prompt,
+      WORKING_DIRECTORY: workingDirectory,
+    };
+
+    // Add SESSION_ID only if resuming
+    if (sessionId) {
+      envVars.SESSION_ID = sessionId;
+    }
+
+    console.log(`[E2B] Environment variables prepared`);
+
+    // Step 5: Run script in background
+    console.log(`[E2B] Starting script in background mode...`);
+    const result = await sandbox.commands.run(
+      `node ${e2bScriptPath}`,
+      {
+        cwd: workingDirectory,
+        background: true, // Runs independently on E2B
+        timeoutMs: 0,     // No timeout
+        envs: envVars,
+      }
+    );
+
+    if (!result.pid) {
+      throw new Error('Failed to start background process (no PID returned)');
+    }
+
+    console.log(`[E2B] ✓ Script started in background (PID: ${result.pid})`);
+    console.log(`[E2B] Script will run independently on E2B and stream to Supabase`);
+    console.log(`[E2B] Vercel can now return immediately`);
+
+    return {
+      pid: result.pid,
+      sandboxId: sandbox.sandboxId,
+      scriptPath: e2bScriptPath,
+    };
+  } catch (error) {
+    console.error('[E2B] ✗ Failed to start Claude execution:', error);
+    throw new Error(
+      `Failed to execute Claude in E2B: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+/**
  * Execute Claude CLI with a prompt in E2B sandbox
+ *
+ * @deprecated Use executeClaudeInE2B() instead for production.
+ * This function uses callbacks that don't work on Vercel after HTTP response.
  *
  * This function runs the `claude -p` command with streaming JSON output,
  * parses the events in real-time, and returns the complete execution result.
@@ -84,6 +218,8 @@ export async function executeClaudeCLI(
   projectId?: string,
   userId?: string
 ): Promise<CLIExecutionResult> {
+  console.warn('[CLI] ⚠️ executeClaudeCLI is deprecated. Use executeClaudeInE2B() instead.');
+
   const startTime = Date.now();
   const events: AgentStreamEvent[] = [];
   let capturedSessionId: string | undefined = sessionId;
