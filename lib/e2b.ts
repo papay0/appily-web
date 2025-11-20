@@ -122,9 +122,9 @@ export async function cloneGitHubRepo(
       `mkdir -p ${targetDir} && cd ${targetDir} && curl -L ${tarballUrl} | tar xz --strip-components=1`
     );
 
-    console.log(`[cloneGitHubRepo] Clone stdout:`, cloneResult.stdout);
-    console.log(`[cloneGitHubRepo] Clone stderr:`, cloneResult.stderr);
-    console.log(`[cloneGitHubRepo] Clone exit code:`, cloneResult.exitCode);
+    if (cloneResult.stderr && cloneResult.stderr.length > 0) {
+      console.log(`[cloneGitHubRepo] stderr:`, cloneResult.stderr.substring(0, 200));
+    }
 
     if (cloneResult.exitCode !== 0) {
       throw new Error(`Clone failed with exit code ${cloneResult.exitCode}: ${cloneResult.stderr}`);
@@ -198,8 +198,12 @@ export async function startExpo(
           background: true,  // E2B's built-in background mode
           timeoutMs: 0,      // No timeout - runs indefinitely
           onStdout: (data) => {
-            console.log("[Expo stdout]", data);
             expoOutput += data;
+
+            // Only log important Expo messages
+            if (data.includes("Metro") || data.includes("Tunnel") || data.includes("error") || data.includes("Error")) {
+              console.log("[Expo]", data.trim());
+            }
 
             // Resolve immediately when we detect Expo is ready
             if (
@@ -215,8 +219,11 @@ export async function startExpo(
             }
           },
           onStderr: (data) => {
-            console.log("[Expo stderr]", data);
             expoOutput += data;
+            // Only log errors, not warnings
+            if (data.includes("error") || data.includes("Error") || data.includes("failed")) {
+              console.error("[Expo]", data.trim());
+            }
           },
         }
       );

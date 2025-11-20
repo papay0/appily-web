@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.1.47",
     "@clerk/nextjs": "^6.35.2",
     "@e2b/code-interpreter": "^2.2.0",
     "@expo/ngrok": "^4.1.3",

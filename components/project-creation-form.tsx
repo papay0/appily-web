@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { supabase } from "@/lib/supabase";
+import { useSupabaseClient } from "@/lib/supabase-client";
 import { useUser } from "@clerk/nextjs";
 import { Sparkles } from "lucide-react";
 
 export function ProjectCreationForm() {
+  const supabase = useSupabaseClient();
   const [name, setName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const router = useRouter();

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
-import { supabase } from "@/lib/supabase";
+import { useSupabaseClient } from "@/lib/supabase-client";
 import { ProjectCreationForm } from "@/components/project-creation-form";
 import { ProjectList } from "@/components/project-list";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,6 +15,7 @@ interface Project {
 }
 
 export default function HomePage() {
+  const supabase = useSupabaseClient();
   const { user } = useUser();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
