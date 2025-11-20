@@ -182,59 +182,75 @@ export async function startExpo(
     }
     console.log("[startExpo] ✓ @expo/ngrok installed");
 
-    // Start Expo with tunnel mode in background
+    // Start Expo with tunnel mode using E2B's background mode
     console.log("[startExpo] Starting Expo with tunnel mode...");
-    const expoProcess = await sandbox.commands.run(
-      `cd ${projectDir} && NODE_OPTIONS="--max-old-space-size=3072" npx expo start --tunnel > /home/user/expo.log 2>&1 &`,
-      { timeoutMs: 5000 }
-    );
 
-    console.log("[startExpo] Expo process started in background");
+    let expoOutput = "";
+    let expoPid: number | undefined;
 
-    // Wait and monitor logs for Expo to be ready
-    console.log("[startExpo] Monitoring Expo startup logs...");
-    let expoReady = false;
-    const maxAttempts = 30; // 30 attempts * 2 seconds = 60 seconds max
+    // Create a Promise that resolves when Expo is ready
+    const expoReadyPromise = new Promise<void>(async (resolve, reject) => {
+      let resolved = false;
 
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait 2 seconds between checks
+      const expoProcess = await sandbox.commands.run(
+        `cd ${projectDir} && NODE_OPTIONS="--max-old-space-size=3072" npx expo start --tunnel`,
+        {
+          background: true,  // E2B's built-in background mode
+          timeoutMs: 0,      // No timeout - runs indefinitely
+          onStdout: (data) => {
+            console.log("[Expo stdout]", data);
+            expoOutput += data;
 
-      const logResult = await sandbox.commands.run(`tail -50 /home/user/expo.log`, {
-        timeoutMs: 5000,
-      });
+            // Resolve immediately when we detect Expo is ready
+            if (
+              !resolved &&
+              (data.includes("Metro") ||
+                data.includes("Tunnel ready") ||
+                data.includes("exp://") ||
+                (data.includes("tunnel") && data.includes("ready")))
+            ) {
+              resolved = true;
+              console.log("[startExpo] ✓ Expo is ready!");
+              resolve();
+            }
+          },
+          onStderr: (data) => {
+            console.log("[Expo stderr]", data);
+            expoOutput += data;
+          },
+        }
+      );
 
-      const logOutput = logResult.stdout + logResult.stderr;
-      console.log(`[startExpo] Attempt ${i + 1}/${maxAttempts} - Log sample:`, logOutput.slice(-200));
+      expoPid = expoProcess.pid;
+      console.log(`[startExpo] Expo process started in background (PID: ${expoPid})`);
+    });
 
-      // Check if Expo tunnel is ready (look for typical Expo ready messages)
-      if (
-        logOutput.includes("Metro") ||
-        logOutput.includes("Tunnel ready") ||
-        logOutput.includes("exp://") ||
-        logOutput.includes("tunnel") && logOutput.includes("ready")
-      ) {
-        console.log("[startExpo] ✓ Expo appears to be ready");
-        expoReady = true;
-        break;
-      }
-
-      // Check if process died
-      const psResult = await sandbox.commands.run(`ps aux | grep "expo start" | grep -v grep`, {
-        timeoutMs: 5000,
-      });
-
-      if (!psResult.stdout.trim()) {
-        console.error("[startExpo] ✗ Expo process not found, checking logs...");
-        const fullLog = await sandbox.commands.run(`cat /home/user/expo.log`, {
+    // Wait for Expo to be ready with 60 second timeout
+    console.log("[startExpo] Waiting for Expo to be ready...");
+    try {
+      await Promise.race([
+        expoReadyPromise,
+        new Promise<void>((_, reject) =>
+          setTimeout(() => reject(new Error("Expo startup timeout after 60 seconds")), 60000)
+        ),
+      ]);
+    } catch (error) {
+      // Check if process is still running
+      if (expoPid) {
+        const psResult = await sandbox.commands.run(`ps -p ${expoPid}`, {
           timeoutMs: 5000,
         });
-        console.error("[startExpo] Full Expo log:", fullLog.stdout);
-        throw new Error("Expo process died during startup");
-      }
-    }
 
-    if (!expoReady) {
-      console.warn("[startExpo] Warning: Expo readiness not confirmed from logs, but proceeding...");
+        if (psResult.exitCode !== 0) {
+          console.error("[startExpo] ✗ Expo process died. Last output:", expoOutput);
+          throw new Error("Expo process died during startup");
+        }
+
+        console.warn("[startExpo] Warning: Expo readiness not confirmed within 60s, but process is running. Proceeding...");
+      } else {
+        console.error("[startExpo] ✗ Expo process failed to start");
+        throw new Error("Expo process failed to start");
+      }
     }
 
     // Return the Expo URL for scanning with Expo Go
