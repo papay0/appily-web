@@ -195,7 +195,7 @@ Focus ONLY on implementing the user's request. Expo is already set up.`;
 
     // Execute Claude in E2B with direct Supabase streaming
     // This uploads a script to E2B that runs independently and posts events to Supabase
-    const { pid } = await executeClaudeInE2B(
+    const { pid, logFile } = await executeClaudeInE2B(
       systemPrompt,
       cwd,
       undefined, // No session ID for new sessions
@@ -205,6 +205,7 @@ Focus ONLY on implementing the user's request. Expo is already set up.`;
     );
 
     console.log(`[API] ✓ Agent started in E2B (PID: ${pid})`);
+    console.log(`[API] ✓ Logs: ${logFile}`);
     console.log(`[API] Script will continue running independently`);
 
     // Return immediately with Expo URL so user can scan

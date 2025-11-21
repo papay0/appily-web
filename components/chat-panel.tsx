@@ -30,6 +30,7 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string>();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const seenEventIds = useRef(new Set<string>()); // Track seen events to prevent duplicates
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -38,10 +39,18 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
 
   // Process a single agent event (used for both historical and real-time events)
   const processAgentEvent = (event: {
+    id?: string;
     event_type: string;
     event_data: any;
     created_at: string;
   }) => {
+    // Skip duplicates (event might be caught by both historical load AND realtime subscription)
+    if (event.id && seenEventIds.current.has(event.id)) {
+      return;
+    }
+    if (event.id) {
+      seenEventIds.current.add(event.id);
+    }
     // Handle project-level system messages (sent before session exists)
     if (event.event_type === "system" && event.event_data?.message) {
       setMessages((prev) => [
@@ -246,7 +255,11 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
     let channel: ReturnType<typeof supabase.channel> | null = null;
 
     async function setupSubscription() {
-      // First, load ALL historical events for this project (from any session)
+      // CRITICAL FIX: Load historical events FIRST, then set up subscription
+      // This prevents race condition and duplicate detection handles any overlap
+
+      // STEP 1: Load ALL historical events for this project
+      console.log(`[ChatPanel] Loading historical events...`);
       const { data: events, error } = await supabase
         .from("agent_events")
         .select("*")
@@ -254,21 +267,22 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
         .order("created_at", { ascending: true });
 
       if (error) {
-        console.error("[ChatPanel] Failed to load project events:", error);
+        console.error("[ChatPanel] Failed to load historical events:", error);
         console.error("[ChatPanel] Error details:", error.message, error.code, error.details);
-        return;
-      }
+        // Continue anyway - subscription might still work
+      } else {
+        console.log(`[ChatPanel] Loaded ${events?.length || 0} historical events`);
 
-      console.log(`[ChatPanel] Loaded ${events?.length || 0} total events for project`);
-
-      // Process each historical event
-      if (events) {
-        for (const event of events) {
-          processAgentEvent(event);
+        // Process each historical event
+        if (events) {
+          for (const event of events) {
+            processAgentEvent(event);
+          }
         }
       }
 
-      // Subscribe to ALL new events for this project (any session)
+      // STEP 2: Set up realtime subscription for new events
+      console.log(`[ChatPanel] Setting up realtime subscription...`);
       channel = supabase
         .channel(`project-all-events:${projectId}`)
         .on(
@@ -281,6 +295,7 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
           },
           (payload) => {
             const event = payload.new as {
+              id: string;
               event_type: string;
               event_data: any;
               created_at: string;
@@ -304,16 +319,16 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
 
             console.log(`[ChatPanel] 📨 Received ${eventLabel} event: ${preview}`);
 
+            // Process event (duplicate detection happens inside)
             processAgentEvent(event);
           }
         )
         .subscribe((status, err) => {
           console.log(`[ChatPanel] Subscription status change: ${status}`, err);
           if (status === "SUBSCRIBED") {
-            console.log(`[ChatPanel] ✓ Subscribed to project events`);
+            console.log(`[ChatPanel] ✓ Subscribed to realtime events`);
           } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-            console.error(`[ChatPanel] ✗ Subscription failed: ${status}`, err);
-            console.error(`[ChatPanel] Full subscription state:`, channel?.state);
+            console.error(`[ChatPanel] ⚠️ Subscription ${status}, will retry...`, err);
           }
         });
     }
@@ -342,21 +357,23 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
     setIsLoading(true);
 
     try {
-      // Store user message in database if we have a session
-      if (sessionId) {
-        try {
-          await supabase.from("agent_events").insert({
-            session_id: sessionId,
-            event_type: "user",
-            event_data: {
-              role: "user",
-              content: userMessage.content,
-            },
-            created_at: new Date().toISOString(),
-          });
-        } catch (error) {
-          console.error("Failed to store user message:", error);
-        }
+      // Store user message in database (works for both first message and follow-ups)
+      try {
+        await supabase.from("agent_events").insert({
+          session_id: sessionId || null, // null for first message, set for follow-ups
+          project_id: projectId, // Always include project_id
+          event_type: "user",
+          event_data: {
+            type: "user",
+            role: "user",
+            content: userMessage.content,
+            timestamp: new Date().toISOString(),
+          },
+        });
+        console.log("[ChatPanel] ✓ User message stored in database");
+      } catch (error) {
+        console.error("[ChatPanel] Failed to store user message:", error);
+        // Don't throw - message is already shown in UI
       }
 
       // First message: create new session

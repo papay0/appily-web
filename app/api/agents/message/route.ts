@@ -127,7 +127,7 @@ export async function POST(request: Request) {
     console.log(`[API] ✓ Reconnected to sandbox: ${sandboxId}`);
 
     // Execute Claude in E2B with session resumption
-    const { pid } = await executeClaudeInE2B(
+    const { pid, logFile } = await executeClaudeInE2B(
       prompt,
       cwd,
       sessionId, // Resume existing session
@@ -137,6 +137,7 @@ export async function POST(request: Request) {
     );
 
     console.log(`[API] ✓ Agent resumed in E2B (PID: ${pid})`);
+    console.log(`[API] ✓ Logs: ${logFile}`);
 
     // Return immediately
     return NextResponse.json({

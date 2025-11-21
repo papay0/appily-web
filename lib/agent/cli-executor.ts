@@ -45,6 +45,7 @@ export interface E2BExecutionResult {
   pid: number;
   sandboxId: string;
   scriptPath: string;
+  logFile: string;
 }
 
 /**
@@ -119,7 +120,7 @@ export async function executeClaudeInE2B(
     }
 
     // Step 4: Prepare environment variables
-    const envVars = {
+    const envVars: Record<string, string> = {
       SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL!,
       SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY!,
       CLAUDE_CODE_OAUTH_TOKEN: process.env.CLAUDE_CODE_OAUTH_TOKEN!,
@@ -136,30 +137,67 @@ export async function executeClaudeInE2B(
 
     console.log(`[E2B] Environment variables prepared`);
 
-    // Step 5: Run script in background
+    // Step 5: Run script in background with output redirection for debugging
+    const logFile = '/home/user/claude-agent.log';
     console.log(`[E2B] Starting script in background mode...`);
-    const result = await sandbox.commands.run(
-      `node ${e2bScriptPath}`,
+    console.log(`[E2B] Output will be logged to: ${logFile}`);
+
+    // Start script with nohup for proper backgrounding and output capture
+    const startResult = await sandbox.commands.run(
+      `nohup node ${e2bScriptPath} > ${logFile} 2>&1 & echo $!`,
       {
         cwd: workingDirectory,
-        background: true, // Runs independently on E2B
-        timeoutMs: 0,     // No timeout
         envs: envVars,
+        timeoutMs: 5000,
       }
     );
 
-    if (!result.pid) {
+    const pid = parseInt(startResult.stdout.trim());
+    if (!pid || isNaN(pid)) {
       throw new Error('Failed to start background process (no PID returned)');
     }
 
-    console.log(`[E2B] ✓ Script started in background (PID: ${result.pid})`);
+    console.log(`[E2B] ✓ Script started in background (PID: ${pid})`);
+    console.log(`[E2B] ✓ Logs: ${logFile}`);
     console.log(`[E2B] Script will run independently on E2B and stream to Supabase`);
+
+    // Show initial output for debugging (non-blocking)
+    setTimeout(async () => {
+      try {
+        const logs = await sandbox.commands.run(`head -n 50 ${logFile}`, { timeoutMs: 3000 });
+        if (logs.stdout) {
+          console.log('[E2B] Initial output (first 50 lines):');
+          console.log(logs.stdout);
+        }
+      } catch (err) {
+        console.error('[E2B] Failed to read initial logs:', err);
+      }
+    }, 2000);
+
+    // Show more output after 10 seconds to see if Claude is producing events
+    setTimeout(async () => {
+      try {
+        const logs = await sandbox.commands.run(`tail -n 30 ${logFile}`, { timeoutMs: 3000 });
+        if (logs.stdout) {
+          console.log('[E2B] Latest output (after 10s):');
+          console.log(logs.stdout);
+        }
+
+        // Also check if process is still running
+        const psResult = await sandbox.commands.run(`ps -p ${pid} -o pid,etime,cmd || echo "Process ${pid} not found"`, { timeoutMs: 3000 });
+        console.log('[E2B] Process status:', psResult.stdout.trim());
+      } catch (err) {
+        console.error('[E2B] Failed to read latest logs:', err);
+      }
+    }, 10000);
+
     console.log(`[E2B] Vercel can now return immediately`);
 
     return {
-      pid: result.pid,
+      pid,
       sandboxId: sandbox.sandboxId,
       scriptPath: e2bScriptPath,
+      logFile,
     };
   } catch (error) {
     console.error('[E2B] ✗ Failed to start Claude execution:', error);
