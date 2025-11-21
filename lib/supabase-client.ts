@@ -55,6 +55,12 @@ export function useSupabaseClient() {
   // This prevents subscriptions from closing/reopening when session changes
   const client = React.useMemo(() => {
     return createClient(supabaseUrl, supabaseAnonKey, {
+      realtime: {
+        // Enable web workers to prevent heartbeat throttling
+        // Without this, browser timer throttling breaks the 60-second heartbeat requirement
+        // causing subscriptions to close after ~2 minutes
+        worker: true,
+      },
       async accessToken() {
         // Use the ref to always get the latest session token
         return sessionRef.current?.getToken() ?? null;
