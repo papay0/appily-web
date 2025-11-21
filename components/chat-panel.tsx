@@ -28,7 +28,6 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [sessionId, setSessionId] = useState<string>();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const seenEventIds = useRef(new Set<string>()); // Track seen events to prevent duplicates
 
@@ -154,6 +153,12 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
       }
     } else if (event.event_type === "result") {
       // Agent finished
+      console.log('[ChatPanel] 🏁 Result event received:', {
+        subtype: event.event_data.subtype,
+        timestamp: event.created_at,
+        fullEvent: JSON.stringify(event, null, 2)
+      });
+      console.log('[ChatPanel] 🔄 Setting isLoading: true → false');
       setIsLoading(false);
       if (event.event_data.subtype === "success") {
         setMessages((prev) => [
@@ -178,71 +183,6 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
       }
     }
   };
-
-  // Load latest session ID for sending messages (but we show ALL project events)
-  useEffect(() => {
-    // Wait for Clerk session to be fully loaded before querying
-    if (!isLoaded) return;
-
-    async function loadLatestSession() {
-      console.log(`[ChatPanel] Loading latest session for project: ${projectId}`);
-
-      const { data: session, error } = await supabase
-        .from("agent_sessions")
-        .select("session_id")
-        .eq("project_id", projectId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-
-      if (error) {
-        // Ignore PGRST116 (no rows) - this is normal for new projects without sessions yet
-        if (error.code !== "PGRST116") {
-          console.error("[ChatPanel] Error loading session:", error.message, error.code);
-        } else {
-          console.log("[ChatPanel] No existing session found (this is normal for new projects)");
-        }
-        return;
-      }
-
-      if (session) {
-        console.log(`[ChatPanel] Found latest session: ${session.session_id}`);
-        setSessionId(session.session_id);
-      }
-    }
-
-    loadLatestSession();
-  }, [projectId, isLoaded]);
-
-  // Watch for new sessions (so we can send messages to the latest one)
-  useEffect(() => {
-    // Wait for Clerk session to be fully loaded before subscribing
-    if (!isLoaded) return;
-
-    console.log(`[ChatPanel] Watching for new sessions for project: ${projectId}`);
-
-    const channel = supabase
-      .channel(`project-sessions:${projectId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "agent_sessions",
-          filter: `project_id=eq.${projectId}`,
-        },
-        (payload) => {
-          const session = payload.new as { session_id: string };
-          console.log("[ChatPanel] New session detected:", session.session_id);
-          setSessionId(session.session_id); // Update to latest session
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [projectId, isLoaded]);
 
   // Load ALL project events (historical) and subscribe to new ones
   // This is project-scoped, not session-scoped - user sees complete project history
@@ -282,16 +222,25 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
       }
 
       // STEP 2: Set up realtime subscription for new events
-      console.log(`[ChatPanel] Setting up realtime subscription...`);
+      const subscriptionConfig = {
+        channel: `project-all-events:${projectId}`,
+        event: "INSERT",
+        schema: "public",
+        table: "agent_events",
+        filter: `project_id=eq.${projectId}`,
+        timestamp: new Date().toISOString()
+      };
+      console.log(`[ChatPanel] 🔌 Setting up realtime subscription:`, subscriptionConfig);
+
       channel = supabase
-        .channel(`project-all-events:${projectId}`)
+        .channel(subscriptionConfig.channel)
         .on(
           "postgres_changes",
           {
             event: "INSERT",
             schema: "public",
             table: "agent_events",
-            filter: `project_id=eq.${projectId}`,
+            filter: subscriptionConfig.filter,
           },
           (payload) => {
             const event = payload.new as {
@@ -302,33 +251,36 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
               session_id: string | null;
             };
 
-            // Clean logging - show event type and whether it's system or agent message
-            const eventLabel = event.session_id ? "agent" : "system";
-            let preview = event.event_type;
-
-            // Extract preview based on event type
-            if (event.event_type === "system" && typeof event.event_data?.message === "string") {
-              preview = event.event_data.message.substring(0, 50);
-            } else if (event.event_type === "assistant" && event.event_data?.message?.content) {
-              // For agent events, extract first text content
-              const textBlock = event.event_data.message.content.find((b: any) => b.type === "text");
-              if (textBlock?.text) {
-                preview = textBlock.text.substring(0, 50);
-              }
-            }
-
-            console.log(`[ChatPanel] 📨 Received ${eventLabel} event: ${preview}`);
+            // Detailed logging for every event
+            console.log(`[ChatPanel] 📨 Event received:`, {
+              eventType: event.event_type,
+              hasSessionId: !!event.session_id,
+              timestamp: event.created_at,
+              eventId: event.id
+            });
+            console.log(`[ChatPanel] 📨 Full event data:`, JSON.stringify(event, null, 2));
 
             // Process event (duplicate detection happens inside)
             processAgentEvent(event);
           }
         )
         .subscribe((status, err) => {
-          console.log(`[ChatPanel] Subscription status change: ${status}`, err);
+          console.log(`[ChatPanel] 🔄 Subscription status:`, {
+            status,
+            timestamp: new Date().toISOString(),
+            error: err ? JSON.stringify(err, null, 2) : null
+          });
+
           if (status === "SUBSCRIBED") {
-            console.log(`[ChatPanel] ✓ Subscribed to realtime events`);
+            console.log(`[ChatPanel] ✅ Successfully subscribed to realtime events`);
           } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-            console.error(`[ChatPanel] ⚠️ Subscription ${status}, will retry...`, err);
+            console.error(`[ChatPanel] ❌ Subscription failed:`, {
+              status,
+              error: err,
+              errorMessage: err?.message,
+              errorDetails: JSON.stringify(err, null, 2)
+            });
+            console.error(`[ChatPanel] ℹ️ Refresh the page to reconnect`);
           }
         });
     }
@@ -354,80 +306,49 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
 
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
+    console.log('[ChatPanel] 🔄 Setting isLoading: false → true');
+    console.log('[ChatPanel] 📤 Sending message to agent:', {
+      projectId,
+      sandboxId: sandboxId || 'none',
+      messageLength: userMessage.content.length,
+      timestamp: new Date().toISOString()
+    });
     setIsLoading(true);
 
     try {
-      // Store user message in database (works for both first message and follow-ups)
-      try {
-        await supabase.from("agent_events").insert({
-          session_id: sessionId || null, // null for first message, set for follow-ups
-          project_id: projectId, // Always include project_id
-          event_type: "user",
-          event_data: {
-            type: "user",
-            role: "user",
-            content: userMessage.content,
-            timestamp: new Date().toISOString(),
+      // Send message to agent (backend will store user message in database)
+      const response = await fetch("/api/agents/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: userMessage.content,
+          projectId,
+          sandboxId,
+          workingDirectory: "/home/user/project",
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to start agent");
+      }
+
+      const data = await response.json();
+      console.log("Agent started:", data);
+
+      // - If status is "starting": Setup script is running, system messages will appear via subscription
+      // - If status is "processing": Agent is already running, show "Claude is thinking..."
+      if (data.status === "processing") {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: "system",
+            content: "Claude is thinking...",
+            timestamp: new Date(),
           },
-        });
-        console.log("[ChatPanel] ✓ User message stored in database");
-      } catch (error) {
-        console.error("[ChatPanel] Failed to store user message:", error);
-        // Don't throw - message is already shown in UI
+        ]);
       }
-
-      // First message: create new session
-      if (!sessionId) {
-        const response = await fetch("/api/agents/create", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompt: userMessage.content,
-            projectId,
-            sandboxId,
-            workingDirectory: "/home/user/project",
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to start agent session");
-        }
-
-        const data = await response.json();
-        // Session ID will come from agent_events table via realtime
-        // For now, we'll extract it from the first system event
-        console.log("Agent session started:", data);
-      } else {
-        // Follow-up message: resume session
-        const response = await fetch("/api/agents/message", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sessionId,
-            prompt: userMessage.content,
-            sandboxId,
-            workingDirectory: "/home/user/project",
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to send message");
-        }
-
-        const data = await response.json();
-        console.log("Follow-up message sent:", data);
-      }
-
-      // Show thinking indicator
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "system",
-          content: "Claude is thinking...",
-          timestamp: new Date(),
-        },
-      ]);
+      // If status is "starting", don't show "thinking" - setup script messages will appear instead
     } catch (error) {
       console.error("Failed to send message:", error);
       setMessages((prev) => [
@@ -439,6 +360,7 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
           timestamp: new Date(),
         },
       ]);
+      console.log('[ChatPanel] 🔄 Setting isLoading: true → false (error)');
       setIsLoading(false);
     }
   };

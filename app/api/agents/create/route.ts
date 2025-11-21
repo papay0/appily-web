@@ -24,7 +24,7 @@
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { executeClaudeInE2B } from "@/lib/agent/cli-executor";
+import { executeSetupInE2B } from "@/lib/agent/cli-executor";
 import { createSandbox } from "@/lib/e2b";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import type { Sandbox } from "e2b";
@@ -68,11 +68,31 @@ export async function POST(request: Request) {
     console.log(`[API] Working directory: ${cwd}`);
     console.log(`[API] User prompt length: ${prompt.length} chars`);
 
+    // Store user message in database (backend-only insert)
+    try {
+      await supabaseAdmin.from("agent_events").insert({
+        session_id: null,
+        project_id: projectId,
+        event_type: "user",
+        event_data: {
+          type: "user",
+          role: "user",
+          content: prompt,
+          timestamp: new Date().toISOString(),
+        },
+      });
+      console.log("[API] ✓ User message stored in database");
+    } catch (error) {
+      console.error("[API] Failed to store user message:", error);
+      // Continue anyway - message already shown in UI via optimistic update
+    }
+
     // Get or create E2B sandbox
     let sandbox: Sandbox;
     let createdSandbox = false;
     let expoUrl: string | null = null;
     let qrCode: string | null = null;
+    let existingSessionId: string | null = null;
 
     if (sandboxId) {
       // Reconnect to existing sandbox
@@ -86,17 +106,21 @@ export async function POST(request: Request) {
         createdSandbox = false;
 
         // Sandbox already exists, so Expo is already running
-        // Get the E2B URL from existing project data
+        // Get the E2B URL and session_id from existing project data
         const { data: projectData } = await supabaseAdmin
           .from("projects")
-          .select("expo_url, qr_code")
+          .select("expo_url, qr_code, session_id")
           .eq("id", projectId)
           .single();
 
         if (projectData) {
           expoUrl = projectData.expo_url;
           qrCode = projectData.qr_code;
+          existingSessionId = projectData.session_id;
           console.log(`[API] ✓ Using existing Expo URL: ${expoUrl}`);
+          if (existingSessionId) {
+            console.log(`[API] ✓ Found existing session_id for conversation resumption`);
+          }
         }
       } catch (error) {
         console.error(`[API] Failed to reconnect to sandbox ${sandboxId}:`, error);
@@ -114,62 +138,77 @@ export async function POST(request: Request) {
       createdSandbox = true;
     }
 
-    // If this is a new sandbox, do server-side setup FIRST
+    // If this is a new sandbox, start Expo setup in E2B background
     if (createdSandbox) {
-      console.log(`[API] Setting up Expo project (server-side)...`);
-      const { setupExpoProject } = await import("@/lib/e2b");
-      const { generateQRCode } = await import("@/lib/qrcode");
-      const { sendSystemMessage } = await import("@/lib/agent/system-messages");
+      console.log(`[API] Starting Expo setup in E2B (background)...`);
 
-      try {
-        // Send progress messages to chat so user sees what's happening
-        await sendSystemMessage(projectId, "🔧 Creating development environment...");
-        await sendSystemMessage(projectId, "📦 Cloning Expo template repository...");
+      // Store sandbox ID in database before starting setup
+      await supabaseAdmin
+        .from("projects")
+        .update({
+          e2b_sandbox_id: sandbox.sandboxId,
+          e2b_sandbox_status: "starting",
+          e2b_sandbox_created_at: new Date().toISOString(),
+        })
+        .eq("id", projectId);
 
-        // This does: clone → install → start Expo → return E2B URL
-        // Takes ~30 seconds but happens server-side before agent starts
-        expoUrl = await setupExpoProject(sandbox);
-        console.log(`[API] ✓ Expo running! URL: ${expoUrl}`);
+      // Build agent prompt for FEATURE IMPLEMENTATION
+      const systemPrompt = `You are building a native mobile app using Expo.
 
-        await sendSystemMessage(projectId, "✓ Expo Metro bundler started");
+The Expo template is already cloned and running at: /home/user/project
+Metro bundler is already running on port 8081.
 
-        // Generate QR code immediately
-        qrCode = await generateQRCode(expoUrl);
-        console.log(`[API] ✓ QR code generated`);
+**Your task:**
+${prompt}
 
-        // Store in database IMMEDIATELY so user can scan
-        await supabaseAdmin
-          .from("projects")
-          .update({
-            expo_url: expoUrl,
-            qr_code: qrCode,
-            e2b_sandbox_id: sandbox.sandboxId,
-            e2b_sandbox_status: "ready",
-            e2b_sandbox_created_at: new Date().toISOString(),
-          })
-          .eq("id", projectId);
+**CRITICAL RULES:**
+- The project is at /home/user/project
+- Expo/Metro is ALREADY RUNNING on port 8081 - NEVER restart it
+- Just edit the code files - Metro will hot-reload automatically
+- NEVER run "npx expo start" or kill processes on port 8081/8082
+- NEVER run "npm install" unless you're adding new packages
+- Modify existing template files following Expo Router patterns
+- Test your changes by checking Metro bundler output for errors
 
-        console.log(`[API] ✓ Expo URL stored - user can scan QR now!`);
+Focus ONLY on implementing the user's request. Expo is already set up.`;
 
-        await sendSystemMessage(
-          projectId,
-          "✓ Ready! Scan the QR code to preview your app on your phone.",
-          { type: "success" }
-        );
-        await sendSystemMessage(projectId, "🤖 Starting AI agent to build your app...");
-      } catch (error) {
-        console.error(`[API] Failed to setup Expo:`, error);
-        await sendSystemMessage(
-          projectId,
-          `✗ Setup failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-          { type: "error" }
-        );
-        // Continue anyway - agent can try to recover
-      }
+      // Execute setup script in E2B
+      // This script will:
+      // 1. Clone Expo template
+      // 2. Install dependencies
+      // 3. Start Expo Metro
+      // 4. Generate QR code
+      // 5. Post expo_url + qr_code to Supabase
+      // 6. Start Claude agent with systemPrompt
+      const { pid, logFile } = await executeSetupInE2B(
+        sandbox,
+        projectId,
+        userId,
+        systemPrompt // Agent will start after setup completes
+      );
+
+      console.log(`[API] ✓ Setup script started in E2B (PID: ${pid})`);
+      console.log(`[API] ✓ Logs: ${logFile}`);
+      console.log(`[API] Setup will continue in background, updates via Supabase`);
+
+      // Return immediately - Expo URL will appear in Supabase when ready
+      return NextResponse.json({
+        message: "Setting up development environment...",
+        projectId,
+        sandboxId: sandbox.sandboxId,
+        status: "starting",
+        setupPid: pid,
+        setupLogFile: logFile,
+      });
     }
 
-    // Build agent prompt for FEATURE IMPLEMENTATION ONLY
-    // Expo is already running, so agent just needs to edit code
+    // Sandbox already exists with Expo running
+    // Start Claude agent to process the user's request
+    console.log(`[API] Sandbox exists, starting Claude agent directly...`);
+
+    const { executeClaudeInE2B } = await import("@/lib/agent/cli-executor");
+
+    // Build agent prompt for FEATURE IMPLEMENTATION
     const systemPrompt = `You are building a native mobile app using Expo.
 
 The Expo template is already cloned and running at: /home/user/project
@@ -191,14 +230,11 @@ ${prompt}
 
 Focus ONLY on implementing the user's request. Expo is already set up.`;
 
-    console.log(`[API] Starting agent for feature implementation...`);
-
     // Execute Claude in E2B with direct Supabase streaming
-    // This uploads a script to E2B that runs independently and posts events to Supabase
     const { pid, logFile } = await executeClaudeInE2B(
       systemPrompt,
       cwd,
-      undefined, // No session ID for new sessions
+      existingSessionId || undefined, // Use existing session_id for conversation resumption
       sandbox,
       projectId,
       userId
@@ -206,13 +242,9 @@ Focus ONLY on implementing the user's request. Expo is already set up.`;
 
     console.log(`[API] ✓ Agent started in E2B (PID: ${pid})`);
     console.log(`[API] ✓ Logs: ${logFile}`);
-    console.log(`[API] Script will continue running independently`);
 
-    // Return immediately with Expo URL so user can scan
     return NextResponse.json({
-      message: expoUrl
-        ? "Expo is ready! Scan the QR code while the agent builds your app."
-        : "Agent is starting...",
+      message: "Agent is processing your request...",
       projectId,
       sandboxId: sandbox.sandboxId,
       status: "processing",

@@ -29,6 +29,7 @@ interface Project {
   e2b_sandbox_created_at: string | null;
   expo_url: string | null;
   qr_code: string | null;
+  session_id: string | null;
 }
 
 export default function ProjectPage() {
@@ -147,20 +148,39 @@ export default function ProjectPage() {
         setLoading(false);
 
         // Subscribe to realtime changes
+        const subscriptionConfig = {
+          channel: `project:${projectId}`,
+          event: "UPDATE",
+          schema: "public",
+          table: "projects",
+          filter: `id=eq.${projectId}`,
+          timestamp: new Date().toISOString()
+        };
+        console.log(`[ProjectPage] 🔌 Setting up projects table subscription:`, subscriptionConfig);
+
         channel = supabase
-          .channel(`project:${projectId}`)
+          .channel(subscriptionConfig.channel)
           .on(
             "postgres_changes",
             {
               event: "UPDATE",
               schema: "public",
               table: "projects",
-              filter: `id=eq.${projectId}`,
+              filter: subscriptionConfig.filter,
             },
             (payload) => {
               const updatedProject = payload.new as Project;
 
-              // Clean logging - only log meaningful changes
+              console.log(`[ProjectPage] 📨 Project UPDATE received:`, {
+                projectId: updatedProject.id,
+                e2b_sandbox_status: updatedProject.e2b_sandbox_status,
+                has_expo_url: !!updatedProject.expo_url,
+                has_qr_code: !!updatedProject.qr_code,
+                has_session_id: !!updatedProject.session_id,
+                timestamp: new Date().toISOString()
+              });
+
+              // Detailed logging of what changed
               const changes: string[] = [];
               if (updatedProject.expo_url && updatedProject.expo_url !== expoUrl) {
                 changes.push(`expo_url: ${updatedProject.expo_url}`);
@@ -173,7 +193,7 @@ export default function ProjectPage() {
               }
 
               if (changes.length > 0) {
-                console.log(`[ProjectPage] 📨 Project updated: ${changes.join(", ")}`);
+                console.log(`[ProjectPage] 📝 Changes detected:`, changes);
               }
 
               setProject(updatedProject);
@@ -207,12 +227,22 @@ export default function ProjectPage() {
             }
           )
           .subscribe((status, err) => {
-            console.log(`[ProjectPage] Subscription status change: ${status}`, err);
+            console.log(`[ProjectPage] 🔄 Subscription status:`, {
+              status,
+              timestamp: new Date().toISOString(),
+              error: err ? JSON.stringify(err, null, 2) : null
+            });
+
             if (status === "SUBSCRIBED") {
-              console.log("[ProjectPage] ✓ Subscribed to project updates");
+              console.log("[ProjectPage] ✅ Successfully subscribed to projects table");
             } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-              console.error(`[ProjectPage] ✗ Subscription failed: ${status}`, err);
-              console.error(`[ProjectPage] Full subscription state:`, channel?.state);
+              console.error(`[ProjectPage] ❌ Subscription failed:`, {
+                status,
+                error: err,
+                errorMessage: err?.message,
+                errorDetails: JSON.stringify(err, null, 2)
+              });
+              console.error(`[ProjectPage] ℹ️ Refresh the page to reconnect`);
             }
           });
 

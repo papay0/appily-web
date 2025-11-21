@@ -23,7 +23,6 @@
 import type { Sandbox } from "e2b";
 import { createSandbox } from "../e2b";
 import type { AgentStreamEvent } from "./types";
-import { storeEventInSupabase } from "./ndjson-parser";
 
 /**
  * Result from executing Claude CLI
@@ -208,417 +207,155 @@ export async function executeClaudeInE2B(
 }
 
 /**
- * Execute Claude CLI with a prompt in E2B sandbox
+ * Execute Expo setup script in E2B
  *
- * @deprecated Use executeClaudeInE2B() instead for production.
- * This function uses callbacks that don't work on Vercel after HTTP response.
+ * **NEW APPROACH:** This function uploads and runs the setup-expo.js script
+ * which handles all Expo setup tasks in the background on E2B.
  *
- * This function runs the `claude -p` command with streaming JSON output,
- * parses the events in real-time, and returns the complete execution result.
+ * Architecture:
+ * 1. Read setup-expo.js from filesystem
+ * 2. Upload script to E2B sandbox
+ * 3. Install required dependencies (@supabase/supabase-js)
+ * 4. Run script with background: true
+ * 5. Return immediately with PID
+ * 6. Script continues running on E2B:
+ *    - Clones Expo template
+ *    - Runs npm install
+ *    - Starts Expo Metro
+ *    - Generates QR code
+ *    - Posts to Supabase
+ *    - Starts Claude agent when ready
  *
- * The CLI streams NDJSON (newline-delimited JSON) where each line is an event:
- * - `{"type": "system", "subtype": "init", "session_id": "sess_xxx"}` - Session start
- * - `{"type": "assistant", "message": {"content": [...]}}` - Claude's response
- * - `{"type": "tool_use", "name": "Read", "input": {...}}` - Tool execution
- * - `{"type": "result", "subtype": "success", ...}` - Final result
- *
- * @param prompt - The user's prompt to Claude
- * @param workingDirectory - Directory where CLI runs (default: /home/user)
- * @param sessionId - Optional session ID to resume previous conversation
- * @param sandbox - Optional existing sandbox (creates new one if not provided)
- * @param projectId - Optional project ID for storing session in database
- * @param userId - Optional user ID for storing session in database
- * @returns Execution result with session ID, events, and output
- *
- * @example
- * ```typescript
- * const result = await executeClaudeCLI(
- *   "Clone the Expo template and start dev server",
- *   "/home/user/project"
- * );
- *
- * console.log("Session ID:", result.sessionId);
- * console.log("Expo URL:", result.expoUrl);
- *
- * // Later, resume the conversation
- * const followUp = await executeClaudeCLI(
- *   "Add dark mode toggle",
- *   "/home/user/project",
- *   result.sessionId
- * );
- * ```
+ * @param sandbox - Existing E2B sandbox
+ * @param projectId - Project ID for linking to database
+ * @param userId - User ID for session tracking
+ * @param userPrompt - Initial prompt for Claude agent (optional)
+ * @returns Execution result with PID and log file path
  */
-export async function executeClaudeCLI(
-  prompt: string,
-  workingDirectory: string = "/home/user",
-  sessionId?: string,
-  sandbox?: Sandbox,
-  projectId?: string,
-  userId?: string
-): Promise<CLIExecutionResult> {
-  console.warn('[CLI] ⚠️ executeClaudeCLI is deprecated. Use executeClaudeInE2B() instead.');
-
-  const startTime = Date.now();
-  const events: AgentStreamEvent[] = [];
-  let capturedSessionId: string | undefined = sessionId;
-  let fullOutput = "";
-
-  console.log("[CLI] Starting Claude CLI execution");
-  console.log(`[CLI] Working directory: ${workingDirectory}`);
-  console.log(`[CLI] Prompt length: ${prompt.length} chars`);
-  if (sessionId) {
-    console.log(`[CLI] Resuming session: ${sessionId}`);
-  }
-
-  // Create sandbox if not provided
-  const shouldCleanupSandbox = !sandbox;
-  if (!sandbox) {
-    console.log("[CLI] Creating new E2B sandbox...");
-    const { sandbox: newSandbox } = await createSandbox();
-    sandbox = newSandbox;
-    console.log(`[CLI] ✓ Sandbox created: ${sandbox.sandboxId}`);
-  }
-
-  try {
-    // Verify OAuth token is set
-    if (!process.env.CLAUDE_CODE_OAUTH_TOKEN) {
-      throw new Error(
-        "CLAUDE_CODE_OAUTH_TOKEN environment variable is not set. " +
-          "Get your token from claude.com/account → API Keys → OAuth Token"
-      );
-    }
-
-    // If resuming, validate session exists in database
-    if (sessionId && projectId && userId) {
-      console.log(`[CLI] Validating session: ${sessionId}`);
-      const { supabaseAdmin } = await import("../supabase-admin");
-      const { data: existingSession } = await supabaseAdmin
-        .from("agent_sessions")
-        .select("session_id")
-        .eq("session_id", sessionId)
-        .single();
-
-      if (!existingSession) {
-        throw new Error(
-          `Session ${sessionId} not found in database. It may have expired or been deleted.`
-        );
-      }
-      console.log(`[CLI] ✓ Session validated`);
-    }
-
-    // Create working directory if it doesn't exist
-    console.log(`[CLI] Ensuring working directory exists: ${workingDirectory}`);
-    const mkdirResult = await sandbox.commands.run(`mkdir -p "${workingDirectory}"`, {
-      cwd: "/home/user",
-      timeoutMs: 5000, // Quick timeout for mkdir
-    });
-    if (mkdirResult.exitCode !== 0) {
-      throw new Error(`Failed to create directory: ${mkdirResult.stderr}`);
-    }
-    console.log(`[CLI] ✓ Working directory ready`);
-
-    // Build the CLI command using heredoc for safe multi-line prompts
-    // Heredoc prevents all shell interpretation and handles special characters perfectly
-    // IMPORTANT: Always use --dangerously-skip-permissions for YOLO mode (no permission prompts)
-    const command = sessionId
-      ? // Resume existing session WITH new prompt (YOLO mode)
-        `claude -r "${sessionId}" -p "$(cat <<'PROMPT_EOF'\n${prompt}\nPROMPT_EOF\n)" --output-format stream-json --verbose --dangerously-skip-permissions`
-      : // New session with prompt (YOLO mode)
-        `claude -p "$(cat <<'PROMPT_EOF'\n${prompt}\nPROMPT_EOF\n)" --output-format stream-json --verbose --dangerously-skip-permissions`;
-
-    console.log(`[CLI] Executing claude command (resuming: ${!!sessionId})`);
-    console.log(`[CLI] Command will run in BACKGROUND on E2B server`);
-
-    // Execute CLI with streaming output in BACKGROUND mode
-    // This allows Vercel to return immediately while E2B continues execution
-    const result = await sandbox.commands.run(command, {
-      cwd: workingDirectory,
-      background: true, // Run independently on E2B server
-      envs: {
-        CLAUDE_CODE_OAUTH_TOKEN: process.env.CLAUDE_CODE_OAUTH_TOKEN,
-      },
-      timeoutMs: 0, // No timeout - runs until completion
-      onStdout: (line) => {
-        fullOutput += line + "\n";
-
-        // Parse NDJSON line-by-line
-        try {
-          const event = JSON.parse(line);
-
-          // Extract session ID from system init message
-          if (event.type === "system" && event.subtype === "init") {
-            capturedSessionId = event.session_id;
-            console.log(`[CLI] ✓ Session initialized: ${capturedSessionId}`);
-
-            // Store session in database IMMEDIATELY so events can be linked
-            if (capturedSessionId && projectId && userId) {
-              storeCliSession(capturedSessionId, projectId, userId).catch((err) => {
-                console.error("[CLI] Failed to store session in database:", err);
-              });
-            }
-          }
-
-          // Log assistant messages (Claude's thinking/responses) - CLEAN format
-          if (event.type === "assistant" && event.message?.content) {
-            for (const block of event.message.content) {
-              if (block.type === "text") {
-                const preview = block.text.length > 100 ? block.text.substring(0, 100) + "..." : block.text;
-                console.log(`[CLI] 💬 ${preview}`);
-              } else if (block.type === "tool_use") {
-                console.log(`[CLI] 🔧 ${block.name}`);
-              }
-            }
-          }
-
-          // Log result messages cleanly
-          if (event.type === "result") {
-            console.log(`[CLI] ${event.subtype === "success" ? "✓" : "✗"} ${event.subtype}`);
-          }
-
-          // Store event for later processing
-          events.push({
-            type: "message",
-            data: event,
-            timestamp: new Date(),
-          });
-
-          // Store event in Supabase for real-time streaming to frontend
-          if (capturedSessionId) {
-            storeEventInSupabase(capturedSessionId, event, projectId).catch((err) => {
-              console.error("[CLI] Failed to store event in Supabase:", err);
-            });
-          }
-        } catch (e) {
-          // Not JSON or parse error - could be non-JSON output
-          // This is fine, just skip
-        }
-      },
-      onStderr: (line) => {
-        // Only log significant errors, not noise
-        if (line.includes("error") || line.includes("Error") || line.includes("failed") || line.includes("ENOENT")) {
-          console.error(`[CLI] ⚠️ ${line.substring(0, 200)}`);
-        }
-      },
-    });
-
-    const duration = Date.now() - startTime;
-
-    // Log background process info
-    if (result.pid) {
-      console.log(`[CLI] ✓ Background process started (PID: ${result.pid})`);
-    }
-    console.log(`[CLI] ✓ Complete (${Math.round(duration / 1000)}s, ${events.length} events)`);
-    if (result.stderr) {
-      console.error(`[CLI] Errors: ${result.stderr}`);
-    }
-
-    // Extract Expo URL if present
-    const expoUrl = extractExpoUrlFromOutput(fullOutput);
-    if (expoUrl) {
-      console.log(`[CLI] ✓ Found Expo URL: ${expoUrl}`);
-    }
-
-    if (result.exitCode !== 0) {
-      console.error(`[CLI] ✗ Failed (exit code ${result.exitCode})`);
-      if (result.stderr) {
-        const errorPreview = result.stderr.substring(0, 500);
-        console.error(`[CLI] Error: ${errorPreview}${result.stderr.length > 500 ? "..." : ""}`);
-      }
-    }
-
-    return {
-      success: result.exitCode === 0,
-      sessionId: capturedSessionId,
-      output: fullOutput,
-      events,
-      expoUrl,
-      error: result.exitCode !== 0 ? `${result.stderr}\n${result.stdout}` : undefined,
-      duration_ms: duration,
-    };
-  } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error("[CLI] ✗ Execution failed:", error);
-
-    return {
-      success: false,
-      sessionId: capturedSessionId,
-      output: fullOutput,
-      events,
-      error: error instanceof Error ? error.message : "Unknown error",
-      duration_ms: duration,
-    };
-  } finally {
-    // Cleanup sandbox if we created it
-    if (shouldCleanupSandbox && sandbox) {
-      console.log("[CLI] Cleaning up sandbox...");
-      await sandbox.kill().catch((err) => {
-        console.error("[CLI] Failed to cleanup sandbox:", err);
-      });
-    }
-  }
-}
-
-/**
- * Execute Claude CLI for Expo project setup
- *
- * Specialized function for setting up Expo projects with the CLI.
- * Handles the complete flow:
- * 1. Clone Expo template
- * 2. Install dependencies (including @expo/ngrok)
- * 3. Start Expo with tunnel mode
- * 4. Extract and return Expo URL
- *
- * @param templateRepoUrl - GitHub URL of Expo template
- * @param projectId - Project ID for tracking
- * @param userId - User ID for Supabase
- * @returns Execution result with Expo URL and session ID
- *
- * @example
- * ```typescript
- * const result = await setupExpoWithCLI(
- *   "https://github.com/papay0/appily-expo-go-template",
- *   "proj_123",
- *   "user_456"
- * );
- *
- * const qrCode = await generateQRCode(result.expoUrl);
- * ```
- */
-export async function setupExpoWithCLI(
-  templateRepoUrl: string,
+export async function executeSetupInE2B(
+  sandbox: Sandbox,
   projectId: string,
-  userId: string
-): Promise<CLIExecutionResult & { sandbox: Sandbox }> {
-  console.log("[Expo CLI] Starting Expo setup with Claude CLI");
-  console.log(`[Expo CLI] Template: ${templateRepoUrl}`);
-  console.log(`[Expo CLI] Project: ${projectId}, User: ${userId}`);
+  userId: string,
+  userPrompt?: string
+): Promise<E2BExecutionResult> {
+  const { readFileSync } = await import('fs');
+  const { join } = await import('path');
 
-  // Create sandbox
-  const { sandbox, info } = await createSandbox();
-  console.log(`[Expo CLI] ✓ Sandbox created: ${sandbox.sandboxId}`);
-
-  // Get the E2B public hostname for port 8081 (where Expo Metro will run)
-  const e2bHostname = await sandbox.getHost(8081);
-  const expoUrl = `exp://${e2bHostname}`;
-  console.log(`[Expo CLI] ✓ E2B tunnel URL for port 8081: ${expoUrl}`);
-
-  const prompt = `You are setting up an Expo mobile app project. Please complete these steps:
-
-**Step 1: Clone Template Repository**
-- Clone ${templateRepoUrl} to /home/user/project
-- Use: git clone ${templateRepoUrl} /home/user/project
-
-**Step 2: Install Dependencies**
-- Navigate to: cd /home/user/project
-- Install project dependencies: npm install
-- Install @expo/ngrok globally: npm install -g @expo/ngrok
-  IMPORTANT: Use latest version (do NOT specify version number)
-
-**Step 3: Start Expo with Tunnel Mode**
-- Start Expo: npx expo start --tunnel
-- Wait for Metro bundler to start (look for "Metro" or "Bundler" messages)
-- IMPORTANT: You are running in an E2B sandbox
-- DO NOT try to extract the URL from Expo output, ngrok, or any other source
-- The Expo URL is provided by E2B's tunnel system
-
-**Step 4: Report Status**
-- When Metro is ready, report this EXACT Expo URL: ${expoUrl}
-- This is the E2B tunnel URL for port 8081
-- Users will scan this URL with Expo Go to connect to your app
-
-IMPORTANT BUILD VALIDATION:
-When making code changes to Expo apps in the future:
-1. ALWAYS run "npx expo start --tunnel" after code changes to check for errors
-2. If you see ANY errors (import errors, missing files, syntax errors):
-   - Read the error message carefully
-   - Fix ALL errors before considering the task complete
-   - Re-run the build to verify the fix worked
-3. Only mark tasks as complete when the build succeeds with NO errors
-
-Never leave the app in a broken state. Always ensure imports are valid and files exist.
-
-Please execute these steps and report back when complete.
-**IMPORTANT:** When reporting the Expo URL, use EXACTLY: ${expoUrl}
-This is the E2B tunnel URL - do not try to find a different URL.`;
+  console.log("[E2B] Starting Expo setup with E2B background script");
+  console.log(`[E2B] Project: ${projectId}, User: ${userId}`);
+  console.log(`[E2B] Sandbox: ${sandbox.sandboxId}`);
 
   try {
-    const result = await executeClaudeCLI(
-      prompt,
-      "/home/user/project",
-      undefined,
-      sandbox
+    // Step 1: Read the setup script from filesystem
+    const scriptPath = join(process.cwd(), 'lib/agent/e2b-scripts/setup-expo.js');
+    console.log(`[E2B] Reading setup script from: ${scriptPath}`);
+    const scriptContent = readFileSync(scriptPath, 'utf-8');
+    console.log(`[E2B] ✓ Setup script loaded (${scriptContent.length} bytes)`);
+
+    // Step 2: Upload setup script to E2B
+    const e2bScriptPath = '/home/user/setup-expo.js';
+    console.log(`[E2B] Uploading setup script to E2B: ${e2bScriptPath}`);
+    await sandbox.files.write(e2bScriptPath, scriptContent);
+    console.log(`[E2B] ✓ Setup script uploaded`);
+
+    // Step 2.5: Also upload stream-to-supabase.js (needed for Claude agent)
+    if (userPrompt) {
+      const agentScriptPath = join(process.cwd(), 'lib/agent/e2b-scripts/stream-to-supabase.js');
+      console.log(`[E2B] Reading agent script from: ${agentScriptPath}`);
+      const agentScriptContent = readFileSync(agentScriptPath, 'utf-8');
+      await sandbox.files.write('/home/user/stream-to-supabase.js', agentScriptContent);
+      console.log(`[E2B] ✓ Agent script uploaded`);
+    }
+
+    // Step 3: Install @supabase/supabase-js if not already installed
+    console.log(`[E2B] Installing @supabase/supabase-js...`);
+    const installResult = await sandbox.commands.run(
+      'npm list @supabase/supabase-js || npm install @supabase/supabase-js',
+      {
+        cwd: '/home/user',
+        timeoutMs: 60000, // 1 minute timeout for npm install
+      }
     );
 
-    // Store session in Supabase
-    if (result.sessionId) {
-      const { startAgentSession } = await import("./session");
-      await storeCliSession(result.sessionId, projectId, userId);
+    if (installResult.exitCode !== 0 && !installResult.stdout.includes('@supabase/supabase-js')) {
+      console.warn(`[E2B] ⚠️ npm install warning: ${installResult.stderr}`);
+      // Continue anyway - might already be installed
+    } else {
+      console.log(`[E2B] ✓ @supabase/supabase-js ready`);
     }
 
-    // Use the E2B tunnel URL we already calculated (don't rely on extraction from output)
-    // The agent was instructed to report this exact URL, but we don't need to extract it
-    console.log(`[Expo CLI] ✓ Setup complete! Expo URL: ${expoUrl}`);
+    // Step 4: Get E2B hostname for Expo URL
+    const hostname = await sandbox.getHost(8081);
+    console.log(`[E2B] ✓ E2B hostname: ${hostname}`);
+
+    // Step 5: Prepare environment variables
+    const envVars: Record<string, string> = {
+      SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      PROJECT_ID: projectId,
+      USER_ID: userId,
+      SANDBOX_ID: sandbox.sandboxId,
+      E2B_HOSTNAME: hostname,
+      PROJECT_DIR: '/home/user/project',
+    };
+
+    // Add Claude agent env vars if prompt provided
+    if (userPrompt && process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+      envVars.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+      envVars.USER_PROMPT = userPrompt;
+    }
+
+    console.log(`[E2B] Environment variables prepared`);
+
+    // Step 6: Run setup script in background with output redirection for debugging
+    const logFile = '/home/user/setup-expo.log';
+    console.log(`[E2B] Starting setup script in background mode...`);
+    console.log(`[E2B] Output will be logged to: ${logFile}`);
+
+    // Start script with nohup for proper backgrounding and output capture
+    const startResult = await sandbox.commands.run(
+      `nohup node ${e2bScriptPath} > ${logFile} 2>&1 & echo $!`,
+      {
+        cwd: '/home/user',
+        envs: envVars,
+        timeoutMs: 5000,
+      }
+    );
+
+    const pid = parseInt(startResult.stdout.trim());
+    if (!pid || isNaN(pid)) {
+      throw new Error('Failed to start setup script (no PID returned)');
+    }
+
+    console.log(`[E2B] ✓ Setup script started in background (PID: ${pid})`);
+    console.log(`[E2B] ✓ Logs: ${logFile}`);
+    console.log(`[E2B] Setup script will run independently on E2B and update Supabase`);
+
+    // Show initial output for debugging (non-blocking)
+    setTimeout(async () => {
+      try {
+        const logs = await sandbox.commands.run(`head -n 50 ${logFile}`, { timeoutMs: 3000 });
+        if (logs.stdout) {
+          console.log('[E2B] Setup initial output (first 50 lines):');
+          console.log(logs.stdout);
+        }
+      } catch (err) {
+        console.error('[E2B] Failed to read setup logs:', err);
+      }
+    }, 2000);
+
+    console.log(`[E2B] Vercel can now return immediately`);
 
     return {
-      ...result,
-      expoUrl, // Use the E2B tunnel URL we got from sandbox.getHost(8081)
-      sandbox,
+      pid,
+      sandboxId: sandbox.sandboxId,
+      scriptPath: e2bScriptPath,
+      logFile,
     };
   } catch (error) {
-    // Cleanup on failure
-    await sandbox.kill().catch(() => {});
-    throw error;
+    console.error('[E2B] ✗ Failed to start Expo setup:', error);
+    throw new Error(
+      `Failed to execute Expo setup in E2B: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
   }
-}
-
-/**
- * Store CLI session in Supabase
- *
- * Maps CLI session IDs to Supabase agent_sessions table for tracking.
- * This allows us to query sessions, check ownership, etc.
- */
-export async function storeCliSession(
-  sessionId: string,
-  projectId: string,
-  userId: string
-): Promise<void> {
-  const { supabaseAdmin } = await import("../supabase-admin");
-
-  await supabaseAdmin.from("agent_sessions").insert({
-    session_id: sessionId,
-    project_id: projectId,
-    user_id: userId,
-    model: "claude-sonnet-4-5", // CLI uses latest by default
-    permission_mode: "bypassPermissions", // --dangerously-skip-permissions
-    working_directory: "/home/user/project",
-    status: "active",
-    created_at: new Date().toISOString(),
-    last_activity_at: new Date().toISOString(),
-  });
-
-  console.log(`[CLI] ✓ Session stored in Supabase: ${sessionId}`);
-}
-
-/**
- * Extract Expo URL from CLI output
- *
- * Searches for exp:// URLs in multiple formats:
- * - exp://hostname:port (e.g., exp://192.168.1.1:8081)
- * - exp://subdomain-port.domain (e.g., exp://j8t16bo-anonymous-8081.exp.direct)
- */
-function extractExpoUrlFromOutput(output: string): string | undefined {
-  // Match exp:// followed by hostname (with hyphens, dots, and alphanumeric)
-  // This handles both traditional exp://host:port and tunnel URLs like exp://abc-8081.exp.direct
-  const match = output.match(/exp:\/\/[\w\-\.]+/);
-  return match ? match[0] : undefined;
-}
-
-/**
- * Escape shell argument for safe CLI execution
- *
- * Prevents shell injection by escaping special characters.
- */
-function escapeShellArg(arg: string): string {
-  // Replace single quotes with '\'' (close quote, escaped quote, open quote)
-  return arg.replace(/'/g, "'\\''");
 }
