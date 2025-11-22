@@ -21,7 +21,7 @@ import {
 type ViewMode = "preview" | "code";
 type SandboxStatus = "idle" | "starting" | "ready" | "error";
 
-interface Project {
+type Project = {
   id: string;
   name: string;
   user_id: string;
@@ -242,7 +242,7 @@ export default function ProjectPage() {
   }, []);
 
   // Subscribe to project updates with auto-reconnection
-  const { status: projectChannelStatus } = useRealtimeSubscription({
+  const { status: projectChannelStatus } = useRealtimeSubscription<Project>({
     channelKey: `projects:${projectId}`,
     table: "projects",
     event: "UPDATE",
