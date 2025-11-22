@@ -1,6 +1,7 @@
 "use client";
 
-import { Home, Sparkles, FolderKanban } from "lucide-react";
+import Image from "next/image";
+import { Home, FolderKanban } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { DarkModeToggle } from "@/components/dark-mode-toggle";
 import {
@@ -34,7 +35,12 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-2">
-          <Sparkles className="h-6 w-6 text-primary" />
+          <Image
+            src="/appily-logo.svg"
+            alt="Appily Logo"
+            width={24}
+            height={24}
+          />
           <span className="text-xl font-bold">Appily</span>
         </div>
       </SidebarHeader>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles, Smartphone, Rocket, Zap } from "lucide-react";
 import { DarkModeToggle } from "@/components/dark-mode-toggle";
@@ -19,7 +20,13 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between backdrop-blur-md bg-background/60 border border-border/40 rounded-2xl px-6 py-3 shadow-lg shadow-primary/5">
             <div className="flex items-center gap-2 group">
-              <Sparkles className="h-6 w-6 text-primary transition-transform group-hover:rotate-12 group-hover:scale-110 duration-300" />
+              <Image
+                src="/appily-logo.svg"
+                alt="Appily Logo"
+                width={24}
+                height={24}
+                className="transition-transform group-hover:rotate-12 group-hover:scale-110 duration-300"
+              />
               <span className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">Appily</span>
             </div>
             <nav className="flex items-center gap-3">
@@ -208,7 +215,13 @@ export default function LandingPage() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             {/* Logo */}
             <div className="flex items-center gap-2 group">
-              <Sparkles className="h-5 w-5 text-primary group-hover:rotate-12 transition-transform duration-300" />
+              <Image
+                src="/appily-logo.svg"
+                alt="Appily Logo"
+                width={20}
+                height={20}
+                className="group-hover:rotate-12 transition-transform duration-300"
+              />
               <span className="text-lg font-bold">Appily</span>
             </div>
 

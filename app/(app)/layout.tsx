@@ -17,22 +17,24 @@ export default function AppLayout({
   const isIndividualProjectPage = pathname.match(/^\/home\/projects\/[^/]+$/);
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        {!isIndividualProjectPage && (
-          <header className="flex h-12 shrink-0 items-center border-b px-4 gap-4">
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <SidebarTrigger className="h-8 w-8" />
-              <Separator orientation="vertical" className="h-4" />
-              <AppBreadcrumbs />
-            </div>
-          </header>
-        )}
-        <div className={isIndividualProjectPage ? "flex flex-1 flex-col overflow-hidden" : "flex flex-1 flex-col gap-4 p-4"}>
-          {children}
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+    <div className="h-screen overflow-hidden flex">
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset className="flex flex-col">
+          {!isIndividualProjectPage && (
+            <header className="flex h-12 shrink-0 items-center border-b px-4 gap-4">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <SidebarTrigger className="h-8 w-8" />
+                <Separator orientation="vertical" className="h-4" />
+                <AppBreadcrumbs />
+              </div>
+            </header>
+          )}
+          <div className={isIndividualProjectPage ? "flex flex-1 flex-col overflow-hidden" : "flex-1 overflow-y-auto p-4"}>
+            {children}
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    </div>
   );
 }

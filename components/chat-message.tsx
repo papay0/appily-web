@@ -2,7 +2,6 @@
 
 import { cn } from "@/lib/utils";
 import {
-  Bot,
   User,
   Wrench,
   CheckCircle2,
@@ -61,7 +60,12 @@ export function ChatMessage({ message }: ChatMessageProps) {
     return (
       <div className="flex items-start gap-3">
         <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-          <Bot className="h-4 w-4 text-muted-foreground" />
+          <Image
+            src="/appily-logo.svg"
+            alt="Appily AI"
+            width={20}
+            height={20}
+          />
         </div>
         <div className="bg-muted rounded-lg px-4 py-2 max-w-[80%]">
           <p className="text-sm whitespace-pre-wrap">{message.content}</p>

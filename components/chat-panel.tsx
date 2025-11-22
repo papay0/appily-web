@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Send, Bot, Loader2 } from "lucide-react";
+import { Send, Loader2 } from "lucide-react";
 import { useSession, useUser } from "@clerk/nextjs";
 import { useSupabaseClient } from "@/lib/supabase-client";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
@@ -335,7 +336,12 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
             <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-              <Bot className="h-6 w-6 text-muted-foreground" />
+              <Image
+                src="/appily-logo.svg"
+                alt="Appily AI"
+                width={28}
+                height={28}
+              />
             </div>
             <div>
               <p className="text-sm font-medium">Chat with AI</p>
