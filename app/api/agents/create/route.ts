@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     }
 
     // Parse request body
-    const { prompt, projectId, workingDirectory, sandboxId } =
+    const { prompt, projectId, workingDirectory, sandboxId, clientMessageId } =
       await request.json();
 
     if (!prompt || !projectId) {
@@ -79,6 +79,7 @@ export async function POST(request: Request) {
           role: "user",
           content: prompt,
           timestamp: new Date().toISOString(),
+          clientMessageId,
         },
       });
       console.log("[API] ✓ User message stored in database");
@@ -265,4 +266,3 @@ Focus ONLY on implementing the user's request. Expo is already set up.`;
     );
   }
 }
-

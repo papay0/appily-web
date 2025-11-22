@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useUser, useSession } from "@clerk/nextjs";
 import { useSupabaseClient } from "@/lib/supabase-client";
+import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 import { ChatPanel } from "@/components/chat-panel";
 import { PreviewPanel } from "@/components/preview-panel";
 import { CodeEditor } from "@/components/code-editor";
@@ -59,8 +60,6 @@ export default function ProjectPage() {
   useEffect(() => {
     // Wait for both user and Clerk session to be fully loaded
     if (!user || !isLoaded) return;
-
-    let channel: ReturnType<typeof supabase.channel> | null = null;
 
     async function setupProjectSubscription() {
       try {
@@ -147,105 +146,6 @@ export default function ProjectPage() {
 
         setLoading(false);
 
-        // Subscribe to realtime changes
-        const subscriptionConfig = {
-          channel: `project:${projectId}`,
-          event: "UPDATE",
-          schema: "public",
-          table: "projects",
-          filter: `id=eq.${projectId}`,
-          timestamp: new Date().toISOString()
-        };
-        console.log(`[ProjectPage] 🔌 Setting up projects table subscription:`, subscriptionConfig);
-
-        channel = supabase
-          .channel(subscriptionConfig.channel)
-          .on(
-            "postgres_changes",
-            {
-              event: "UPDATE",
-              schema: "public",
-              table: "projects",
-              filter: subscriptionConfig.filter,
-            },
-            (payload) => {
-              const updatedProject = payload.new as Project;
-
-              console.log(`[ProjectPage] 📨 Project UPDATE received:`, {
-                projectId: updatedProject.id,
-                e2b_sandbox_status: updatedProject.e2b_sandbox_status,
-                has_expo_url: !!updatedProject.expo_url,
-                has_qr_code: !!updatedProject.qr_code,
-                has_session_id: !!updatedProject.session_id,
-                timestamp: new Date().toISOString()
-              });
-
-              // Detailed logging of what changed
-              const changes: string[] = [];
-              if (updatedProject.expo_url && updatedProject.expo_url !== expoUrl) {
-                changes.push(`expo_url: ${updatedProject.expo_url}`);
-              }
-              if (updatedProject.qr_code && updatedProject.qr_code !== qrCode) {
-                changes.push("qr_code: updated");
-              }
-              if (updatedProject.e2b_sandbox_status !== sandboxStatus) {
-                changes.push(`status: ${updatedProject.e2b_sandbox_status}`);
-              }
-
-              if (changes.length > 0) {
-                console.log(`[ProjectPage] 📝 Changes detected:`, changes);
-              }
-
-              setProject(updatedProject);
-
-              // Sync sandbox status from database
-              if (updatedProject.e2b_sandbox_status) {
-                setSandboxStatus(updatedProject.e2b_sandbox_status as SandboxStatus);
-              } else {
-                setSandboxStatus("idle");
-              }
-
-              // Update Expo URL and QR code from database
-              if (updatedProject.expo_url) {
-                setExpoUrl(updatedProject.expo_url);
-              }
-              if (updatedProject.qr_code) {
-                setQrCode(updatedProject.qr_code);
-              }
-
-              // Reset uptime when sandbox starts
-              if (updatedProject.e2b_sandbox_status === "ready" && updatedProject.e2b_sandbox_created_at) {
-                const createdAt = new Date(updatedProject.e2b_sandbox_created_at);
-                const elapsed = Math.floor((Date.now() - createdAt.getTime()) / 1000);
-                setUptime(elapsed);
-              }
-
-              // Clear uptime when sandbox stops
-              if (!updatedProject.e2b_sandbox_id) {
-                setUptime(0);
-              }
-            }
-          )
-          .subscribe((status, err) => {
-            console.log(`[ProjectPage] 🔄 Subscription status:`, {
-              status,
-              timestamp: new Date().toISOString(),
-              error: err ? JSON.stringify(err, null, 2) : null
-            });
-
-            if (status === "SUBSCRIBED") {
-              console.log("[ProjectPage] ✅ Successfully subscribed to projects table");
-            } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-              console.error(`[ProjectPage] ❌ Subscription failed:`, {
-                status,
-                error: err,
-                errorMessage: err?.message,
-                errorDetails: JSON.stringify(err, null, 2)
-              });
-              console.error(`[ProjectPage] ℹ️ Refresh the page to reconnect`);
-            }
-          });
-
       } catch (error) {
         console.error("Error setting up project subscription:", error);
         router.push("/home");
@@ -253,13 +153,6 @@ export default function ProjectPage() {
     }
 
     setupProjectSubscription();
-
-    // Cleanup subscription on unmount
-    return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
-    };
   }, [user, projectId, router, isLoaded]);
 
   // Uptime counter
@@ -272,6 +165,98 @@ export default function ProjectPage() {
 
     return () => clearInterval(interval);
   }, [sandboxStatus]);
+
+  // Fetch latest project data (used on reconnect)
+  const fetchProjectData = useCallback(async () => {
+    console.log(`[ProjectPage] 📥 Fetching latest project data...`);
+    const { data: latestProject, error } = await supabase
+      .from("projects")
+      .select("*")
+      .eq("id", projectId)
+      .single();
+
+    if (error) {
+      console.error("[ProjectPage] Failed to fetch project data:", error);
+    } else if (latestProject) {
+      console.log("[ProjectPage] Latest project data fetched");
+      setProject(latestProject);
+
+      // Update all state from latest data
+      if (latestProject.expo_url) setExpoUrl(latestProject.expo_url);
+      if (latestProject.qr_code) setQrCode(latestProject.qr_code);
+      if (latestProject.e2b_sandbox_status) {
+        setSandboxStatus(latestProject.e2b_sandbox_status as SandboxStatus);
+      }
+      if (latestProject.e2b_sandbox_status === "ready" && latestProject.e2b_sandbox_created_at) {
+        const createdAt = new Date(latestProject.e2b_sandbox_created_at);
+        const elapsed = Math.floor((Date.now() - createdAt.getTime()) / 1000);
+        setUptime(elapsed);
+      }
+    }
+  }, [projectId, supabase]);
+
+  // Handle realtime project updates
+  const handleProjectUpdate = useCallback((payload: any) => {
+    const updatedProject = payload.new as Project;
+
+    console.log(`[ProjectPage] 📨 Project UPDATE received:`, {
+      projectId: updatedProject.id,
+      e2b_sandbox_status: updatedProject.e2b_sandbox_status,
+      has_expo_url: !!updatedProject.expo_url,
+      has_qr_code: !!updatedProject.qr_code,
+      has_session_id: !!updatedProject.session_id,
+      timestamp: new Date().toISOString()
+    });
+
+    setProject(updatedProject);
+
+    // Sync sandbox status from database
+    if (updatedProject.e2b_sandbox_status) {
+      setSandboxStatus(updatedProject.e2b_sandbox_status as SandboxStatus);
+    } else {
+      setSandboxStatus("idle");
+    }
+
+    // Update Expo URL and QR code from database
+    if (updatedProject.expo_url) setExpoUrl(updatedProject.expo_url);
+    if (updatedProject.qr_code) setQrCode(updatedProject.qr_code);
+
+    // Reset uptime when sandbox starts
+    if (updatedProject.e2b_sandbox_status === "ready" && updatedProject.e2b_sandbox_created_at) {
+      const createdAt = new Date(updatedProject.e2b_sandbox_created_at);
+      const elapsed = Math.floor((Date.now() - createdAt.getTime()) / 1000);
+      setUptime(elapsed);
+    }
+
+    // Clear uptime when sandbox stops
+    if (!updatedProject.e2b_sandbox_id) {
+      setUptime(0);
+    }
+  }, []);
+
+  // Handle subscription errors
+  const handleSubscriptionError = useCallback((error: Error) => {
+    console.error("[ProjectPage] ❌ Subscription error:", error);
+    setSandboxError("Connection lost. Please refresh the page.");
+  }, []);
+
+  // Subscribe to project updates with auto-reconnection
+  const { status: projectChannelStatus } = useRealtimeSubscription({
+    channelKey: `projects:${projectId}`,
+    table: "projects",
+    event: "UPDATE",
+    filter: `id=eq.${projectId}`,
+    onEvent: handleProjectUpdate,
+    onError: handleSubscriptionError,
+    enabled: isLoaded,
+  });
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (projectChannelStatus === "connected") {
+      fetchProjectData();
+    }
+  }, [projectChannelStatus, fetchProjectData, isLoaded]);
 
   const handleStartSandbox = async () => {
     if (!project) return;

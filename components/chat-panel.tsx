@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Send, Bot, Loader2 } from "lucide-react";
-import { useSession } from "@clerk/nextjs";
+import { useSession, useUser } from "@clerk/nextjs";
 import { useSupabaseClient } from "@/lib/supabase-client";
+import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 import { ChatMessage } from "./chat-message";
 
 interface Message {
@@ -13,8 +14,25 @@ interface Message {
   role: "user" | "assistant" | "system";
   content: string;
   timestamp: Date;
-  toolUse?: string; // Name of tool being used
-  toolContext?: string; // Additional context about tool use
+  toolUse?: string;
+  toolContext?: string;
+  avatarUrl?: string;
+}
+
+interface AssistantContentBlock {
+  type: string;
+  text?: string;
+  name?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  input?: Record<string, any>;
+}
+
+interface AgentEventRecord {
+  id?: string;
+  event_type: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  event_data: any;
+  created_at: string;
 }
 
 interface ChatPanelProps {
@@ -24,275 +42,221 @@ interface ChatPanelProps {
 
 export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
   const { isLoaded } = useSession();
+  const { user } = useUser();
   const supabase = useSupabaseClient();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const seenEventIds = useRef(new Set<string>()); // Track seen events to prevent duplicates
+  const seenEventIds = useRef<{ order: string[]; set: Set<string> }>({
+    order: [],
+    set: new Set(),
+  });
+  const lastTimestampRef = useRef<string | null>(null);
+  const MAX_EVENT_CACHE = 500;
+  const didInitialFetchRef = useRef(false);
+  const pendingUserMessageIds = useRef<Set<string>>(new Set());
+
+  // Reset local caches when switching projects
+  useEffect(() => {
+    seenEventIds.current = { order: [], set: new Set() };
+    lastTimestampRef.current = null;
+    didInitialFetchRef.current = false;
+    pendingUserMessageIds.current.clear();
+    setMessages([]);
+  }, [projectId]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Process a single agent event (used for both historical and real-time events)
-  const processAgentEvent = (event: {
-    id?: string;
-    event_type: string;
-    event_data: any;
-    created_at: string;
-  }) => {
-    // Skip duplicates (event might be caught by both historical load AND realtime subscription)
-    if (event.id && seenEventIds.current.has(event.id)) {
-      return;
-    }
+  // Process a single agent event
+  const markEventProcessed = useCallback((event: AgentEventRecord) => {
     if (event.id) {
-      seenEventIds.current.add(event.id);
+      const { order, set } = seenEventIds.current;
+      set.add(event.id);
+      order.push(event.id);
+      if (order.length > MAX_EVENT_CACHE) {
+        const oldest = order.shift();
+        if (oldest) {
+          set.delete(oldest);
+        }
+      }
     }
-    // Handle project-level system messages (sent before session exists)
-    if (event.event_type === "system" && event.event_data?.message) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "system",
-          content: event.event_data.message,
-          timestamp: new Date(event.created_at),
-          toolUse: event.event_data.toolUse,
-          toolContext: event.event_data.toolContext,
-        },
-      ]);
+    if (!lastTimestampRef.current || event.created_at > lastTimestampRef.current) {
+      lastTimestampRef.current = event.created_at;
+    }
+  }, []);
+
+  const processAgentEvent = useCallback((event: AgentEventRecord) => {
+    console.log(
+      `[ChatPanel] 🔍 Event ${event.id ?? "(no-id)"}: ${event.event_type}`
+    );
+
+    if (event.id && seenEventIds.current.set.has(event.id)) {
+      console.log("[ChatPanel] ⏭️ Duplicate skipped", event.id);
       return;
     }
 
-    // Parse NDJSON event and add to messages
+    if (
+      event.event_type === "system" &&
+      typeof event.event_data?.message === "string"
+    ) {
+      setMessages((prev) => [...prev, {
+        id: crypto.randomUUID(),
+        role: "system",
+        content: event.event_data.message,
+        timestamp: new Date(event.created_at),
+        toolUse: event.event_data.toolUse,
+        toolContext: event.event_data.toolContext,
+      }]);
+      markEventProcessed(event);
+      return;
+    }
+
+    if (event.event_type === "user") {
+      const content = event.event_data?.content;
+      if (typeof content === "string" && content.trim().length > 0) {
+        const clientMessageId = event.event_data?.clientMessageId as string | undefined;
+        if (clientMessageId && pendingUserMessageIds.current.has(clientMessageId)) {
+          pendingUserMessageIds.current.delete(clientMessageId);
+          markEventProcessed(event);
+          return;
+        }
+        setMessages((prev) => [...prev, {
+          id: event.id || crypto.randomUUID(),
+          role: "user",
+          content,
+          timestamp: new Date(event.created_at),
+          avatarUrl: user?.imageUrl,
+        }]);
+      }
+      markEventProcessed(event);
+      return;
+    }
+
     if (event.event_type === "assistant") {
-      const content = event.event_data.message?.content || [];
+      const content =
+        (event.event_data?.message?.content as AssistantContentBlock[] | undefined) || [];
       for (const block of content) {
         if (block.type === "text") {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: crypto.randomUUID(),
-              role: "assistant",
-              content: block.text,
-              timestamp: new Date(event.created_at),
-            },
-          ]);
+          setMessages((prev) => [...prev, {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: block.text,
+            timestamp: new Date(event.created_at),
+          }]);
         } else if (block.type === "tool_use") {
-          // Extract meaningful context from tool input
           let toolContext = "";
           const input = block.input || {};
 
           if (block.name === "Read" && input.file_path) {
-            const fileName = input.file_path.split("/").pop();
-            toolContext = fileName;
+            toolContext = input.file_path.split("/").pop();
           } else if (block.name === "Write" && input.file_path) {
-            const fileName = input.file_path.split("/").pop();
-            toolContext = fileName;
+            toolContext = input.file_path.split("/").pop();
           } else if (block.name === "Edit" && input.file_path) {
-            const fileName = input.file_path.split("/").pop();
-            toolContext = fileName;
+            toolContext = input.file_path.split("/").pop();
           } else if (block.name === "Bash" && input.command) {
             toolContext = input.command.substring(0, 30) + (input.command.length > 30 ? "..." : "");
           } else if (block.name === "Glob" && input.pattern) {
             toolContext = input.pattern;
           }
 
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: crypto.randomUUID(),
-              role: "system",
-              content: `Using ${block.name}...`,
-              timestamp: new Date(event.created_at),
-              toolUse: block.name,
-              toolContext,
-            },
-          ]);
+          setMessages((prev) => [...prev, {
+            id: crypto.randomUUID(),
+            role: "system",
+            content: `Using ${block.name}...`,
+            timestamp: new Date(event.created_at),
+            toolUse: block.name,
+            toolContext,
+          }]);
         }
       }
-    } else if (event.event_type === "tool_result") {
-      // Tool result events (BashOutput, etc.)
-      const toolResult = event.event_data;
+      markEventProcessed(event);
+      return;
+    }
 
-      // Extract Expo URL if present
-      const expoUrlMatch = toolResult.content?.match(/exp:\/\/[\w\-\.]+:\d+/);
-      if (expoUrlMatch) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            role: "system",
-            content: `🎉 Expo ready: ${expoUrlMatch[0]}`,
-            timestamp: new Date(event.created_at),
-          },
-        ]);
-      }
-      // Show important outputs: errors, warnings, key info
-      // Skip verbose logs to avoid chat spam
-      else if (
-        toolResult.content?.trim() &&
-        (toolResult.is_error ||
-          toolResult.content.includes("error") ||
-          toolResult.content.includes("Error") ||
-          toolResult.content.includes("Metro") ||
-          toolResult.content.includes("Tunnel ready") ||
-          toolResult.content.includes("npm ERR"))
-      ) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            role: "system",
-            content: toolResult.content.trim().substring(0, 200),
-            timestamp: new Date(event.created_at),
-          },
-        ]);
-      }
-    } else if (event.event_type === "result") {
-      // Agent finished
-      console.log('[ChatPanel] 🏁 Result event received:', {
-        subtype: event.event_data.subtype,
-        timestamp: event.created_at,
-        fullEvent: JSON.stringify(event, null, 2)
-      });
-      console.log('[ChatPanel] 🔄 Setting isLoading: true → false');
+    if (event.event_type === "result") {
       setIsLoading(false);
       if (event.event_data.subtype === "success") {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            role: "system",
-            content: "✓ Task completed",
-            timestamp: new Date(event.created_at),
-          },
-        ]);
+        setMessages((prev) => [...prev, {
+          id: crypto.randomUUID(),
+          role: "system",
+          content: "✓ Task completed",
+          timestamp: new Date(event.created_at),
+        }]);
       } else {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            role: "system",
-            content: `✗ Error: ${event.event_data.subtype}`,
-            timestamp: new Date(event.created_at),
-          },
-        ]);
+        setMessages((prev) => [...prev, {
+          id: crypto.randomUUID(),
+          role: "system",
+          content: `✗ Error: ${event.event_data.subtype}`,
+          timestamp: new Date(event.created_at),
+        }]);
       }
+      markEventProcessed(event);
+      return;
     }
-  };
 
-  // Load ALL project events (historical) and subscribe to new ones
-  // This is project-scoped, not session-scoped - user sees complete project history
-  useEffect(() => {
-    // Wait for Clerk session to be fully loaded before querying/subscribing
+    markEventProcessed(event);
+  }, [markEventProcessed, user?.imageUrl]);
+
+  // Fetch historical events
+  const fetchHistoricalEvents = useCallback(async () => {
     if (!isLoaded) return;
 
-    console.log(`[ChatPanel] Loading ALL events for project: ${projectId}`);
+    const lastTimestamp = lastTimestampRef.current;
+    console.log(
+      `[ChatPanel] 📥 Fetching history after ${lastTimestamp ?? "beginning"}`
+    );
+    let query = supabase
+      .from("agent_events")
+      .select("*")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: true });
 
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-
-    async function setupSubscription() {
-      // CRITICAL FIX: Load historical events FIRST, then set up subscription
-      // This prevents race condition and duplicate detection handles any overlap
-
-      // STEP 1: Load ALL historical events for this project
-      console.log(`[ChatPanel] Loading historical events...`);
-      const { data: events, error } = await supabase
-        .from("agent_events")
-        .select("*")
-        .eq("project_id", projectId)
-        .order("created_at", { ascending: true });
-
-      if (error) {
-        console.error("[ChatPanel] Failed to load historical events:", error);
-        console.error("[ChatPanel] Error details:", error.message, error.code, error.details);
-        // Continue anyway - subscription might still work
-      } else {
-        console.log(`[ChatPanel] Loaded ${events?.length || 0} historical events`);
-
-        // Process each historical event
-        if (events) {
-          for (const event of events) {
-            processAgentEvent(event);
-          }
-        }
-      }
-
-      // STEP 2: Set up realtime subscription for new events
-      const subscriptionConfig = {
-        channel: `project-all-events:${projectId}`,
-        event: "INSERT",
-        schema: "public",
-        table: "agent_events",
-        filter: `project_id=eq.${projectId}`,
-        timestamp: new Date().toISOString()
-      };
-      console.log(`[ChatPanel] 🔌 Setting up realtime subscription:`, subscriptionConfig);
-
-      channel = supabase
-        .channel(subscriptionConfig.channel)
-        .on(
-          "postgres_changes",
-          {
-            event: "INSERT",
-            schema: "public",
-            table: "agent_events",
-            filter: subscriptionConfig.filter,
-          },
-          (payload) => {
-            const event = payload.new as {
-              id: string;
-              event_type: string;
-              event_data: any;
-              created_at: string;
-              session_id: string | null;
-            };
-
-            // Detailed logging for every event
-            console.log(`[ChatPanel] 📨 Event received:`, {
-              eventType: event.event_type,
-              hasSessionId: !!event.session_id,
-              timestamp: event.created_at,
-              eventId: event.id
-            });
-            console.log(`[ChatPanel] 📨 Full event data:`, JSON.stringify(event, null, 2));
-
-            // Process event (duplicate detection happens inside)
-            processAgentEvent(event);
-          }
-        )
-        .subscribe((status, err) => {
-          console.log(`[ChatPanel] 🔄 Subscription status:`, {
-            status,
-            timestamp: new Date().toISOString(),
-            error: err ? JSON.stringify(err, null, 2) : null
-          });
-
-          if (status === "SUBSCRIBED") {
-            console.log(`[ChatPanel] ✅ Successfully subscribed to realtime events`);
-          } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-            console.error(`[ChatPanel] ❌ Subscription failed:`, {
-              status,
-              error: err,
-              errorMessage: err?.message,
-              errorDetails: JSON.stringify(err, null, 2)
-            });
-            console.error(`[ChatPanel] ℹ️ Refresh the page to reconnect`);
-          }
-        });
+    if (lastTimestamp) {
+      query = query.gt("created_at", lastTimestamp);
     }
 
-    setupSubscription();
+    const { data: events, error } = await query.returns<AgentEventRecord[]>();
 
-    return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
+    if (error) {
+      console.error("[ChatPanel] Failed to load historical events:", error);
+    } else {
+      console.log(`[ChatPanel] ✅ Loaded ${events?.length ?? 0} events`);
+      if (events) {
+        for (const event of events) {
+          processAgentEvent(event);
+        }
       }
-    };
-  }, [projectId, isLoaded]);
+    }
+  }, [projectId, supabase, isLoaded, processAgentEvent]);
+
+  const { status: channelStatus } = useRealtimeSubscription({
+    channelKey: `agent_events:${projectId}`,
+    table: "agent_events",
+    event: "INSERT",
+    filter: `project_id=eq.${projectId}`,
+    onEvent: (payload) => processAgentEvent(payload.new as AgentEventRecord),
+    enabled: isLoaded,
+    onStatusChange: (status) => console.log(`[ChatPanel] 🔄 Channel status: ${status}`),
+  });
+
+  // Initial load (once per project mount)
+  useEffect(() => {
+    if (!isLoaded || didInitialFetchRef.current) return;
+    didInitialFetchRef.current = true;
+    fetchHistoricalEvents();
+  }, [isLoaded, fetchHistoricalEvents]);
+
+  // Re-fetch when realtime reconnects to capture anything missed
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (channelStatus === "connected") {
+      fetchHistoricalEvents();
+    }
+  }, [channelStatus, fetchHistoricalEvents, isLoaded]);
 
   const handleSendMessage = async () => {
     if (!input.trim() || isLoading) return;
@@ -302,21 +266,15 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
       role: "user",
       content: input,
       timestamp: new Date(),
+      avatarUrl: user?.imageUrl,
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    pendingUserMessageIds.current.add(userMessage.id);
     setInput("");
-    console.log('[ChatPanel] 🔄 Setting isLoading: false → true');
-    console.log('[ChatPanel] 📤 Sending message to agent:', {
-      projectId,
-      sandboxId: sandboxId || 'none',
-      messageLength: userMessage.content.length,
-      timestamp: new Date().toISOString()
-    });
     setIsLoading(true);
 
     try {
-      // Send message to agent (backend will store user message in database)
       const response = await fetch("/api/agents/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -325,6 +283,7 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
           projectId,
           sandboxId,
           workingDirectory: "/home/user/project",
+          clientMessageId: userMessage.id,
         }),
       });
 
@@ -335,32 +294,23 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
       const data = await response.json();
       console.log("Agent started:", data);
 
-      // - If status is "starting": Setup script is running, system messages will appear via subscription
-      // - If status is "processing": Agent is already running, show "Claude is thinking..."
       if (data.status === "processing") {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            role: "system",
-            content: "Claude is thinking...",
-            timestamp: new Date(),
-          },
-        ]);
-      }
-      // If status is "starting", don't show "thinking" - setup script messages will appear instead
-    } catch (error) {
-      console.error("Failed to send message:", error);
-      setMessages((prev) => [
-        ...prev,
-        {
+        setMessages((prev) => [...prev, {
           id: crypto.randomUUID(),
           role: "system",
-          content: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+          content: "Claude is thinking...",
           timestamp: new Date(),
-        },
-      ]);
-      console.log('[ChatPanel] 🔄 Setting isLoading: true → false (error)');
+        }]);
+      }
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      pendingUserMessageIds.current.delete(userMessage.id);
+      setMessages((prev) => [...prev, {
+        id: crypto.randomUUID(),
+        role: "system",
+        content: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+        timestamp: new Date(),
+      }]);
       setIsLoading(false);
     }
   };
@@ -384,7 +334,7 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
             <div>
               <p className="text-sm font-medium">Chat with AI</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Describe your app and I'll help build it
+                Describe your app and I&apos;ll help build it
               </p>
             </div>
           </div>

@@ -13,8 +13,8 @@ import {
   FileEdit,
   ListTodo,
   FolderSearch,
-  Loader2,
 } from "lucide-react";
+import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 
 interface Message {
@@ -24,6 +24,7 @@ interface Message {
   timestamp: Date;
   toolUse?: string;
   toolContext?: string; // Additional context about tool use
+  avatarUrl?: string;
 }
 
 interface ChatMessageProps {
@@ -38,9 +39,19 @@ export function ChatMessage({ message }: ChatMessageProps) {
         <div className="bg-primary text-primary-foreground rounded-lg px-4 py-2 max-w-[80%]">
           <p className="text-sm whitespace-pre-wrap">{message.content}</p>
         </div>
-        <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-          <User className="h-4 w-4 text-primary-foreground" />
-        </div>
+        {message.avatarUrl ? (
+          <Image
+            src={message.avatarUrl}
+            alt="User avatar"
+            width={32}
+            height={32}
+            className="h-8 w-8 rounded-full object-cover flex-shrink-0"
+          />
+        ) : (
+          <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+            <User className="h-4 w-4 text-primary-foreground" />
+          </div>
+        )}
       </div>
     );
   }

@@ -54,6 +54,7 @@ export function useSupabaseClient() {
   // Create client only once - it never needs to be recreated
   // This prevents subscriptions from closing/reopening when session changes
   const client = React.useMemo(() => {
+    // eslint-disable-next-line react-hooks/refs -- sessionRef is intentionally accessed in accessToken callback (not during render)
     return createClient(supabaseUrl, supabaseAnonKey, {
       realtime: {
         // Enable web workers to prevent heartbeat throttling
@@ -63,7 +64,10 @@ export function useSupabaseClient() {
       },
       async accessToken() {
         // Use the ref to always get the latest session token
-        return sessionRef.current?.getToken() ?? null;
+        // IMPORTANT: Must await getToken() to return string, not Promise<string>
+        // The ref is accessed here (in the callback), NOT during render - this is safe
+        if (!sessionRef.current) return null;
+        return await sessionRef.current.getToken();
       },
     });
   }, []); // Empty dependency array - client is stable across renders
