@@ -27,6 +27,11 @@ interface AssistantContentBlock {
   input?: Record<string, any>;
 }
 
+const isTextBlock = (
+  block: AssistantContentBlock
+): block is AssistantContentBlock & { text: string } =>
+  block.type === "text" && typeof block.text === "string";
+
 interface AgentEventRecord {
   id?: string;
   event_type: string;
@@ -140,11 +145,12 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
       const content =
         (event.event_data?.message?.content as AssistantContentBlock[] | undefined) || [];
       for (const block of content) {
-        if (block.type === "text") {
+        if (isTextBlock(block)) {
+          const text = block.text;
           setMessages((prev) => [...prev, {
             id: crypto.randomUUID(),
             role: "assistant",
-            content: block.text,
+            content: text,
             timestamp: new Date(event.created_at),
           }]);
         } else if (block.type === "tool_use") {

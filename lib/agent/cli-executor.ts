@@ -21,7 +21,6 @@
  */
 
 import type { Sandbox } from "e2b";
-import { createSandbox } from "../e2b";
 import type { AgentStreamEvent } from "./types";
 
 /**

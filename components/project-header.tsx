@@ -3,9 +3,8 @@
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { AppBreadcrumbs } from "@/components/app-breadcrumbs";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Play, Loader2, Code2, Eye, Square } from "lucide-react";
+import { Loader2, Square } from "lucide-react";
 
 interface ProjectHeaderProps {
   projectName?: string;
@@ -30,32 +29,6 @@ export function ProjectHeader({
 }: ProjectHeaderProps) {
   const showControls = viewMode && onViewModeChange;
   const showSandboxButton = sandboxStatus && (onStartSandbox || onStopSandbox);
-
-  const getStatusColor = () => {
-    switch (sandboxStatus) {
-      case "ready":
-        return "bg-emerald-500";
-      case "starting":
-        return "bg-amber-500";
-      case "error":
-        return "bg-rose-500";
-      default:
-        return "bg-slate-400";
-    }
-  };
-
-  const getStatusText = () => {
-    switch (sandboxStatus) {
-      case "ready":
-        return "Ready";
-      case "starting":
-        return "Starting...";
-      case "error":
-        return "Error";
-      default:
-        return "Not started";
-    }
-  };
 
   return (
     <header className="flex h-12 shrink-0 items-center border-b px-4 gap-4">

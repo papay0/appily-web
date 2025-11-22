@@ -3,11 +3,12 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useSupabaseClient } from "@/lib/supabase-client";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Wifi, WifiOff, RotateCw, Power, Eye, EyeOff, Trash2, Activity, Play, Copy, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Wifi, WifiOff, RotateCw, Power, Trash2, Activity, Play, Copy, CheckCircle2, XCircle, Clock } from "lucide-react";
 
 interface LogEntry {
   id: string;
@@ -41,9 +42,16 @@ interface TestReport {
   };
 }
 
+type AgentEventRow = {
+  id: string;
+  event_type: string;
+  event_data: Record<string, unknown>;
+  created_at: string;
+};
+
 export default function RealtimeTestPage() {
   const supabase = useSupabaseClient();
-  const [events, setEvents] = useState<any[]>([]);
+  const [events, setEvents] = useState<AgentEventRow[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [connectionDuration, setConnectionDuration] = useState(0);
   const connectionStartRef = useRef<Date | null>(null);
@@ -87,15 +95,16 @@ export default function RealtimeTestPage() {
     if (error) {
       addLog("error", `Failed to fetch historical events: ${error.message}`);
     } else {
-      setEvents(data || []);
+      setEvents((data as AgentEventRow[]) || []);
       addLog("success", `Loaded ${data?.length || 0} historical events`);
     }
   }, [supabase, addLog]);
 
   // Handle realtime events
-  const handleRealtimeEvent = useCallback((payload: any) => {
+  const handleRealtimeEvent = useCallback((payload: RealtimePostgresChangesPayload<AgentEventRow>) => {
+    if (!payload.new) return;
     addLog("success", `📨 Realtime event received: ${payload.eventType}`);
-    setEvents((prev) => [payload.new, ...prev.slice(0, 19)]); // Keep last 20
+    setEvents((prev) => [payload.new as AgentEventRow, ...prev.slice(0, 19)]); // Keep last 20
   }, [addLog]);
 
   // Handle connection status changes
@@ -127,8 +136,14 @@ export default function RealtimeTestPage() {
     onEvent: handleRealtimeEvent,
     onError: handleError,
     onStatusChange: handleConnectionChange,
-    fetchHistorical: fetchHistoricalEvents,
   });
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      fetchHistoricalEvents();
+    }, 0);
+    return () => clearTimeout(timeout);
+  }, [fetchHistoricalEvents]);
 
   // Update connection duration
   useEffect(() => {
@@ -203,8 +218,7 @@ export default function RealtimeTestPage() {
     // Helper to run a single test
     const runTest = async (
       name: string,
-      testFn: () => Promise<void>,
-      expectedDuration: number = 5000
+      testFn: () => Promise<void>
     ): Promise<TestResult> => {
       currentTestLogsRef.current = [];
       const testStart = new Date();
@@ -281,7 +295,6 @@ export default function RealtimeTestPage() {
     // TEST 2: Manual Disconnect and Reconnect
     results.push(
       await runTest("Manual Disconnect and Auto-Reconnect", async () => {
-        const initialEventsCount = events.length;
         addLog("info", "Disconnecting...");
         manualDisconnect();
 

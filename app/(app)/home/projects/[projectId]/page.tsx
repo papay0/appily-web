@@ -3,12 +3,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useUser, useSession } from "@clerk/nextjs";
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { useSupabaseClient } from "@/lib/supabase-client";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 import { ChatPanel } from "@/components/chat-panel";
 import { PreviewPanel } from "@/components/preview-panel";
 import { CodeEditor } from "@/components/code-editor";
-import { SegmentedControl } from "@/components/segmented-control";
 import { DebugPanel } from "@/components/debug-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProjectHeader } from "@/components/project-header";
@@ -153,7 +153,7 @@ export default function ProjectPage() {
     }
 
     setupProjectSubscription();
-  }, [user, projectId, router, isLoaded]);
+  }, [user, projectId, router, isLoaded, supabase]);
 
   // Uptime counter
   useEffect(() => {
@@ -196,8 +196,9 @@ export default function ProjectPage() {
   }, [projectId, supabase]);
 
   // Handle realtime project updates
-  const handleProjectUpdate = useCallback((payload: any) => {
-    const updatedProject = payload.new as Project;
+  const handleProjectUpdate = useCallback((payload: RealtimePostgresChangesPayload<Project>) => {
+    const updatedProject = payload.new as Project | null;
+    if (!updatedProject) return;
 
     console.log(`[ProjectPage] 📨 Project UPDATE received:`, {
       projectId: updatedProject.id,

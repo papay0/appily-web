@@ -189,7 +189,7 @@ export async function startExpo(
     let expoPid: number | undefined;
 
     // Create a Promise that resolves when Expo is ready
-    const expoReadyPromise = new Promise<void>(async (resolve, reject) => {
+    const expoReadyPromise = new Promise<void>(async (resolve) => {
       let resolved = false;
 
       const expoProcess = await sandbox.commands.run(
@@ -237,11 +237,11 @@ export async function startExpo(
     try {
       await Promise.race([
         expoReadyPromise,
-        new Promise<void>((_, reject) =>
-          setTimeout(() => reject(new Error("Expo startup timeout after 60 seconds")), 60000)
+        new Promise<void>((_, rejectPromise) =>
+          setTimeout(() => rejectPromise(new Error("Expo startup timeout after 60 seconds")), 60000)
         ),
       ]);
-    } catch (error) {
+    } catch {
       // Check if process is still running
       if (expoPid) {
         const psResult = await sandbox.commands.run(`ps -p ${expoPid}`, {

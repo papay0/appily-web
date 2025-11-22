@@ -47,7 +47,7 @@ export default function ProjectsPage() {
     }
 
     loadProjects();
-  }, [user]);
+  }, [user, supabase]);
 
   if (loading) {
     return (

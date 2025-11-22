@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import type { Sandbox } from "e2b";
 import { createSandbox, setupExpoProject } from "@/lib/e2b";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { generateQRCode } from "@/lib/qrcode";
@@ -12,7 +13,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { projectId } = await request.json();
+    const { projectId } = (await request.json()) as { projectId?: string };
 
     if (!projectId) {
       return NextResponse.json({ error: "Project ID required" }, { status: 400 });
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
 }
 
 // Background function to complete Expo setup
-async function setupExpoInBackground(sandbox: any, projectId: string) {
+async function setupExpoInBackground(sandbox: Sandbox, projectId: string) {
   try {
     // Setup Expo project in the sandbox (clone template + start Expo)
     console.log("Setting up Expo project in sandbox...");

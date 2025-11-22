@@ -3,12 +3,13 @@ import { useSupabaseClient } from "@/lib/supabase-client";
 import type {
   RealtimeChannel,
   RealtimePostgresChangesPayload,
+  RealtimePostgresChangesFilter,
 } from "@supabase/supabase-js";
 
 type EventType = "INSERT" | "UPDATE" | "DELETE" | "*";
 export type ChannelStatus = "idle" | "connecting" | "connected" | "reconnecting" | "error";
 
-interface UseRealtimeSubscriptionConfig<T = unknown> {
+interface UseRealtimeSubscriptionConfig<T extends { [key: string]: any } = { [key: string]: any }> {
   /** Unique key for this channel (used to memoize and log) */
   channelKey: string;
   /** Table to listen to */
@@ -44,7 +45,7 @@ interface UseRealtimeSubscriptionReturn {
 const DEFAULT_DELAY_MS = 2000;
 const DEFAULT_MAX_DELAY_MS = 10000;
 
-export function useRealtimeSubscription<T = unknown>(
+export function useRealtimeSubscription<T extends { [key: string]: any } = { [key: string]: any }>(
   config: UseRealtimeSubscriptionConfig<T>
 ): UseRealtimeSubscriptionReturn {
   const supabase = useSupabaseClient();
@@ -140,36 +141,51 @@ export function useRealtimeSubscription<T = unknown>(
     notifyStatus(attemptRef.current === 0 ? "connecting" : "reconnecting");
 
     const dynamicChannelName = `${channelKey}-${Date.now()}`;
-    const channel = supabase
-      .channel(dynamicChannelName)
-      .on(
-        "postgres_changes",
-        { event, schema, table, filter },
-        (payload: RealtimePostgresChangesPayload<T>) => handlePayload(payload)
-      )
-      .subscribe((subscriptionStatus, err) => {
-        if (!isMountedRef.current) return;
+    type OnMethod = <RecordType extends { [key: string]: any }>(
+      type: "postgres_changes",
+      filter: RealtimePostgresChangesFilter<typeof event>,
+      callback: (payload: RealtimePostgresChangesPayload<RecordType>) => void
+    ) => RealtimeChannel;
 
-        if (subscriptionStatus === "SUBSCRIBED") {
-          attemptRef.current = 0;
-          notifyStatus("connected");
-          setRetryCount(0);
-          setLastError(null);
-        } else if (
-          subscriptionStatus === "CLOSED" ||
-          subscriptionStatus === "CHANNEL_ERROR" ||
-          subscriptionStatus === "TIMED_OUT"
-        ) {
-          cleanupChannel();
-          if (err) {
-            const normalizedError =
-              err instanceof Error ? err : new Error(JSON.stringify(err));
-            setLastError(normalizedError);
-            callbacksRef.current.onError?.(normalizedError);
-          }
-          scheduleReconnect();
+    const channel = supabase.channel(dynamicChannelName);
+
+    const changeFilter: RealtimePostgresChangesFilter<typeof event> = {
+      event,
+      schema,
+      table,
+      filter,
+    };
+
+    (channel.on as OnMethod)<T>(
+      "postgres_changes",
+      changeFilter,
+      (payload) => handlePayload(payload)
+    );
+
+    channel.subscribe((subscriptionStatus, err) => {
+      if (!isMountedRef.current) return;
+
+      if (subscriptionStatus === "SUBSCRIBED") {
+        attemptRef.current = 0;
+        notifyStatus("connected");
+        setRetryCount(0);
+        setLastError(null);
+      } else if (
+        subscriptionStatus === "CLOSED" ||
+        subscriptionStatus === "CHANNEL_ERROR" ||
+        subscriptionStatus === "TIMED_OUT"
+      ) {
+        cleanupChannel();
+        if (err) {
+          const normalizedError =
+            err instanceof Error ? err : new Error(JSON.stringify(err));
+          setLastError(normalizedError);
+          callbacksRef.current.onError?.(normalizedError);
         }
-      });
+        scheduleReconnect();
+      }
+    });
+
     channelRef.current = channel;
   }, [
     channelKey,

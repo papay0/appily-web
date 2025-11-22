@@ -2,8 +2,7 @@
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Play, Loader2, QrCode, RefreshCw } from "lucide-react";
+import { Loader2, QrCode, RefreshCw } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
 
@@ -43,32 +42,6 @@ export function PreviewPanel({ sandboxStatus, onStartSandbox, expoUrl, qrCode, s
     }
   };
 
-  const getStatusColor = () => {
-    switch (sandboxStatus) {
-      case "ready":
-        return "bg-green-500";
-      case "starting":
-        return "bg-yellow-500";
-      case "error":
-        return "bg-red-500";
-      default:
-        return "bg-gray-500";
-    }
-  };
-
-  const getStatusText = () => {
-    switch (sandboxStatus) {
-      case "ready":
-        return "Ready";
-      case "starting":
-        return "Starting...";
-      case "error":
-        return "Error";
-      default:
-        return "Not started";
-    }
-  };
-
   return (
     <div className="flex flex-col h-full">
       {/* Preview Content */}
@@ -82,7 +55,7 @@ export function PreviewPanel({ sandboxStatus, onStartSandbox, expoUrl, qrCode, s
               <div>
                 <p className="text-sm font-medium">Sandbox not started</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Click "Start Sandbox" to begin
+                  Click &quot;Start Sandbox&quot; to begin
                 </p>
               </div>
             </div>

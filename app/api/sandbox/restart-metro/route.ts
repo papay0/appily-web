@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     try {
       await sandbox.commands.run("pkill -f 'expo start'");
       await sandbox.commands.run("pkill -f 'node.*metro'");
-    } catch (error) {
+    } catch {
       // Ignore errors if no processes found
     }
 
@@ -44,21 +44,16 @@ export async function POST(request: Request) {
     const hostname = await sandbox.getHost(8081);
     console.log(`[restart-metro] Starting Expo on ${hostname}...`);
 
-    let expoOutput = "";
-    let expoPid: number | undefined;
-
     // Create a Promise that resolves when Expo is ready
-    const expoReadyPromise = new Promise<void>(async (resolve, reject) => {
+    const expoReadyPromise = new Promise<void>(async (resolve) => {
       let resolved = false;
 
-      const expoProcess = await sandbox.commands.run(
+      await sandbox.commands.run(
         `cd /home/user/project && NODE_OPTIONS="--max-old-space-size=3072" npx expo start --tunnel`,
         {
           background: true,
           timeoutMs: 0,
           onStdout: (data) => {
-            expoOutput += data;
-
             // Only log important messages
             if (data.includes("Metro") || data.includes("Tunnel") || data.includes("error") || data.includes("Error")) {
               console.log("[Expo]", data.trim());
@@ -77,7 +72,6 @@ export async function POST(request: Request) {
             }
           },
           onStderr: (data) => {
-            expoOutput += data;
             // Only log errors
             if (data.includes("error") || data.includes("Error") || data.includes("failed")) {
               console.error("[Expo]", data.trim());
@@ -85,16 +79,14 @@ export async function POST(request: Request) {
           },
         }
       );
-
-      expoPid = expoProcess.pid;
     });
 
     // Wait for Expo to be ready with 60 second timeout
     try {
       await Promise.race([
         expoReadyPromise,
-        new Promise<void>((_, reject) =>
-          setTimeout(() => reject(new Error("Expo startup timeout after 60 seconds")), 60000)
+        new Promise<void>((_, rejectPromise) =>
+          setTimeout(() => rejectPromise(new Error("Expo startup timeout after 60 seconds")), 60000)
         ),
       ]);
     } catch (error) {

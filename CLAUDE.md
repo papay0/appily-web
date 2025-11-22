@@ -7,3 +7,4 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Never `git push` unless I tell you to do it
 - Never run `npm run dev` unless I tell you to do it
 - Only run `npm run build` when you're not too certain of your changes. For instance if you do a simple UI change, no need to do it. If it's a complex change you should do it.
+- Always you strongly type variable, not `any`
