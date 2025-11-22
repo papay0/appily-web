@@ -9,7 +9,7 @@ import type {
 type EventType = "INSERT" | "UPDATE" | "DELETE" | "*";
 export type ChannelStatus = "idle" | "connecting" | "connected" | "reconnecting" | "error";
 
-interface UseRealtimeSubscriptionConfig<T extends { [key: string]: any } = { [key: string]: any }> {
+interface UseRealtimeSubscriptionConfig<T extends Record<string, unknown> = Record<string, unknown>> {
   /** Unique key for this channel (used to memoize and log) */
   channelKey: string;
   /** Table to listen to */
@@ -45,7 +45,7 @@ interface UseRealtimeSubscriptionReturn {
 const DEFAULT_DELAY_MS = 2000;
 const DEFAULT_MAX_DELAY_MS = 10000;
 
-export function useRealtimeSubscription<T extends { [key: string]: any } = { [key: string]: any }>(
+export function useRealtimeSubscription<T extends Record<string, unknown> = Record<string, unknown>>(
   config: UseRealtimeSubscriptionConfig<T>
 ): UseRealtimeSubscriptionReturn {
   const supabase = useSupabaseClient();
@@ -100,10 +100,12 @@ export function useRealtimeSubscription<T extends { [key: string]: any } = { [ke
   }, []);
 
   const cleanupChannel = React.useCallback(() => {
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-    }
+    const channel = channelRef.current;
+    if (!channel) return;
+
+    // Null out the ref before removing to avoid recursive removeChannel -> onClose -> cleanup loops
+    channelRef.current = null;
+    void supabase.removeChannel(channel);
   }, [supabase]);
 
   const scheduleReconnect = React.useCallback(() => {
@@ -141,7 +143,7 @@ export function useRealtimeSubscription<T extends { [key: string]: any } = { [ke
     notifyStatus(attemptRef.current === 0 ? "connecting" : "reconnecting");
 
     const dynamicChannelName = `${channelKey}-${Date.now()}`;
-    type OnMethod = <RecordType extends { [key: string]: any }>(
+    type OnMethod = <RecordType extends Record<string, unknown>>(
       type: "postgres_changes",
       filter: RealtimePostgresChangesFilter<typeof event>,
       callback: (payload: RealtimePostgresChangesPayload<RecordType>) => void

@@ -67,7 +67,12 @@ export function useSupabaseClient() {
         // IMPORTANT: Must await getToken() to return string, not Promise<string>
         // The ref is accessed here (in the callback), NOT during render - this is safe
         if (!sessionRef.current) return null;
-        return await sessionRef.current.getToken();
+        try {
+          return await sessionRef.current.getToken({ skipCache: true });
+        } catch (error) {
+          console.error("[Supabase] Failed to fetch Clerk token:", error);
+          return null;
+        }
       },
     });
   }, []); // Empty dependency array - client is stable across renders
