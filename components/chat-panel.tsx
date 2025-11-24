@@ -9,6 +9,7 @@ import { useSession, useUser } from "@clerk/nextjs";
 import { useSupabaseClient } from "@/lib/supabase-client";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 import { ChatMessage } from "./chat-message";
+import { TodoList, type Todo } from "./todo-list";
 
 interface Message {
   id: string;
@@ -18,6 +19,8 @@ interface Message {
   toolUse?: string;
   toolContext?: string;
   avatarUrl?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  toolInput?: any; // Stores the input data from tool use (e.g., todos for TodoWrite)
 }
 
 interface AssistantContentBlock {
@@ -177,6 +180,7 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
             timestamp: new Date(event.created_at),
             toolUse: block.name,
             toolContext,
+            toolInput: input, // Store the full input data (includes todos for TodoWrite)
           }]);
         }
       }
@@ -332,38 +336,56 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Chat Messages */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 pt-6 min-h-0">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 pt-4 min-h-0">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
-            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+          <div className="flex flex-col items-center justify-center h-full text-center space-y-4 animate-in fade-in duration-500">
+            <div className="h-12 w-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center shadow-sm p-2.5">
               <Image
                 src="/appily-logo.svg"
                 alt="Appily AI"
-                width={28}
-                height={28}
+                width={20}
+                height={20}
               />
             </div>
             <div>
-              <p className="text-sm font-medium">Chat with AI</p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                Chat with Claude
+              </p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-xs">
                 Describe your app and I&apos;ll help build it
               </p>
             </div>
           </div>
         ) : (
-          <div className="space-y-4 w-full max-w-full overflow-hidden">
-            {messages.map((message) => (
-              <div key={message.id} className="w-full max-w-full overflow-hidden">
-                <ChatMessage message={message} />
-              </div>
-            ))}
+          <div className="space-y-2 w-full max-w-full overflow-hidden">
+            {/* Messages with inline todos */}
+            {messages.map((message, index) => {
+              // Find the index of the last TodoWrite message
+              const lastTodoWriteIndex = messages.map((m, i) => m.toolUse === "TodoWrite" ? i : -1).filter(i => i !== -1).pop() ?? -1;
+              const isLatestTodoWrite = index === lastTodoWriteIndex;
+
+              return (
+                <div key={message.id} className="w-full max-w-full overflow-hidden">
+                  <ChatMessage message={message} />
+                  {/* Show todos after TodoWrite tool use */}
+                  {message.toolUse === "TodoWrite" && message.toolInput?.todos && (
+                    <div className="mt-1.5 pl-9">
+                      <TodoList
+                        todos={message.toolInput.todos as Todo[]}
+                        isLatest={isLatestTodoWrite}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             <div ref={messagesEndRef} />
           </div>
         )}
       </div>
 
       {/* Chat Input */}
-      <div className="border-t p-4">
+      <div className="border-t bg-white dark:bg-gray-900 p-3">
         <div className="flex gap-2">
           <Input
             placeholder="Describe your app..."
@@ -371,17 +393,18 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={handleKeyPress}
             disabled={isLoading}
-            className="flex-1"
+            className="flex-1 rounded-lg border shadow-sm focus:shadow-sm transition-shadow bg-white dark:bg-gray-800 text-sm h-9"
           />
           <Button
             onClick={handleSendMessage}
             disabled={isLoading || !input.trim()}
             size="icon"
+            className="h-9 w-9 rounded-lg bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow-md transition-all"
           >
             {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              <Send className="h-4 w-4" />
+              <Send className="h-3.5 w-3.5" />
             )}
           </Button>
         </div>

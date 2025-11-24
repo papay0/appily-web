@@ -299,10 +299,7 @@ export default function ProjectPage() {
         }),
       });
 
-      // Clear QR code and Expo URL when stopping sandbox
-      setExpoUrl(undefined);
-      setQrCode(undefined);
-
+      // Keep QR code and Expo URL visible so users can reconnect
       // Status will be updated via realtime subscription
     } catch (error) {
       console.error("Failed to stop sandbox:", error);

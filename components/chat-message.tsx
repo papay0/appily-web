@@ -12,9 +12,14 @@ import {
   FileEdit,
   ListTodo,
   FolderSearch,
+  Sparkles,
 } from "lucide-react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 interface Message {
   id: string;
@@ -34,21 +39,21 @@ export function ChatMessage({ message }: ChatMessageProps) {
   // User messages
   if (message.role === "user") {
     return (
-      <div className="flex items-start gap-3 justify-end w-full">
-        <div className="bg-primary text-primary-foreground rounded-lg px-4 py-2 max-w-[80%] overflow-hidden">
-          <p className="text-sm whitespace-pre-wrap break-all">{message.content}</p>
+      <div className="flex items-start gap-2.5 w-full justify-end animate-in slide-in-from-right-2 duration-300">
+        <div className="bg-blue-600 text-white rounded-lg px-3 py-2 max-w-[80%] overflow-hidden shadow-sm">
+          <p className="text-sm whitespace-pre-wrap break-all leading-normal">{message.content}</p>
         </div>
         {message.avatarUrl ? (
           <Image
             src={message.avatarUrl}
             alt="User avatar"
-            width={32}
-            height={32}
-            className="h-8 w-8 rounded-full object-cover flex-shrink-0"
+            width={28}
+            height={28}
+            className="h-7 w-7 rounded-full object-cover flex-shrink-0"
           />
         ) : (
-          <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-            <User className="h-4 w-4 text-primary-foreground" />
+          <div className="h-7 w-7 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+            <User className="h-3.5 w-3.5 text-white" />
           </div>
         )}
       </div>
@@ -58,17 +63,107 @@ export function ChatMessage({ message }: ChatMessageProps) {
   // Assistant messages
   if (message.role === "assistant") {
     return (
-      <div className="flex items-start gap-3 w-full">
-        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+      <div className="flex items-start gap-2.5 w-full animate-in slide-in-from-left-2 duration-300">
+        <div className="h-7 w-7 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 p-1.5">
           <Image
             src="/appily-logo.svg"
             alt="Appily AI"
-            width={20}
-            height={20}
+            width={16}
+            height={16}
+            className="object-contain"
           />
         </div>
-        <div className="bg-muted rounded-lg px-4 py-2 max-w-[80%] overflow-hidden">
-          <p className="text-sm whitespace-pre-wrap break-all">{message.content}</p>
+        <div className="bg-white dark:bg-gray-800 rounded-lg px-3 py-2 max-w-xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="text-sm leading-relaxed text-gray-800 dark:text-gray-100">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                // Customize code blocks
+                code({ node, inline, className, children, ...props }: {
+                  node?: unknown;
+                  inline?: boolean;
+                  className?: string;
+                  children?: React.ReactNode;
+                }) {
+                  const match = /language-(\w+)/.exec(className || "");
+                  return !inline && match ? (
+                    <SyntaxHighlighter
+                      style={oneDark}
+                      language={match[1]}
+                      PreTag="div"
+                      className="rounded-lg my-2"
+                      {...props}
+                    >
+                      {String(children).replace(/\n$/, "")}
+                    </SyntaxHighlighter>
+                  ) : (
+                    <code
+                      className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-xs font-mono"
+                      {...props}
+                    >
+                      {children}
+                    </code>
+                  );
+                },
+                // Customize headings
+                h1: ({ children }) => (
+                  <h1 className="text-lg font-bold mt-4 mb-2">{children}</h1>
+                ),
+                h2: ({ children }) => (
+                  <h2 className="text-base font-bold mt-3 mb-2">{children}</h2>
+                ),
+                h3: ({ children }) => (
+                  <h3 className="text-sm font-bold mt-2 mb-1">{children}</h3>
+                ),
+                // Customize lists
+                ul: ({ children }) => (
+                  <ul className="list-disc list-inside space-y-1 my-2">{children}</ul>
+                ),
+                ol: ({ children }) => (
+                  <ol className="list-decimal list-inside space-y-1 my-2">{children}</ol>
+                ),
+                // Customize links
+                a: ({ href, children }) => (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    {children}
+                  </a>
+                ),
+                // Customize paragraphs
+                p: ({ children }) => <p className="my-2">{children}</p>,
+                // Customize blockquotes
+                blockquote: ({ children }) => (
+                  <blockquote className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 italic my-2">
+                    {children}
+                  </blockquote>
+                ),
+                // Customize tables
+                table: ({ children }) => (
+                  <div className="overflow-x-auto my-2">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                      {children}
+                    </table>
+                  </div>
+                ),
+                th: ({ children }) => (
+                  <th className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-left text-xs font-semibold">
+                    {children}
+                  </th>
+                ),
+                td: ({ children }) => (
+                  <td className="px-3 py-2 text-xs border-t border-gray-200 dark:border-gray-700">
+                    {children}
+                  </td>
+                ),
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
+          </div>
         </div>
       </div>
     );
@@ -80,41 +175,41 @@ export function ChatMessage({ message }: ChatMessageProps) {
     if (message.toolUse) {
       // Determine icon and color based on tool type
       let Icon = Wrench;
-      let badgeClass = "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
+      let badgeClass = "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-200 dark:border-blue-800";
 
       if (message.toolUse === "Bash") {
         Icon = Terminal;
-        badgeClass = "bg-gray-800 text-gray-100 dark:bg-gray-700 dark:text-gray-100";
+        badgeClass = "bg-gray-800 text-gray-100 dark:bg-gray-700 dark:text-gray-100 border-gray-700 dark:border-gray-600";
       } else if (message.toolUse === "Read") {
         Icon = FileText;
-        badgeClass = "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
+        badgeClass = "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-200 dark:border-blue-800";
       } else if (message.toolUse === "Write") {
         Icon = FilePlus;
-        badgeClass = "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200";
+        badgeClass = "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-purple-200 dark:border-purple-800";
       } else if (message.toolUse === "Edit") {
         Icon = FileEdit;
-        badgeClass = "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200";
+        badgeClass = "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 border-amber-200 dark:border-amber-800";
       } else if (message.toolUse === "TodoWrite") {
         Icon = ListTodo;
-        badgeClass = "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
+        badgeClass = "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-200 dark:border-green-800";
       } else if (message.toolUse === "Glob") {
         Icon = FolderSearch;
-        badgeClass = "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200";
+        badgeClass = "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 border-indigo-200 dark:border-indigo-800";
       }
 
       return (
-        <div className="flex items-center justify-center gap-2 my-2 px-4 w-full max-w-full">
+        <div className="flex items-start gap-2 my-1.5 w-full animate-in fade-in duration-300 pl-9">
           <Badge
             variant="secondary"
             className={cn(
-              "gap-2 max-w-full flex-wrap justify-center inline-flex overflow-hidden",
+              "gap-1.5 inline-flex items-start border shadow-sm px-2.5 py-1 rounded-md text-xs max-w-xl",
               badgeClass
             )}
           >
-            <Icon className="h-3 w-3 flex-shrink-0" />
-            <span className="text-xs break-all max-w-full">{message.content}</span>
+            <Icon className="h-3 w-3 flex-shrink-0 mt-0.5" />
+            <span className="font-medium break-words whitespace-normal">{message.content}</span>
             {message.toolContext && (
-              <span className="text-xs opacity-70 break-all max-w-full">• {message.toolContext}</span>
+              <span className="opacity-70 font-mono break-all whitespace-normal">• {message.toolContext}</span>
             )}
           </Badge>
         </div>
@@ -124,13 +219,13 @@ export function ChatMessage({ message }: ChatMessageProps) {
     // Expo URL ready indicator (special green badge with larger size)
     if (message.content.startsWith("🎉 Expo ready:")) {
       return (
-        <div className="flex items-center justify-center gap-2 my-3 px-4 w-full max-w-full">
+        <div className="flex items-start gap-2 my-1.5 w-full animate-in zoom-in duration-500 pl-9">
           <Badge
             variant="default"
-            className="gap-2 bg-green-500 hover:bg-green-600 text-white py-2 px-4 text-sm font-medium max-w-full flex-wrap justify-center inline-flex overflow-hidden"
+            className="gap-1.5 bg-green-500 hover:bg-green-600 text-white py-1.5 px-3 text-xs font-medium inline-flex items-start shadow-sm border border-green-400 rounded-md max-w-xl"
           >
-            <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-            <span className="break-all max-w-full">{message.content}</span>
+            <Sparkles className="h-3 w-3 flex-shrink-0 mt-0.5" />
+            <span className="break-words whitespace-normal">{message.content}</span>
           </Badge>
         </div>
       );
@@ -139,13 +234,13 @@ export function ChatMessage({ message }: ChatMessageProps) {
     // Success indicator
     if (message.content.startsWith("✓")) {
       return (
-        <div className="flex items-center justify-center gap-2 my-2 px-4 w-full max-w-full">
+        <div className="flex items-start gap-2 my-1.5 w-full animate-in fade-in duration-300 pl-9">
           <Badge
             variant="default"
-            className="gap-2 bg-green-500 hover:bg-green-600 max-w-full flex-wrap justify-center inline-flex overflow-hidden"
+            className="gap-1.5 bg-green-500 hover:bg-green-600 text-white inline-flex items-start shadow-sm border border-green-400 px-2.5 py-1 rounded-md text-xs max-w-xl"
           >
-            <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
-            <span className="text-xs break-all max-w-full">{message.content}</span>
+            <CheckCircle2 className="h-3 w-3 flex-shrink-0 mt-0.5" />
+            <span className="font-medium break-words whitespace-normal">{message.content}</span>
           </Badge>
         </div>
       );
@@ -154,10 +249,10 @@ export function ChatMessage({ message }: ChatMessageProps) {
     // Error indicator
     if (message.content.startsWith("✗") || message.content.startsWith("Error")) {
       return (
-        <div className="flex items-center justify-center gap-2 my-2 px-4 w-full max-w-full">
-          <Badge variant="destructive" className="gap-2 max-w-full flex-wrap justify-center inline-flex overflow-hidden">
-            <XCircle className="h-3 w-3 flex-shrink-0" />
-            <span className="text-xs break-all max-w-full">{message.content}</span>
+        <div className="flex items-start gap-2 my-1.5 w-full animate-in fade-in duration-300 pl-9">
+          <Badge variant="destructive" className="gap-1.5 inline-flex items-start shadow-sm border px-2.5 py-1 rounded-md text-xs max-w-xl">
+            <XCircle className="h-3 w-3 flex-shrink-0 mt-0.5" />
+            <span className="font-medium break-words whitespace-normal">{message.content}</span>
           </Badge>
         </div>
       );
@@ -165,9 +260,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
     // Generic system message (thinking, etc.)
     return (
-      <div className="flex items-center justify-center gap-2 my-2 px-4 w-full max-w-full">
-        <Badge variant="outline" className="gap-2 max-w-full flex-wrap justify-center inline-flex overflow-hidden">
-          <span className="text-xs text-muted-foreground break-all max-w-full">{message.content}</span>
+      <div className="flex items-start gap-2 my-1.5 w-full animate-in fade-in duration-300 pl-9">
+        <Badge variant="outline" className="gap-1.5 inline-flex items-start bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm border px-2.5 py-1 rounded-md text-xs max-w-xl">
+          <span className="font-medium text-muted-foreground break-words whitespace-normal">{message.content}</span>
         </Badge>
       </div>
     );
