@@ -352,9 +352,55 @@ export default function ProjectPage() {
 
   if (loading) {
     return (
-      <div className="h-full w-full p-6 space-y-4">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-full w-full" />
+      <div className="flex flex-col h-full">
+        {/* Header Skeleton */}
+        <div className="border-b px-6 py-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-6 w-48" />
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-9 w-24" />
+              <Skeleton className="h-9 w-32" />
+            </div>
+          </div>
+        </div>
+
+        {/* Two-Panel Layout Skeleton */}
+        <div className="flex-1 min-h-0 flex">
+          {/* Left Panel - Chat Skeleton */}
+          <div className="w-[30%] border-r flex flex-col">
+            <div className="flex-1 overflow-hidden p-4 space-y-4">
+              {/* Message skeletons */}
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <div className="flex items-start gap-3">
+                    <Skeleton className="h-8 w-8 rounded-full flex-shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-16 w-full" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Input area skeleton */}
+            <div className="border-t p-4">
+              <Skeleton className="h-10 w-full" />
+            </div>
+          </div>
+
+          {/* Right Panel - Preview Skeleton */}
+          <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-gray-50 via-blue-50/20 to-purple-50/20 dark:from-gray-900 dark:via-blue-950/20 dark:to-purple-950/20 p-6">
+            <div className="text-center space-y-6">
+              {/* iPhone frame skeleton */}
+              <div className="mx-auto">
+                <Skeleton className="w-[320px] h-[640px] rounded-[3rem]" />
+              </div>
+              {/* Text skeleton */}
+              <Skeleton className="h-6 w-48 mx-auto" />
+              <Skeleton className="h-4 w-64 mx-auto" />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
