@@ -7,7 +7,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { useState } from "react";
 
 export interface Todo {
   content: string;
@@ -19,10 +18,19 @@ interface TodoListProps {
   todos: Todo[];
   className?: string;
   isLatest?: boolean; // Whether this is the latest/active todo list
+  isOpen?: boolean; // Controlled open state
+  onOpenChange?: (open: boolean) => void; // Callback when open state changes
 }
 
-export function TodoList({ todos, className, isLatest = false }: TodoListProps) {
-  const [isOpen, setIsOpen] = useState(false);
+export function TodoList({
+  todos,
+  className,
+  isLatest = false,
+  isOpen: controlledIsOpen,
+  onOpenChange
+}: TodoListProps) {
+  // Use controlled state if provided, otherwise default to isLatest
+  const isOpen = controlledIsOpen ?? isLatest;
 
   if (!todos || todos.length === 0) {
     return null;
@@ -40,7 +48,7 @@ export function TodoList({ todos, className, isLatest = false }: TodoListProps) 
         className
       )}
     >
-      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <Collapsible open={isOpen} onOpenChange={onOpenChange}>
         <CollapsibleTrigger className="w-full">
           <div className="flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
             <div className="flex items-center gap-2">

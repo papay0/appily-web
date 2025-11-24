@@ -102,6 +102,7 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [openTodoIndex, setOpenTodoIndex] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const seenEventIds = useRef<{ order: string[]; set: Set<string> }>({
     order: [],
@@ -126,6 +127,18 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // Auto-open the latest todo list when messages change
+  useEffect(() => {
+    const lastTodoWriteIndex = messages
+      .map((m, i) => (m.toolUse === "TodoWrite" ? i : -1))
+      .filter((i) => i !== -1)
+      .pop();
+
+    if (lastTodoWriteIndex !== undefined && lastTodoWriteIndex !== -1) {
+      setOpenTodoIndex(lastTodoWriteIndex);
+    }
   }, [messages]);
 
   // Process a single agent event
@@ -472,6 +485,10 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
                           <TodoList
                             todos={message.toolInput.todos as Todo[]}
                             isLatest={isLatestTodoWrite}
+                            isOpen={openTodoIndex === index}
+                            onOpenChange={(open) => {
+                              setOpenTodoIndex(open ? index : null);
+                            }}
                           />
                         </div>
                       )}
