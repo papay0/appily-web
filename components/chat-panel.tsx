@@ -22,6 +22,7 @@ interface Message {
   avatarUrl?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   toolInput?: any; // Stores the input data from tool use (e.g., todos for TodoWrite)
+  eventData?: Record<string, unknown>; // Full event_data for operational logs
 }
 
 interface AssistantContentBlock {
@@ -166,6 +167,7 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
         timestamp: new Date(event.created_at),
         toolUse: event.event_data.toolUse,
         toolContext: event.event_data.toolContext,
+        eventData: event.event_data as Record<string, unknown>,
       }]);
       markEventProcessed(event);
       return;

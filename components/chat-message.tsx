@@ -20,6 +20,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { OperationalEventDetails } from "./operational-event-details";
 
 interface Message {
   id: string;
@@ -29,6 +30,7 @@ interface Message {
   toolUse?: string;
   toolContext?: string; // Additional context about tool use
   avatarUrl?: string;
+  eventData?: Record<string, unknown>; // Full event_data for operational logs
 }
 
 interface ChatMessageProps {
@@ -36,6 +38,22 @@ interface ChatMessageProps {
 }
 
 export function ChatMessage({ message }: ChatMessageProps) {
+  // Helper to check if this is an operational event with details
+  const isOperationalEvent =
+    message.eventData?.subtype === "operation" &&
+    message.eventData?.details &&
+    typeof message.eventData.details === "object";
+
+  const getOperationalDetails = () => {
+    if (!isOperationalEvent) return null;
+
+    return {
+      details: message.eventData?.details as Record<string, unknown>,
+      status: (message.eventData?.status as string) || "unknown",
+      operation: (message.eventData?.operation as string) || "unknown",
+    };
+  };
+
   // User messages
   if (message.role === "user") {
     return (
@@ -233,8 +251,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
     // Success indicator
     if (message.content.startsWith("✓")) {
+      const operationalDetails = getOperationalDetails();
       return (
-        <div className="flex items-start gap-2 my-1.5 w-full animate-in fade-in duration-300 pl-9">
+        <div className="flex flex-col items-start gap-0 my-1.5 w-full animate-in fade-in duration-300 pl-9">
           <Badge
             variant="default"
             className="gap-1.5 bg-green-500 hover:bg-green-600 text-white inline-flex items-start shadow-sm border border-green-400 px-2.5 py-1 rounded-md text-xs max-w-xl"
@@ -242,28 +261,51 @@ export function ChatMessage({ message }: ChatMessageProps) {
             <CheckCircle2 className="h-3 w-3 flex-shrink-0 mt-0.5" />
             <span className="font-medium break-words whitespace-normal">{message.content}</span>
           </Badge>
+          {operationalDetails && (
+            <OperationalEventDetails
+              details={operationalDetails.details}
+              status={operationalDetails.status}
+              operation={operationalDetails.operation}
+            />
+          )}
         </div>
       );
     }
 
     // Error indicator
     if (message.content.startsWith("✗") || message.content.startsWith("Error")) {
+      const operationalDetails = getOperationalDetails();
       return (
-        <div className="flex items-start gap-2 my-1.5 w-full animate-in fade-in duration-300 pl-9">
+        <div className="flex flex-col items-start gap-0 my-1.5 w-full animate-in fade-in duration-300 pl-9">
           <Badge variant="destructive" className="gap-1.5 inline-flex items-start shadow-sm border px-2.5 py-1 rounded-md text-xs max-w-xl">
             <XCircle className="h-3 w-3 flex-shrink-0 mt-0.5" />
             <span className="font-medium break-words whitespace-normal">{message.content}</span>
           </Badge>
+          {operationalDetails && (
+            <OperationalEventDetails
+              details={operationalDetails.details}
+              status={operationalDetails.status}
+              operation={operationalDetails.operation}
+            />
+          )}
         </div>
       );
     }
 
     // Generic system message (thinking, etc.)
+    const operationalDetails = getOperationalDetails();
     return (
-      <div className="flex items-start gap-2 my-1.5 w-full animate-in fade-in duration-300 pl-9">
+      <div className="flex flex-col items-start gap-0 my-1.5 w-full animate-in fade-in duration-300 pl-9">
         <Badge variant="outline" className="gap-1.5 inline-flex items-start bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm border px-2.5 py-1 rounded-md text-xs max-w-xl">
           <span className="font-medium text-muted-foreground break-words whitespace-normal">{message.content}</span>
         </Badge>
+        {operationalDetails && (
+          <OperationalEventDetails
+            details={operationalDetails.details}
+            status={operationalDetails.status}
+            operation={operationalDetails.operation}
+          />
+        )}
       </div>
     );
   }
