@@ -10,6 +10,7 @@ import { useSupabaseClient } from "@/lib/supabase-client";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 import { ChatMessage } from "./chat-message";
 import { TodoList, type Todo } from "./todo-list";
+import { ToolUseGroup } from "./tool-use-group";
 
 interface Message {
   id: string;
@@ -47,6 +48,50 @@ interface AgentEventRecord {
 interface ChatPanelProps {
   projectId: string;
   sandboxId?: string;
+}
+
+// Helper type for grouped rendering
+type MessageGroup =
+  | { type: 'single'; message: Message; index: number }
+  | { type: 'group'; toolType: string; messages: Message[]; startIndex: number };
+
+// Group consecutive tool use messages
+function groupMessages(messages: Message[]): MessageGroup[] {
+  const groups: MessageGroup[] = [];
+  let i = 0;
+
+  while (i < messages.length) {
+    const message = messages[i];
+
+    // Check if this is a tool use message (system role with toolUse property)
+    if (message.role === 'system' && message.toolUse && message.toolUse !== 'TodoWrite') {
+      // Look ahead to see if there are consecutive messages with the same toolUse
+      const toolType = message.toolUse;
+      const groupMessages: Message[] = [message];
+      let j = i + 1;
+
+      while (j < messages.length &&
+             messages[j].role === 'system' &&
+             messages[j].toolUse === toolType) {
+        groupMessages.push(messages[j]);
+        j++;
+      }
+
+      // Only create a group if there are 2 or more consecutive messages
+      if (groupMessages.length >= 2) {
+        groups.push({ type: 'group', toolType, messages: groupMessages, startIndex: i });
+        i = j;
+      } else {
+        groups.push({ type: 'single', message, index: i });
+        i++;
+      }
+    } else {
+      groups.push({ type: 'single', message, index: i });
+      i++;
+    }
+  }
+
+  return groups;
 }
 
 export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
@@ -358,27 +403,44 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
           </div>
         ) : (
           <div className="space-y-2 w-full max-w-full overflow-hidden">
-            {/* Messages with inline todos */}
-            {messages.map((message, index) => {
-              // Find the index of the last TodoWrite message
+            {/* Messages with inline todos and grouped tool uses */}
+            {(() => {
+              const messageGroups = groupMessages(messages);
               const lastTodoWriteIndex = messages.map((m, i) => m.toolUse === "TodoWrite" ? i : -1).filter(i => i !== -1).pop() ?? -1;
-              const isLatestTodoWrite = index === lastTodoWriteIndex;
 
-              return (
-                <div key={message.id} className="w-full max-w-full overflow-hidden">
-                  <ChatMessage message={message} />
-                  {/* Show todos after TodoWrite tool use */}
-                  {message.toolUse === "TodoWrite" && message.toolInput?.todos && (
-                    <div className="mt-1.5 pl-9">
-                      <TodoList
-                        todos={message.toolInput.todos as Todo[]}
-                        isLatest={isLatestTodoWrite}
-                      />
+              return messageGroups.map((group, groupIndex) => {
+                if (group.type === 'group') {
+                  // Render grouped tool uses
+                  return (
+                    <ToolUseGroup
+                      key={`group-${group.startIndex}-${group.toolType}`}
+                      messages={group.messages}
+                      toolType={group.toolType}
+                    />
+                  );
+                } else {
+                  // Render single message
+                  const message = group.message;
+                  const index = group.index;
+                  const isLatestTodoWrite = index === lastTodoWriteIndex;
+
+                  return (
+                    <div key={message.id} className="w-full max-w-full overflow-hidden">
+                      <ChatMessage message={message} />
+                      {/* Show todos after TodoWrite tool use */}
+                      {message.toolUse === "TodoWrite" && message.toolInput?.todos && (
+                        <div className="mt-1.5 pl-9">
+                          <TodoList
+                            todos={message.toolInput.todos as Todo[]}
+                            isLatest={isLatestTodoWrite}
+                          />
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                  );
+                }
+              });
+            })()}
             <div ref={messagesEndRef} />
           </div>
         )}
