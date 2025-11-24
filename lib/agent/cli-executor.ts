@@ -290,6 +290,13 @@ export async function executeSetupInE2B(
       const saveScriptContent = readFileSync(saveScriptPath, 'utf-8');
       await sandbox.files.write('/home/user/save-to-r2.js', saveScriptContent);
       console.log(`[E2B] ✓ Save-to-R2 module uploaded`);
+
+      // Upload metro-control.js (needed for auto-reload)
+      const metroControlPath = join(process.cwd(), 'lib/agent/e2b-scripts/metro-control.js');
+      console.log(`[E2B] Reading metro-control module from: ${metroControlPath}`);
+      const metroControlContent = readFileSync(metroControlPath, 'utf-8');
+      await sandbox.files.write('/home/user/metro-control.js', metroControlContent);
+      console.log(`[E2B] ✓ Metro-control module uploaded`);
     }
 
     // Step 3: Install required dependencies if not already installed
