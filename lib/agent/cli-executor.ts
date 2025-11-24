@@ -100,21 +100,28 @@ export async function executeClaudeInE2B(
     await sandbox.files.write(e2bScriptPath, scriptContent);
     console.log(`[E2B] ✓ Script uploaded`);
 
-    // Step 3: Install @supabase/supabase-js if not already installed
-    console.log(`[E2B] Installing @supabase/supabase-js...`);
+    // Step 2.1: Upload save-to-r2.js module (for direct E2B saves)
+    const saveScriptPath = join(process.cwd(), 'lib/agent/e2b-scripts/save-to-r2.js');
+    console.log(`[E2B] Reading save-to-r2 module from: ${saveScriptPath}`);
+    const saveScriptContent = readFileSync(saveScriptPath, 'utf-8');
+    await sandbox.files.write('/home/user/save-to-r2.js', saveScriptContent);
+    console.log(`[E2B] ✓ Save-to-R2 module uploaded`);
+
+    // Step 3: Install dependencies if not already installed
+    console.log(`[E2B] Installing dependencies (@supabase/supabase-js, @aws-sdk/client-s3)...`);
     const installResult = await sandbox.commands.run(
-      'npm list @supabase/supabase-js || npm install @supabase/supabase-js',
+      'npm list @supabase/supabase-js @aws-sdk/client-s3 || npm install @supabase/supabase-js @aws-sdk/client-s3',
       {
         cwd: '/home/user',
-        timeoutMs: 60000, // 1 minute timeout for npm install
+        timeoutMs: 120000, // 2 minute timeout for npm install
       }
     );
 
-    if (installResult.exitCode !== 0 && !installResult.stdout.includes('@supabase/supabase-js')) {
+    if (installResult.exitCode !== 0) {
       console.warn(`[E2B] ⚠️ npm install warning: ${installResult.stderr}`);
       // Continue anyway - might already be installed
     } else {
-      console.log(`[E2B] ✓ @supabase/supabase-js ready`);
+      console.log(`[E2B] ✓ Dependencies ready`);
     }
 
     // Step 4: Prepare environment variables
@@ -126,8 +133,11 @@ export async function executeClaudeInE2B(
       USER_ID: userId,
       USER_PROMPT: prompt,
       WORKING_DIRECTORY: workingDirectory,
-      // API URL for backend-triggered saves (must be set in .env)
-      API_URL: process.env.API_URL || 'http://localhost:3000',
+      // R2 credentials for direct E2B saves
+      R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID!,
+      R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID!,
+      R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY!,
+      R2_BUCKET_NAME: process.env.R2_BUCKET_NAME!,
     };
 
     // Add SESSION_ID only if resuming
@@ -273,6 +283,13 @@ export async function executeSetupInE2B(
       const agentScriptContent = readFileSync(agentScriptPath, 'utf-8');
       await sandbox.files.write('/home/user/stream-to-supabase.js', agentScriptContent);
       console.log(`[E2B] ✓ Agent script uploaded`);
+
+      // Also upload save-to-r2.js (needed for auto-save)
+      const saveScriptPath = join(process.cwd(), 'lib/agent/e2b-scripts/save-to-r2.js');
+      console.log(`[E2B] Reading save-to-r2 module from: ${saveScriptPath}`);
+      const saveScriptContent = readFileSync(saveScriptPath, 'utf-8');
+      await sandbox.files.write('/home/user/save-to-r2.js', saveScriptContent);
+      console.log(`[E2B] ✓ Save-to-R2 module uploaded`);
     }
 
     // Step 3: Install @supabase/supabase-js if not already installed
@@ -310,8 +327,6 @@ export async function executeSetupInE2B(
       R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID!,
       R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY!,
       R2_BUCKET_NAME: process.env.R2_BUCKET_NAME!,
-      // API URL for backend-triggered saves
-      API_URL: process.env.API_URL || 'http://localhost:3000',
     };
 
     // Add Claude agent env vars if prompt provided
