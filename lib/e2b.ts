@@ -299,3 +299,92 @@ export async function setupExpoProject(
   console.log(`[setupExpoProject] ✓ Expo project setup complete. URL: ${expoUrl}`);
   return expoUrl;
 }
+
+/**
+ * Interface for a file read from the E2B sandbox
+ */
+export interface SandboxFile {
+  path: string; // Relative path (e.g., "App.tsx", "src/components/Button.tsx")
+  content: Buffer; // File content as buffer
+  size: number; // File size in bytes
+}
+
+/**
+ * Reads all files from a directory in the E2B sandbox (excluding node_modules, .git, etc.)
+ * @param sandbox - E2B sandbox instance
+ * @param projectDir - Directory to read files from
+ * @returns Array of files with their content
+ */
+export async function readProjectFiles(
+  sandbox: Sandbox,
+  projectDir: string = "/home/user/project"
+): Promise<SandboxFile[]> {
+  try {
+    console.log(`[readProjectFiles] Reading files from ${projectDir}`);
+
+    // Find all files, excluding common directories
+    const findResult = await sandbox.commands.run(
+      `cd ${projectDir} && find . -type f \\
+        -not -path "*/node_modules/*" \\
+        -not -path "*/.git/*" \\
+        -not -path "*/.expo/*" \\
+        -not -path "*/dist/*" \\
+        -not -path "*/build/*" \\
+        -not -path "*/.next/*" \\
+        -not -path "*/__pycache__/*" \\
+        -not -path "*/.DS_Store" \\
+        -not -path "*/npm-debug.log*" \\
+        -not -path "*/yarn-debug.log*" \\
+        -not -path "*/yarn-error.log*"`,
+      { timeoutMs: 30000 }
+    );
+
+    if (findResult.exitCode !== 0) {
+      throw new Error(`Failed to list files: ${findResult.stderr}`);
+    }
+
+    const filePaths = findResult.stdout
+      .trim()
+      .split("\n")
+      .filter((path) => path.length > 0)
+      .map((path) => path.replace(/^\.\//, "")); // Remove leading "./"
+
+    console.log(`[readProjectFiles] Found ${filePaths.length} files`);
+
+    // Read all files in parallel
+    const files: SandboxFile[] = [];
+    const batchSize = 10; // Process 10 files at a time to avoid overwhelming the sandbox
+
+    for (let i = 0; i < filePaths.length; i += batchSize) {
+      const batch = filePaths.slice(i, i + batchSize);
+
+      const batchResults = await Promise.all(
+        batch.map(async (relativePath) => {
+          try {
+            const fullPath = `${projectDir}/${relativePath}`;
+            const fileContent = await sandbox.files.read(fullPath);
+
+            return {
+              path: relativePath,
+              content: Buffer.from(fileContent),
+              size: fileContent.length,
+            };
+          } catch (error) {
+            console.warn(`[readProjectFiles] Failed to read ${relativePath}:`, error);
+            return null;
+          }
+        })
+      );
+
+      files.push(...batchResults.filter(f => f !== null) as SandboxFile[]);
+    }
+
+    console.log(`[readProjectFiles] ✓ Successfully read ${files.length} files`);
+    return files;
+  } catch (error) {
+    console.error("[readProjectFiles] ✗ Error:", error);
+    throw new Error(
+      `Failed to read project files: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
+  }
+}

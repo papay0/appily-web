@@ -129,6 +129,19 @@ export async function POST(request: Request) {
       } catch (error) {
         console.error(`[API] Failed to reconnect to sandbox ${sandboxId}:`, error);
         console.log(`[API] Creating new sandbox instead...`);
+
+        // Clear old sandbox data (including QR code and Expo URL)
+        await supabaseAdmin
+          .from("projects")
+          .update({
+            e2b_sandbox_id: null,
+            e2b_sandbox_status: "idle",
+            e2b_sandbox_created_at: null,
+            expo_url: null,
+            qr_code: null,
+          })
+          .eq("id", projectId);
+
         const { sandbox: newSandbox } = await createSandbox();
         sandbox = newSandbox;
         console.log(`[API] ✓ New sandbox ready: ${sandbox.sandboxId}`);

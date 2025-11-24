@@ -110,10 +110,12 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
   const MAX_EVENT_CACHE = 500;
   const didInitialFetchRef = useRef(false);
   const pendingUserMessageIds = useRef<Set<string>>(new Set());
+  // const savedEvents = useRef<Set<string>>(new Set()); // No longer needed - saves are backend-triggered
 
   // Reset local caches when switching projects
   useEffect(() => {
     seenEventIds.current = { order: [], set: new Set() };
+    // savedEvents.current = new Set(); // No longer needed - saves are backend-triggered
     lastTimestampRef.current = null;
     didInitialFetchRef.current = false;
     pendingUserMessageIds.current.clear();
@@ -242,6 +244,41 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
           content: "✓ Task completed",
           timestamp: new Date(event.created_at),
         }]);
+
+        // Auto-save is now handled by the backend (E2B script)
+        // The stream-to-supabase.js script automatically triggers saves
+        // after storing success result events via the internal save API.
+        //
+        // Frontend auto-save is disabled to prevent duplicates.
+        // Kept here as reference/fallback:
+        /*
+        const eventId = event.id || `${event.created_at}-result-success`;
+        if (sandboxId && !savedEvents.current.has(eventId)) {
+          savedEvents.current.add(eventId);
+
+          console.log("[ChatPanel] Task completed - Auto-saving project to R2...");
+          fetch(`/api/projects/${projectId}/save`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              description: "Auto-save after task completion",
+            }),
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.success) {
+                console.log("[ChatPanel] ✓ Project saved to R2:", data.snapshot);
+              } else {
+                console.error("[ChatPanel] ✗ Failed to save project:", data.error);
+                savedEvents.current.delete(eventId);
+              }
+            })
+            .catch((error) => {
+              console.error("[ChatPanel] ✗ Save request failed:", error);
+              savedEvents.current.delete(eventId);
+            });
+        }
+        */
       } else {
         setMessages((prev) => [...prev, {
           id: crypto.randomUUID(),

@@ -126,6 +126,8 @@ export async function executeClaudeInE2B(
       USER_ID: userId,
       USER_PROMPT: prompt,
       WORKING_DIRECTORY: workingDirectory,
+      // API URL for backend-triggered saves (must be set in .env)
+      API_URL: process.env.API_URL || 'http://localhost:3000',
     };
 
     // Add SESSION_ID only if resuming
@@ -257,6 +259,13 @@ export async function executeSetupInE2B(
     await sandbox.files.write(e2bScriptPath, scriptContent);
     console.log(`[E2B] ✓ Setup script uploaded`);
 
+    // Step 2.1: Upload shared R2 restore module
+    const r2RestorePath = join(process.cwd(), 'lib/agent/e2b-scripts/r2-restore.js');
+    console.log(`[E2B] Reading R2 restore module from: ${r2RestorePath}`);
+    const r2RestoreContent = readFileSync(r2RestorePath, 'utf-8');
+    await sandbox.files.write('/home/user/r2-restore.js', r2RestoreContent);
+    console.log(`[E2B] ✓ R2 restore module uploaded`);
+
     // Step 2.5: Also upload stream-to-supabase.js (needed for Claude agent)
     if (userPrompt) {
       const agentScriptPath = join(process.cwd(), 'lib/agent/e2b-scripts/stream-to-supabase.js');
@@ -296,6 +305,11 @@ export async function executeSetupInE2B(
       SANDBOX_ID: sandbox.sandboxId,
       E2B_HOSTNAME: hostname,
       PROJECT_DIR: '/home/user/project',
+      // R2 credentials for restoring from saved snapshots
+      R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID!,
+      R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID!,
+      R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY!,
+      R2_BUCKET_NAME: process.env.R2_BUCKET_NAME!,
     };
 
     // Add Claude agent env vars if prompt provided

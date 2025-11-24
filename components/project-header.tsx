@@ -4,7 +4,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { AppBreadcrumbs } from "@/components/app-breadcrumbs";
 import { Button } from "@/components/ui/button";
-import { Loader2, Square } from "lucide-react";
+import { Loader2, Square, Save } from "lucide-react";
 
 interface ProjectHeaderProps {
   projectName?: string;
@@ -17,6 +17,10 @@ interface ProjectHeaderProps {
   sandboxStatus?: "idle" | "starting" | "ready" | "error";
   onStartSandbox?: () => void;
   onStopSandbox?: () => void;
+
+  // Debug: Manual save button
+  onSaveToR2?: () => void;
+  isSaving?: boolean;
 }
 
 export function ProjectHeader({
@@ -26,6 +30,8 @@ export function ProjectHeader({
   sandboxStatus,
   onStartSandbox,
   onStopSandbox,
+  onSaveToR2,
+  isSaving,
 }: ProjectHeaderProps) {
   const showControls = viewMode && onViewModeChange;
   const showSandboxButton = sandboxStatus && (onStartSandbox || onStopSandbox);
@@ -64,6 +70,29 @@ export function ProjectHeader({
       {/* Right: Sandbox controls (only on project pages) - Unified button style */}
       {showSandboxButton && (
         <div className="flex items-center gap-2">
+          {/* Debug: Manual Save to R2 button */}
+          {onSaveToR2 && sandboxStatus === "ready" && (
+            <Button
+              onClick={onSaveToR2}
+              size="sm"
+              variant="outline"
+              className="h-8 px-3 gap-2"
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-3.5 w-3.5" />
+                  Save to R2
+                </>
+              )}
+            </Button>
+          )}
+
           {sandboxStatus === "idle" && onStartSandbox && (
             <Button onClick={onStartSandbox} size="sm" className="h-8 px-3">
               Start Sandbox

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import type { Sandbox } from "e2b";
-import { createSandbox, setupExpoProject } from "@/lib/e2b";
+import { createSandbox, setupExpoProject, startExpo } from "@/lib/e2b";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { generateQRCode } from "@/lib/qrcode";
+import { restoreProjectFromR2, installDependencies } from "@/lib/agent/restore-from-r2";
 
 export async function POST(request: Request) {
   try {
@@ -55,9 +56,54 @@ export async function POST(request: Request) {
 // Background function to complete Expo setup
 async function setupExpoInBackground(sandbox: Sandbox, projectId: string) {
   try {
-    // Setup Expo project in the sandbox (clone template + start Expo)
-    console.log("Setting up Expo project in sandbox...");
-    const expoUrl = await setupExpoProject(sandbox);
+    let expoUrl: string;
+
+    // Check if project has existing snapshots in R2
+    console.log("[SandboxCreate] Checking for existing R2 snapshots...");
+    const { data: snapshots } = await supabaseAdmin
+      .from("project_snapshots")
+      .select("r2_path, version, created_at")
+      .eq("project_id", projectId)
+      .order("version", { ascending: false })
+      .limit(1);
+
+    if (snapshots && snapshots.length > 0) {
+      // Restore from R2
+      const latestSnapshot = snapshots[0];
+      console.log(
+        `[SandboxCreate] Found existing snapshot (v${latestSnapshot.version}), restoring from R2...`
+      );
+
+      const restoreResult = await restoreProjectFromR2(
+        sandbox,
+        latestSnapshot.r2_path,
+        "/home/user/project"
+      );
+
+      if (!restoreResult.success) {
+        console.error("[SandboxCreate] Restore failed:", restoreResult.error);
+        throw new Error(`Failed to restore from R2: ${restoreResult.error}`);
+      }
+
+      console.log(`[SandboxCreate] ✓ Restored ${restoreResult.fileCount} files from R2`);
+
+      // Install dependencies
+      console.log("[SandboxCreate] Installing dependencies...");
+      const installResult = await installDependencies(sandbox, "/home/user/project");
+
+      if (!installResult.success) {
+        console.error("[SandboxCreate] Install failed:", installResult.error);
+        throw new Error(`Failed to install dependencies: ${installResult.error}`);
+      }
+
+      // Start Expo
+      console.log("[SandboxCreate] Starting Expo...");
+      expoUrl = await startExpo(sandbox, "/home/user/project");
+    } else {
+      // No snapshots found, clone template as usual
+      console.log("[SandboxCreate] No R2 snapshots found, setting up from template...");
+      expoUrl = await setupExpoProject(sandbox);
+    }
 
     // Generate QR code for the Expo URL
     console.log("Generating QR code for Expo URL:", expoUrl);

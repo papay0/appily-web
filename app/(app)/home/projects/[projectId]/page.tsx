@@ -55,6 +55,7 @@ export default function ProjectPage() {
 
   // UI state
   const [viewMode, setViewMode] = useState<ViewMode>("preview");
+  const [isSaving, setIsSaving] = useState(false);
 
   // Load project and setup realtime subscription
   useEffect(() => {
@@ -133,10 +134,16 @@ export default function ProjectPage() {
                 }),
               });
               setSandboxStatus("idle");
+              // Clear old QR code and Expo URL from UI
+              setExpoUrl(undefined);
+              setQrCode(undefined);
             }
           } catch (error) {
             console.error("Failed to reconnect to sandbox:", error);
             setSandboxStatus("idle");
+            // Clear old QR code and Expo URL from UI
+            setExpoUrl(undefined);
+            setQrCode(undefined);
           } finally {
             setIsReconnecting(false);
           }
@@ -299,11 +306,46 @@ export default function ProjectPage() {
         }),
       });
 
-      // Keep QR code and Expo URL visible so users can reconnect
+      // Clear QR code and Expo URL (no longer valid after stopping)
+      // New ones will be generated when sandbox is restarted
+      setExpoUrl(undefined);
+      setQrCode(undefined);
       // Status will be updated via realtime subscription
     } catch (error) {
       console.error("Failed to stop sandbox:", error);
       setSandboxError(error instanceof Error ? error.message : "Unknown error");
+    }
+  };
+
+  // Debug: Manual save to R2
+  const handleSaveToR2 = async () => {
+    if (!project?.id) return;
+
+    setIsSaving(true);
+    try {
+      console.log("[ProjectPage] Manually saving project to R2...");
+      const response = await fetch(`/api/projects/${project.id}/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: "Manual save from debug button",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log("[ProjectPage] ✓ Project saved:", data.snapshot);
+        alert(`✅ Saved successfully!\nVersion: ${data.snapshot.version}\nFiles: ${data.snapshot.fileCount}\nSize: ${(data.snapshot.totalSize / 1024 / 1024).toFixed(2)} MB`);
+      } else {
+        console.error("[ProjectPage] ✗ Save failed:", data.error);
+        alert(`❌ Save failed: ${data.error}`);
+      }
+    } catch (error) {
+      console.error("[ProjectPage] ✗ Save request failed:", error);
+      alert(`❌ Save failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -331,6 +373,8 @@ export default function ProjectPage() {
         sandboxStatus={isReconnecting ? "starting" : sandboxStatus}
         onStartSandbox={handleStartSandbox}
         onStopSandbox={handleStopSandbox}
+        onSaveToR2={handleSaveToR2}
+        isSaving={isSaving}
       />
 
       {/* Resizable 2-Panel Layout */}

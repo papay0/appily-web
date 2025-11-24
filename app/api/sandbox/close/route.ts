@@ -32,13 +32,15 @@ export async function POST(request: Request) {
       // Continue anyway to clear database
     }
 
-    // Clear sandbox info from database
+    // Clear sandbox info from database (including QR code and Expo URL)
     const { error: updateError } = await supabaseAdmin
       .from("projects")
       .update({
         e2b_sandbox_id: null,
         e2b_sandbox_status: "idle",
         e2b_sandbox_created_at: null,
+        expo_url: null, // Clear old Expo URL (no longer valid)
+        qr_code: null, // Clear old QR code (no longer valid)
         updated_at: new Date().toISOString(),
       })
       .eq("id", projectId);
