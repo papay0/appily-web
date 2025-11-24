@@ -107,6 +107,13 @@ export async function executeClaudeInE2B(
     await sandbox.files.write('/home/user/save-to-r2.js', saveScriptContent);
     console.log(`[E2B] ✓ Save-to-R2 module uploaded`);
 
+    // Step 2.2: Upload e2b-logger.js module (for operational logging to Supabase)
+    const loggerScriptPath = join(process.cwd(), 'lib/agent/e2b-scripts/e2b-logger.js');
+    console.log(`[E2B] Reading e2b-logger module from: ${loggerScriptPath}`);
+    const loggerScriptContent = readFileSync(loggerScriptPath, 'utf-8');
+    await sandbox.files.write('/home/user/e2b-logger.js', loggerScriptContent);
+    console.log(`[E2B] ✓ E2B-Logger module uploaded`);
+
     // Step 3: Install dependencies if not already installed
     console.log(`[E2B] Installing dependencies (@supabase/supabase-js, @aws-sdk/client-s3)...`);
     const installResult = await sandbox.commands.run(
@@ -297,6 +304,13 @@ export async function executeSetupInE2B(
       const metroControlContent = readFileSync(metroControlPath, 'utf-8');
       await sandbox.files.write('/home/user/metro-control.js', metroControlContent);
       console.log(`[E2B] ✓ Metro-control module uploaded`);
+
+      // Upload e2b-logger.js (needed for operational logging to Supabase)
+      const loggerScriptPath = join(process.cwd(), 'lib/agent/e2b-scripts/e2b-logger.js');
+      console.log(`[E2B] Reading e2b-logger module from: ${loggerScriptPath}`);
+      const loggerScriptContent = readFileSync(loggerScriptPath, 'utf-8');
+      await sandbox.files.write('/home/user/e2b-logger.js', loggerScriptContent);
+      console.log(`[E2B] ✓ E2B-Logger module uploaded`);
     }
 
     // Step 3: Install required dependencies if not already installed
