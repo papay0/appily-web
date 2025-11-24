@@ -24,10 +24,13 @@
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { executeSetupInE2B } from "@/lib/agent/cli-executor";
 import { createSandbox } from "@/lib/e2b";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import type { Sandbox } from "e2b";
+import {
+  handleNewProjectFlow,
+  handleExistingProjectFlow,
+} from "@/lib/agent/flows";
 
 export async function POST(request: Request) {
   try {
@@ -139,9 +142,10 @@ export async function POST(request: Request) {
       createdSandbox = true;
     }
 
-    // If this is a new sandbox, start Expo setup in E2B background
+    // Route to appropriate flow based on sandbox state
     if (createdSandbox) {
-      console.log(`[API] Starting Expo setup in E2B (background)...`);
+      // NEW PROJECT FLOW: Setup Expo environment → Start agent
+      console.log(`[API] Routing to NEW PROJECT flow`);
 
       // Store sandbox ID in database before starting setup
       await supabaseAdmin
@@ -153,104 +157,27 @@ export async function POST(request: Request) {
         })
         .eq("id", projectId);
 
-      // Build agent prompt for FEATURE IMPLEMENTATION
-      const systemPrompt = `You are building a native mobile app using Expo.
-
-The Expo template is already cloned and running at: /home/user/project
-Metro bundler is already running on port 8081.
-
-**Your task:**
-${prompt}
-
-**CRITICAL RULES:**
-- The project is at /home/user/project
-- Expo/Metro is ALREADY RUNNING on port 8081 - NEVER restart it
-- Just edit the code files - Metro will hot-reload automatically
-- NEVER run "npx expo start" or kill processes on port 8081/8082
-- NEVER run "npm install" unless you're adding new packages
-- Modify existing template files following Expo Router patterns
-- Test your changes by checking Metro bundler output for errors
-
-Focus ONLY on implementing the user's request. Expo is already set up.`;
-
-      // Execute setup script in E2B
-      // This script will:
-      // 1. Clone Expo template
-      // 2. Install dependencies
-      // 3. Start Expo Metro
-      // 4. Generate QR code
-      // 5. Post expo_url + qr_code to Supabase
-      // 6. Start Claude agent with systemPrompt
-      const { pid, logFile } = await executeSetupInE2B(
+      return handleNewProjectFlow({
         sandbox,
         projectId,
         userId,
-        systemPrompt // Agent will start after setup completes
-      );
-
-      console.log(`[API] ✓ Setup script started in E2B (PID: ${pid})`);
-      console.log(`[API] ✓ Logs: ${logFile}`);
-      console.log(`[API] Setup will continue in background, updates via Supabase`);
-
-      // Return immediately - Expo URL will appear in Supabase when ready
-      return NextResponse.json({
-        message: "Setting up development environment...",
-        projectId,
-        sandboxId: sandbox.sandboxId,
-        status: "starting",
-        setupPid: pid,
-        setupLogFile: logFile,
+        userPrompt: prompt,
+        workingDir: cwd,
       });
     }
 
-    // Sandbox already exists with Expo running
-    // Start Claude agent to process the user's request
-    console.log(`[API] Sandbox exists, starting Claude agent directly...`);
+    // EXISTING PROJECT FLOW: Start agent immediately
+    console.log(`[API] Routing to EXISTING PROJECT flow`);
 
-    const { executeClaudeInE2B } = await import("@/lib/agent/cli-executor");
-
-    // Build agent prompt for FEATURE IMPLEMENTATION
-    const systemPrompt = `You are building a native mobile app using Expo.
-
-The Expo template is already cloned and running at: /home/user/project
-Metro bundler is already running on port 8081.
-
-${expoUrl ? `The Expo URL is: ${expoUrl}` : ""}
-
-**Your task:**
-${prompt}
-
-**CRITICAL RULES:**
-- The project is at /home/user/project
-- Expo/Metro is ALREADY RUNNING on port 8081 - NEVER restart it
-- Just edit the code files - Metro will hot-reload automatically
-- NEVER run "npx expo start" or kill processes on port 8081/8082
-- NEVER run "npm install" unless you're adding new packages
-- Modify existing template files following Expo Router patterns
-- Test your changes by checking Metro bundler output for errors
-
-Focus ONLY on implementing the user's request. Expo is already set up.`;
-
-    // Execute Claude in E2B with direct Supabase streaming
-    const { pid, logFile } = await executeClaudeInE2B(
-      systemPrompt,
-      cwd,
-      existingSessionId || undefined, // Use existing session_id for conversation resumption
+    return handleExistingProjectFlow({
       sandbox,
       projectId,
-      userId
-    );
-
-    console.log(`[API] ✓ Agent started in E2B (PID: ${pid})`);
-    console.log(`[API] ✓ Logs: ${logFile}`);
-
-    return NextResponse.json({
-      message: "Agent is processing your request...",
-      projectId,
-      sandboxId: sandbox.sandboxId,
-      status: "processing",
+      userId,
+      userPrompt: prompt,
       expoUrl,
+      sessionId: existingSessionId,
       qrCode,
+      workingDir: cwd,
     });
   } catch (error) {
     console.error("[API] Error creating CLI agent session:", error);

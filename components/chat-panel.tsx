@@ -332,7 +332,7 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Chat Messages */}
-      <div className="flex-1 overflow-y-auto p-4 pt-6 min-h-0">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 pt-6 min-h-0">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
             <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
@@ -351,9 +351,11 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-4 w-full max-w-full overflow-hidden">
             {messages.map((message) => (
-              <ChatMessage key={message.id} message={message} />
+              <div key={message.id} className="w-full max-w-full overflow-hidden">
+                <ChatMessage message={message} />
+              </div>
             ))}
             <div ref={messagesEndRef} />
           </div>

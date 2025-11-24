@@ -34,9 +34,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
   // User messages
   if (message.role === "user") {
     return (
-      <div className="flex items-start gap-3 justify-end">
-        <div className="bg-primary text-primary-foreground rounded-lg px-4 py-2 max-w-[80%]">
-          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+      <div className="flex items-start gap-3 justify-end w-full">
+        <div className="bg-primary text-primary-foreground rounded-lg px-4 py-2 max-w-[80%] overflow-hidden">
+          <p className="text-sm whitespace-pre-wrap break-all">{message.content}</p>
         </div>
         {message.avatarUrl ? (
           <Image
@@ -58,7 +58,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
   // Assistant messages
   if (message.role === "assistant") {
     return (
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3 w-full">
         <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
           <Image
             src="/appily-logo.svg"
@@ -67,8 +67,8 @@ export function ChatMessage({ message }: ChatMessageProps) {
             height={20}
           />
         </div>
-        <div className="bg-muted rounded-lg px-4 py-2 max-w-[80%]">
-          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        <div className="bg-muted rounded-lg px-4 py-2 max-w-[80%] overflow-hidden">
+          <p className="text-sm whitespace-pre-wrap break-all">{message.content}</p>
         </div>
       </div>
     );
@@ -103,12 +103,18 @@ export function ChatMessage({ message }: ChatMessageProps) {
       }
 
       return (
-        <div className="flex items-center justify-center gap-2 my-2">
-          <Badge variant="secondary" className={cn("gap-2", badgeClass)}>
-            <Icon className="h-3 w-3" />
-            <span className="text-xs">{message.content}</span>
+        <div className="flex items-center justify-center gap-2 my-2 px-4 w-full max-w-full">
+          <Badge
+            variant="secondary"
+            className={cn(
+              "gap-2 max-w-full flex-wrap justify-center inline-flex overflow-hidden",
+              badgeClass
+            )}
+          >
+            <Icon className="h-3 w-3 flex-shrink-0" />
+            <span className="text-xs break-all max-w-full">{message.content}</span>
             {message.toolContext && (
-              <span className="text-xs opacity-70">• {message.toolContext}</span>
+              <span className="text-xs opacity-70 break-all max-w-full">• {message.toolContext}</span>
             )}
           </Badge>
         </div>
@@ -118,13 +124,13 @@ export function ChatMessage({ message }: ChatMessageProps) {
     // Expo URL ready indicator (special green badge with larger size)
     if (message.content.startsWith("🎉 Expo ready:")) {
       return (
-        <div className="flex items-center justify-center gap-2 my-3">
+        <div className="flex items-center justify-center gap-2 my-3 px-4 w-full max-w-full">
           <Badge
             variant="default"
-            className="gap-2 bg-green-500 hover:bg-green-600 text-white py-2 px-4 text-sm font-medium"
+            className="gap-2 bg-green-500 hover:bg-green-600 text-white py-2 px-4 text-sm font-medium max-w-full flex-wrap justify-center inline-flex overflow-hidden"
           >
-            <CheckCircle2 className="h-4 w-4" />
-            <span>{message.content}</span>
+            <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+            <span className="break-all max-w-full">{message.content}</span>
           </Badge>
         </div>
       );
@@ -133,10 +139,13 @@ export function ChatMessage({ message }: ChatMessageProps) {
     // Success indicator
     if (message.content.startsWith("✓")) {
       return (
-        <div className="flex items-center justify-center gap-2 my-2">
-          <Badge variant="default" className="gap-2 bg-green-500 hover:bg-green-600">
-            <CheckCircle2 className="h-3 w-3" />
-            <span className="text-xs">{message.content}</span>
+        <div className="flex items-center justify-center gap-2 my-2 px-4 w-full max-w-full">
+          <Badge
+            variant="default"
+            className="gap-2 bg-green-500 hover:bg-green-600 max-w-full flex-wrap justify-center inline-flex overflow-hidden"
+          >
+            <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
+            <span className="text-xs break-all max-w-full">{message.content}</span>
           </Badge>
         </div>
       );
@@ -145,10 +154,10 @@ export function ChatMessage({ message }: ChatMessageProps) {
     // Error indicator
     if (message.content.startsWith("✗") || message.content.startsWith("Error")) {
       return (
-        <div className="flex items-center justify-center gap-2 my-2">
-          <Badge variant="destructive" className="gap-2">
-            <XCircle className="h-3 w-3" />
-            <span className="text-xs">{message.content}</span>
+        <div className="flex items-center justify-center gap-2 my-2 px-4 w-full max-w-full">
+          <Badge variant="destructive" className="gap-2 max-w-full flex-wrap justify-center inline-flex overflow-hidden">
+            <XCircle className="h-3 w-3 flex-shrink-0" />
+            <span className="text-xs break-all max-w-full">{message.content}</span>
           </Badge>
         </div>
       );
@@ -156,9 +165,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
     // Generic system message (thinking, etc.)
     return (
-      <div className="flex items-center justify-center gap-2 my-2">
-        <Badge variant="outline" className="gap-2">
-          <span className="text-xs text-muted-foreground">{message.content}</span>
+      <div className="flex items-center justify-center gap-2 my-2 px-4 w-full max-w-full">
+        <Badge variant="outline" className="gap-2 max-w-full flex-wrap justify-center inline-flex overflow-hidden">
+          <span className="text-xs text-muted-foreground break-all max-w-full">{message.content}</span>
         </Badge>
       </div>
     );
