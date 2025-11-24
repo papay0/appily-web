@@ -292,13 +292,13 @@ export async function executeSetupInE2B(
       console.log(`[E2B] ✓ Save-to-R2 module uploaded`);
     }
 
-    // Step 3: Install @supabase/supabase-js if not already installed
-    console.log(`[E2B] Installing @supabase/supabase-js...`);
+    // Step 3: Install required dependencies if not already installed
+    console.log(`[E2B] Installing dependencies (@supabase/supabase-js, @aws-sdk/client-s3)...`);
     const installResult = await sandbox.commands.run(
-      'npm list @supabase/supabase-js || npm install @supabase/supabase-js',
+      'npm list @supabase/supabase-js @aws-sdk/client-s3 || npm install @supabase/supabase-js @aws-sdk/client-s3',
       {
         cwd: '/home/user',
-        timeoutMs: 60000, // 1 minute timeout for npm install
+        timeoutMs: 120000, // 2 minutes timeout for npm install (AWS SDK is larger)
       }
     );
 
@@ -306,7 +306,7 @@ export async function executeSetupInE2B(
       console.warn(`[E2B] ⚠️ npm install warning: ${installResult.stderr}`);
       // Continue anyway - might already be installed
     } else {
-      console.log(`[E2B] ✓ @supabase/supabase-js ready`);
+      console.log(`[E2B] ✓ Dependencies ready`);
     }
 
     // Step 4: Get E2B hostname for Expo URL
