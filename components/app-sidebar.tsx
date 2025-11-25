@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { Home, FolderKanban } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { DarkModeToggle } from "@/components/dark-mode-toggle";
@@ -34,7 +35,7 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-2">
+        <Link href="/home" className="flex items-center gap-2 px-2 py-2 cursor-pointer hover:opacity-80 transition-opacity">
           <Image
             src="/appily-logo.svg"
             alt="Appily Logo"
@@ -42,7 +43,7 @@ export function AppSidebar() {
             height={24}
           />
           <span className="text-xl font-bold">Appily</span>
-        </div>
+        </Link>
       </SidebarHeader>
 
       <SidebarContent>
