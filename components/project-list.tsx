@@ -2,6 +2,7 @@
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { PlusCircle, Smartphone, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -37,7 +38,37 @@ export function ProjectList({ projects, onCreateNew }: ProjectListProps) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Mobile: Table view */}
+      <div className="md:hidden rounded-lg border bg-card">
+        <Table>
+          <TableBody>
+            {projects.map((project) => (
+              <TableRow
+                key={project.id}
+                className="cursor-pointer"
+                onClick={() => router.push(`/home/projects/build/${project.id}`)}
+              >
+                <TableCell className="py-3 px-3 w-8">
+                  <div className="h-7 w-7 rounded-md bg-primary/10 flex items-center justify-center">
+                    <Smartphone className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                </TableCell>
+                <TableCell className="py-3 px-0 font-medium">
+                  <span className="truncate block max-w-[180px]">{project.name}</span>
+                </TableCell>
+                <TableCell className="py-3 px-3 text-right text-muted-foreground text-xs">
+                  {formatDistanceToNow(new Date(project.updated_at), {
+                    addSuffix: true,
+                  })}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Desktop: Grid view */}
+      <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {projects.map((project) => (
           <Card
             key={project.id}

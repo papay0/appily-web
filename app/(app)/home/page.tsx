@@ -103,7 +103,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Content */}
-      <div className="flex flex-col items-center justify-center min-h-screen px-6 py-12">
+      <div className="flex flex-col items-center justify-center min-h-screen py-12">
         {/* Hero Section */}
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4 flex items-center justify-center gap-3 flex-wrap">

@@ -87,8 +87,8 @@ export function AppIdeaInput({ onSubmit, isLoading }: AppIdeaInputProps) {
         </div>
       </div>
 
-      {/* Helper text */}
-      <p className="text-center text-muted-foreground text-sm mt-3">
+      {/* Helper text - hidden on mobile since Cmd+Enter doesn't apply */}
+      <p className="hidden md:block text-center text-muted-foreground text-sm mt-3">
         Press <kbd className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-xs">Cmd</kbd> + <kbd className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-xs">Enter</kbd> to submit
       </p>
     </div>

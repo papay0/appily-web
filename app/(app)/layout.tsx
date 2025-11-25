@@ -31,7 +31,7 @@ export default function AppLayout({
               </div>
             </header>
           )}
-          <div className={isIndividualProjectPage ? "flex flex-1 flex-col overflow-hidden" : "flex-1 overflow-y-auto p-4"}>
+          <div className={isIndividualProjectPage ? "flex flex-1 flex-col overflow-hidden" : "flex-1 overflow-y-auto p-3 md:p-4"}>
             {children}
           </div>
         </SidebarInset>
