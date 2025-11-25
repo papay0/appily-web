@@ -77,6 +77,68 @@ Metro bundler is already running on port 8081.
 ${expoUrlSection}**Your task:**
 ${options.userTask}
 
+**DESIGN PRINCIPLES (MANDATORY - THIS IS YOUR TOP PRIORITY):**
+Your #1 goal is to make users say "HOLY SHIT THIS LOOKS AMAZING!" when they see the app.
+Create stunning, modern, polished apps that look like they were designed by a top-tier design agency.
+Every screen must look like it belongs in a portfolio or App Store feature. No exceptions.
+
+**Visual Style:**
+- iOS-inspired, clean aesthetic with generous whitespace
+- Soft, muted color palettes with strategic accent colors
+- Subtle shadows (shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.08, shadowRadius: 8)
+- Rounded corners (borderRadius: 12-16 for cards, 8-12 for buttons)
+- Card-based layouts that feel premium and elevated
+
+**Typography:**
+- Use system fonts (they look best on each platform)
+- Clear hierarchy: title (24-32px bold), subtitle (18-20px medium), body (16px regular), caption (14px muted color)
+- Generous line height (1.5x font size for body text)
+- Letter spacing: slightly increased for headings
+
+**Spacing & Layout:**
+- Base padding: 16px (compact areas) or 24px (main content areas)
+- Consistent margins between sections (24-32px)
+- Never crowd elements - whitespace is a feature, not wasted space
+- Use SafeAreaView and proper insets for notched devices
+
+**Colors:**
+- Primary backgrounds: soft whites (#FAFAFA, #F8F9FA) or very subtle warm grays
+- Accent colors: one primary (vibrant but not harsh) + one secondary
+- Text: dark gray (#1A1A1A or #2D3748) not pure black - easier on eyes
+- Subtle borders: use rgba(0,0,0,0.06) not harsh lines
+- Always design with dark mode in mind (invert appropriately)
+
+**Animations & Polish (ALWAYS ADD THESE):**
+- Smooth navigation transitions (300ms ease-in-out)
+- Button press feedback: scale(0.97) + slight opacity reduction on Pressable
+- List items: fade-in animation on mount with staggered delays (50ms per item)
+- Loading states: skeleton placeholders with shimmer effect, NOT just spinners
+- Pull-to-refresh on scrollable lists (RefreshControl)
+- Subtle entrance animations for screens and modals
+- Use Animated API or react-native-reanimated for smooth 60fps animations
+
+**Component Patterns:**
+- Use modal bottom sheets (slide up) instead of full-screen modals
+- Floating Action Buttons (FAB) for primary actions in list screens
+- Tab bars with animated underline/indicator
+- Cards with subtle shadow + slight scale on press (Pressable)
+- Empty states: include a relevant icon + helpful message + action button
+- Form inputs: clear focus states, validation feedback, proper keyboard handling
+- Lists: consider swipe actions for edit/delete
+
+**Icons & Visual Elements:**
+- Use @expo/vector-icons consistently throughout the app
+- Icon sizes: 24px standard, 20px compact, 28-32px for emphasis
+- Add subtle background shapes or gradients for visual interest
+- Use SF Symbols style icons (outlined, consistent stroke width)
+
+**QUALITY BAR - READ THIS:**
+- If the app looks like a basic tutorial project → YOU FAILED
+- If users don't immediately think "wow this looks professional" → YOU FAILED
+- If the design wouldn't impress a Silicon Valley product designer → YOU FAILED
+- Every tap, every scroll, every transition should feel delightful and premium
+- Think: "Would I be proud to show this in my design portfolio?" If no, keep improving.
+
 **CRITICAL RULES:**
 - The project is at ${workingDir}
 - Expo/Metro is ALREADY RUNNING on port 8081 - NEVER restart it
