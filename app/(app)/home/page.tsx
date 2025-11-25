@@ -6,7 +6,6 @@ import { useUser } from "@clerk/nextjs";
 import { useSupabaseClient } from "@/lib/supabase-client";
 import { AppIdeaInput } from "@/components/app-idea-input";
 import { RecentProjectsSection } from "@/components/recent-projects-section";
-import { Skeleton } from "@/components/ui/skeleton";
 import Image from "next/image";
 
 interface Project {
@@ -101,20 +100,6 @@ export default function HomePage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background">
-        <div className="flex flex-col items-center justify-center min-h-screen px-6 py-12">
-          <div className="text-center mb-12">
-            <Skeleton className="h-12 w-80 mx-auto" />
-            <Skeleton className="h-6 w-64 mx-auto mt-4" />
-          </div>
-          <Skeleton className="h-48 w-full max-w-2xl rounded-2xl" />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-background">
       {/* Content */}
@@ -149,7 +134,7 @@ export default function HomePage() {
         <AppIdeaInput onSubmit={handleCreateProject} isLoading={isCreating} />
 
         {/* Recent Projects */}
-        <RecentProjectsSection projects={projects} maxDisplay={6} />
+        <RecentProjectsSection projects={projects} maxDisplay={6} loading={loading} />
       </div>
     </div>
   );

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Smartphone, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -16,14 +17,42 @@ interface Project {
 interface RecentProjectsSectionProps {
   projects: Project[];
   maxDisplay?: number;
+  loading?: boolean;
 }
 
 export function RecentProjectsSection({
   projects,
   maxDisplay = 6,
+  loading = false,
 }: RecentProjectsSectionProps) {
   const router = useRouter();
   const displayProjects = projects.slice(0, maxDisplay);
+
+  // Show skeleton while loading
+  if (loading) {
+    return (
+      <div className="w-full max-w-4xl mx-auto mt-12">
+        <div className="flex items-center justify-between mb-4">
+          <Skeleton className="h-6 w-32" />
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => (
+            <Card key={i} className="cursor-default">
+              <CardHeader className="p-4">
+                <div className="flex items-start gap-3">
+                  <Skeleton className="h-8 w-8 rounded-lg flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-3 w-16 mt-2" />
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   if (projects.length === 0) {
     return null;
