@@ -6,25 +6,20 @@ import { Separator } from "@/components/ui/separator";
 import { AppBreadcrumbs } from "@/components/app-breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Square, Save, Pencil, Check, X } from "lucide-react";
+import { Loader2, Pencil, Check, X, QrCode } from "lucide-react";
 import { useSupabaseClient } from "@/lib/supabase-client";
 
 interface ProjectHeaderProps {
   projectId?: string;
   projectName?: string;
 
-  // Optional view controls (for project pages)
+  // Optional view controls (for project pages, desktop only)
   viewMode?: "preview" | "code";
   onViewModeChange?: (mode: "preview" | "code") => void;
 
-  // Optional sandbox controls (for project pages)
-  sandboxStatus?: "idle" | "starting" | "ready" | "error";
-  onStartSandbox?: () => void;
-  onStopSandbox?: () => void;
-
-  // Debug: Manual save button
-  onSaveToR2?: () => void;
-  isSaving?: boolean;
+  // Mobile QR code button
+  hasQrCode?: boolean;
+  onOpenQrSheet?: () => void;
 }
 
 export function ProjectHeader({
@@ -32,11 +27,8 @@ export function ProjectHeader({
   projectName,
   viewMode,
   onViewModeChange,
-  sandboxStatus,
-  onStartSandbox,
-  onStopSandbox,
-  onSaveToR2,
-  isSaving,
+  hasQrCode,
+  onOpenQrSheet,
 }: ProjectHeaderProps) {
   const supabase = useSupabaseClient();
   const [isEditing, setIsEditing] = useState(false);
@@ -46,7 +38,6 @@ export function ProjectHeader({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const showControls = viewMode && onViewModeChange;
-  const showSandboxButton = sandboxStatus && (onStartSandbox || onStopSandbox);
 
   // Update display name when projectName prop changes
   useEffect(() => {
@@ -177,9 +168,9 @@ export function ProjectHeader({
         )}
       </div>
 
-      {/* Center: View mode tabs (only on project pages) - Unified button style */}
+      {/* Center: View mode tabs (only on project pages, hidden on mobile) */}
       {showControls && (
-        <div className="flex items-center gap-2">
+        <div className="hidden md:flex items-center gap-2">
           <Button
             variant={viewMode === "preview" ? "secondary" : "ghost"}
             size="sm"
@@ -199,61 +190,17 @@ export function ProjectHeader({
         </div>
       )}
 
-      {/* Right: Sandbox controls (only on project pages) - Unified button style */}
-      {showSandboxButton && (
-        <div className="flex items-center gap-2">
-          {/* Debug: Manual Save to R2 button */}
-          {onSaveToR2 && sandboxStatus === "ready" && (
-            <Button
-              onClick={onSaveToR2}
-              size="sm"
-              variant="outline"
-              className="h-8 px-3 gap-2"
-              disabled={isSaving}
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="h-3.5 w-3.5" />
-                  Save to R2
-                </>
-              )}
-            </Button>
-          )}
-
-          {sandboxStatus === "idle" && onStartSandbox && (
-            <Button onClick={onStartSandbox} size="sm" className="h-8 px-3">
-              Start Sandbox
-            </Button>
-          )}
-          {sandboxStatus === "starting" && (
-            <Button disabled size="sm" variant="secondary" className="h-8 px-3 gap-2">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Starting...
-            </Button>
-          )}
-          {sandboxStatus === "ready" && onStopSandbox && (
-            <Button onClick={onStopSandbox} size="sm" variant="secondary" className="h-8 px-3 gap-2">
-              <Square className="h-3.5 w-3.5" />
-              Stop Sandbox
-            </Button>
-          )}
-          {sandboxStatus === "error" && onStartSandbox && (
-            <Button
-              onClick={onStartSandbox}
-              size="sm"
-              variant="secondary"
-              className="h-8 px-3 gap-2"
-            >
-              <div className="h-2 w-2 rounded-full bg-rose-500" />
-              Retry
-            </Button>
-          )}
-        </div>
+      {/* Mobile: QR Code button */}
+      {hasQrCode && onOpenQrSheet && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onOpenQrSheet}
+          className="md:hidden h-8 px-3 gap-2"
+        >
+          <QrCode className="h-4 w-4" />
+          Preview
+        </Button>
       )}
     </header>
   );

@@ -6,18 +6,11 @@ import { useUser, useSession } from "@clerk/nextjs";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { useSupabaseClient } from "@/lib/supabase-client";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
-import { ChatPanel } from "@/components/chat-panel";
-import { PreviewPanel } from "@/components/preview-panel";
-import { CodeEditor } from "@/components/code-editor";
 import { DebugPanel } from "@/components/debug-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProjectHeader } from "@/components/project-header";
+import { BuildPageDesktop, BuildPageMobile } from "@/components/build-page";
 import type { Feature } from "@/lib/types/features";
-import {
-  ResizablePanelGroup,
-  ResizablePanel,
-  ResizableHandle,
-} from "@/components/ui/resizable";
 
 type ViewMode = "preview" | "code";
 type SandboxStatus = "idle" | "starting" | "ready" | "error";
@@ -61,6 +54,7 @@ export default function ProjectBuildPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("preview");
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingName, setIsGeneratingName] = useState(false);
+  const [qrSheetOpen, setQrSheetOpen] = useState(false);
 
   // Load project and setup realtime subscription
   useEffect(() => {
@@ -416,18 +410,32 @@ export default function ProjectBuildPage() {
     return (
       <div className="flex flex-col h-full">
         {/* Header Skeleton */}
-        <div className="border-b px-6 py-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-6 w-48" />
-            <div className="flex items-center gap-2">
-              <Skeleton className="h-9 w-24" />
-              <Skeleton className="h-9 w-32" />
-            </div>
+        <div className="border-b px-3 md:px-6 py-3 md:py-4">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-8 w-8" />
+            <Skeleton className="h-4 w-1" />
+            <Skeleton className="h-5 w-32 md:w-48" />
           </div>
         </div>
 
-        {/* Two-Panel Layout Skeleton */}
-        <div className="flex-1 min-h-0 flex">
+        {/* Mobile: Chat-only Skeleton */}
+        <div className="flex-1 min-h-0 flex flex-col md:hidden">
+          <div className="flex-1 overflow-hidden p-3 space-y-3">
+            {/* Message skeletons */}
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
+                <Skeleton className={`h-12 ${i % 2 === 0 ? 'w-3/4' : 'w-1/2'} rounded-lg`} />
+              </div>
+            ))}
+          </div>
+          {/* Input area skeleton */}
+          <div className="border-t p-3">
+            <Skeleton className="h-10 w-full rounded-lg" />
+          </div>
+        </div>
+
+        {/* Desktop: Two-Panel Layout Skeleton */}
+        <div className="hidden md:flex flex-1 min-h-0">
           {/* Left Panel - Chat Skeleton */}
           <div className="w-[30%] border-r flex flex-col">
             <div className="flex-1 overflow-hidden p-4 space-y-4">
@@ -479,57 +487,54 @@ export default function ProjectBuildPage() {
         projectName={project.name}
         viewMode={viewMode}
         onViewModeChange={(mode) => setViewMode(mode)}
-        sandboxStatus={isReconnecting ? "starting" : sandboxStatus}
-        onStartSandbox={handleStartSandbox}
-        onStopSandbox={handleStopSandbox}
-        onSaveToR2={handleSaveToR2}
-        isSaving={isSaving}
+        hasQrCode={!!qrCode}
+        onOpenQrSheet={() => setQrSheetOpen(true)}
       />
 
-      {/* Resizable 2-Panel Layout */}
-      <div className="flex-1 min-h-0">
-        <ResizablePanelGroup direction="horizontal" className="h-full">
-          {/* Left Panel - Chat */}
-          <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
-            <ChatPanel
-              projectId={projectId}
-              sandboxId={project.e2b_sandbox_id || undefined}
-              featureContext={
-                project.app_idea && features.length > 0
-                  ? { appIdea: project.app_idea, features }
-                  : undefined
-              }
-            />
-          </ResizablePanel>
+      {/* Mobile Layout */}
+      <BuildPageMobile
+        projectId={projectId}
+        sandboxId={project.e2b_sandbox_id || undefined}
+        featureContext={
+          project.app_idea && features.length > 0
+            ? { appIdea: project.app_idea, features }
+            : undefined
+        }
+        sandboxStatus={sandboxStatus}
+        onStartSandbox={handleStartSandbox}
+        expoUrl={expoUrl}
+        qrCode={qrCode}
+        qrSheetOpen={qrSheetOpen}
+        onQrSheetOpenChange={setQrSheetOpen}
+      />
 
-          <ResizableHandle withHandle />
-
-          {/* Right Panel - Preview/Code */}
-          <ResizablePanel defaultSize={70}>
-            <div className="h-full overflow-hidden">
-              {viewMode === "preview" ? (
-                <PreviewPanel
-                  sandboxStatus={sandboxStatus}
-                  onStartSandbox={handleStartSandbox}
-                  expoUrl={expoUrl}
-                  qrCode={qrCode}
-                  sandboxId={project.e2b_sandbox_id || undefined}
-                  projectId={projectId}
-                />
-              ) : (
-                <CodeEditor />
-              )}
-            </div>
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      </div>
+      {/* Desktop Layout */}
+      <BuildPageDesktop
+        projectId={projectId}
+        sandboxId={project.e2b_sandbox_id || undefined}
+        featureContext={
+          project.app_idea && features.length > 0
+            ? { appIdea: project.app_idea, features }
+            : undefined
+        }
+        sandboxStatus={sandboxStatus}
+        onStartSandbox={handleStartSandbox}
+        expoUrl={expoUrl}
+        qrCode={qrCode}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+      />
 
       {/* Debug Panel */}
       <DebugPanel
         sandboxId={project.e2b_sandbox_id || undefined}
-        sandboxStatus={sandboxStatus}
+        sandboxStatus={isReconnecting ? "starting" : sandboxStatus}
         uptime={uptime}
         error={sandboxError}
+        onStartSandbox={handleStartSandbox}
+        onStopSandbox={handleStopSandbox}
+        onSaveToR2={handleSaveToR2}
+        isSaving={isSaving}
       />
     </div>
   );

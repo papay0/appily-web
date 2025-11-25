@@ -82,16 +82,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
   if (message.role === "assistant") {
     return (
       <div className="flex items-start gap-2.5 w-full animate-in slide-in-from-left-2 duration-300">
-        <div className="h-7 w-7 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 p-1.5">
-          <Image
-            src="/appily-logo.svg"
-            alt="Appily AI"
-            width={16}
-            height={16}
-            className="object-contain"
-          />
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg px-3 py-2 max-w-xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-gray-800 rounded-lg px-3 py-2 max-w-xl md:max-w-xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="text-sm leading-relaxed text-gray-800 dark:text-gray-100">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
@@ -216,7 +207,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
       }
 
       return (
-        <div className="flex items-start gap-2 my-1.5 w-full animate-in fade-in duration-300 pl-9">
+        <div className="flex items-start gap-2 my-1.5 w-full animate-in fade-in duration-300 ">
           <Badge
             variant="secondary"
             className={cn(
@@ -237,7 +228,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
     // Expo URL ready indicator (special green badge with larger size)
     if (message.content.startsWith("🎉 Expo ready:")) {
       return (
-        <div className="flex items-start gap-2 my-1.5 w-full animate-in zoom-in duration-500 pl-9">
+        <div className="flex items-start gap-2 my-1.5 w-full animate-in zoom-in duration-500 ">
           <Badge
             variant="default"
             className="gap-1.5 bg-green-500 hover:bg-green-600 text-white py-1.5 px-3 text-xs font-medium inline-flex items-start shadow-sm border border-green-400 rounded-md max-w-xl"
@@ -253,7 +244,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
     if (message.content.startsWith("✓")) {
       const operationalDetails = getOperationalDetails();
       return (
-        <div className="flex flex-col items-start gap-0 my-1.5 w-full animate-in fade-in duration-300 pl-9">
+        <div className="flex flex-col items-start gap-0 my-1.5 w-full animate-in fade-in duration-300 ">
           <Badge
             variant="default"
             className="gap-1.5 bg-green-500 hover:bg-green-600 text-white inline-flex items-start shadow-sm border border-green-400 px-2.5 py-1 rounded-md text-xs max-w-xl"
@@ -276,7 +267,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
     if (message.content.startsWith("✗") || message.content.startsWith("Error")) {
       const operationalDetails = getOperationalDetails();
       return (
-        <div className="flex flex-col items-start gap-0 my-1.5 w-full animate-in fade-in duration-300 pl-9">
+        <div className="flex flex-col items-start gap-0 my-1.5 w-full animate-in fade-in duration-300 ">
           <Badge variant="destructive" className="gap-1.5 inline-flex items-start shadow-sm border px-2.5 py-1 rounded-md text-xs max-w-xl">
             <XCircle className="h-3 w-3 flex-shrink-0 mt-0.5" />
             <span className="font-medium break-words whitespace-normal">{message.content}</span>
@@ -295,7 +286,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
     // Generic system message (thinking, etc.)
     const operationalDetails = getOperationalDetails();
     return (
-      <div className="flex flex-col items-start gap-0 my-1.5 w-full animate-in fade-in duration-300 pl-9">
+      <div className="flex flex-col items-start gap-0 my-1.5 w-full animate-in fade-in duration-300">
         <Badge variant="outline" className="gap-1.5 inline-flex items-start bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm border px-2.5 py-1 rounded-md text-xs max-w-xl">
           <span className="font-medium text-muted-foreground break-words whitespace-normal">{message.content}</span>
         </Badge>

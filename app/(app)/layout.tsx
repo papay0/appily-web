@@ -18,7 +18,7 @@ export default function AppLayout({
   const isIndividualProjectPage = pathname.match(/^\/home\/projects\/(build|plan)\/[^/]+$/);
 
   return (
-    <div className="h-screen overflow-hidden flex">
+    <div className="fixed inset-0 overflow-hidden flex pt-safe pb-safe bg-background">
       <SidebarProvider>
         <AppSidebar />
         <SidebarInset className="flex flex-col">

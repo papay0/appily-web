@@ -14,6 +14,7 @@ import { ToolUseGroup } from "./tool-use-group";
 import { FeatureContextCard } from "./feature-context-card";
 import type { Feature } from "@/lib/types/features";
 import { buildEnhancedPrompt } from "@/lib/types/features";
+import { generateId } from "@/lib/uuid";
 
 interface Message {
   id: string;
@@ -187,7 +188,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
       typeof event.event_data?.message === "string"
     ) {
       setMessages((prev) => [...prev, {
-        id: crypto.randomUUID(),
+        id: generateId(),
         role: "system",
         content: event.event_data.message,
         timestamp: new Date(event.created_at),
@@ -209,7 +210,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
           return;
         }
         setMessages((prev) => [...prev, {
-          id: event.id || crypto.randomUUID(),
+          id: event.id || generateId(),
           role: "user",
           content,
           timestamp: new Date(event.created_at),
@@ -227,7 +228,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
         if (isTextBlock(block)) {
           const text = block.text;
           setMessages((prev) => [...prev, {
-            id: crypto.randomUUID(),
+            id: generateId(),
             role: "assistant",
             content: text,
             timestamp: new Date(event.created_at),
@@ -249,7 +250,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
           }
 
           setMessages((prev) => [...prev, {
-            id: crypto.randomUUID(),
+            id: generateId(),
             role: "system",
             content: `Using ${block.name}...`,
             timestamp: new Date(event.created_at),
@@ -267,7 +268,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
       setIsLoading(false);
       if (event.event_data.subtype === "success") {
         setMessages((prev) => [...prev, {
-          id: crypto.randomUUID(),
+          id: generateId(),
           role: "system",
           content: "✓ Task completed",
           timestamp: new Date(event.created_at),
@@ -309,7 +310,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
         */
       } else {
         setMessages((prev) => [...prev, {
-          id: crypto.randomUUID(),
+          id: generateId(),
           role: "system",
           content: `✗ Error: ${event.event_data.subtype}`,
           timestamp: new Date(event.created_at),
@@ -402,7 +403,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
     }
 
     const userMessage: Message = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       role: "user",
       content: messageText,
       timestamp: new Date(),
@@ -436,7 +437,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
 
       if (data.status === "processing") {
         setMessages((prev) => [...prev, {
-          id: crypto.randomUUID(),
+          id: generateId(),
           role: "system",
           content: "Claude is thinking...",
           timestamp: new Date(),
@@ -446,7 +447,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
       console.error("Failed to send message:", error);
       pendingUserMessageIds.current.delete(userMessage.id);
       setMessages((prev) => [...prev, {
-        id: crypto.randomUUID(),
+        id: generateId(),
         role: "system",
         content: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
         timestamp: new Date(),
@@ -500,7 +501,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
     }
 
     const userMessage: Message = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       role: "user",
       content: input, // Show original input in chat
       timestamp: new Date(),
@@ -535,7 +536,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
 
       if (data.status === "processing") {
         setMessages((prev) => [...prev, {
-          id: crypto.randomUUID(),
+          id: generateId(),
           role: "system",
           content: "Claude is thinking...",
           timestamp: new Date(),
@@ -545,7 +546,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
       console.error("Failed to send message:", error);
       pendingUserMessageIds.current.delete(userMessage.id);
       setMessages((prev) => [...prev, {
-        id: crypto.randomUUID(),
+        id: generateId(),
         role: "system",
         content: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
         timestamp: new Date(),
