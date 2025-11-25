@@ -50,8 +50,8 @@ export function ProjectCreationForm() {
         throw new Error("Failed to create project");
       }
 
-      // Navigate to project page
-      router.push(`/home/projects/${project.id}`);
+      // Navigate to planning page
+      router.push(`/home/projects/${project.id}/plan`);
     } catch (error) {
       console.error("Error creating project:", error);
       alert("Failed to create project. Please try again.");

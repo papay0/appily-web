@@ -123,3 +123,81 @@ BEFORE installing ANY package, verify it's compatible with Expo Go:
 
 Focus ONLY on implementing the user's request. Expo is already set up.`;
 }
+
+/**
+ * Options for building the feature generation prompt
+ */
+export interface FeatureGenerationOptions {
+  /**
+   * The user's app idea description
+   * Example: "A grocery list app that helps me track what I need to buy"
+   */
+  appIdea: string;
+}
+
+/**
+ * Build the prompt for generating feature suggestions
+ *
+ * This prompt configures Claude to:
+ * 1. Analyze the user's app idea
+ * 2. Generate relevant feature suggestions
+ * 3. Mark core features as recommended
+ * 4. Consider Expo Go constraints
+ *
+ * @param options - Configuration for the prompt
+ * @returns Complete prompt string for feature generation
+ */
+export function buildFeatureGenerationPrompt(
+  options: FeatureGenerationOptions
+): string {
+  return `You are an expert mobile app product manager. Analyze the following app idea and generate a list of features that would make this app successful.
+
+**User's App Idea:**
+${options.appIdea}
+
+**CRITICAL CONSTRAINTS - Expo Go Compatibility:**
+All features MUST be implementable in Expo Go (no native modules, no custom native code).
+
+Available capabilities:
+- UI: React Native components, navigation, animations, gestures
+- Data: AsyncStorage, REST APIs, WebSockets
+- Media: expo-camera, expo-image-picker, expo-av (audio/video)
+- Location: expo-location (GPS, geofencing)
+- Notifications: expo-notifications (push notifications)
+- Auth: email/password, social OAuth via web
+- Files: expo-file-system, expo-sharing
+- Sensors: expo-sensors (accelerometer, gyroscope)
+- Web content: react-native-webview
+
+NOT available (do NOT suggest features that require these):
+- Native maps (suggest webview maps instead if map is needed)
+- Bluetooth/BLE
+- Background processing beyond basic tasks
+- Native in-app purchases
+- Biometric auth (native)
+- Custom native modules
+
+**Your Task:**
+Generate 5-10 features for this app. For each feature:
+1. Give it a clear, concise title (3-6 words)
+2. Write a brief, user-friendly description (1-2 sentences, non-technical)
+3. Mark whether it's RECOMMENDED (core to the app idea) or OPTIONAL (nice-to-have enhancement)
+
+Prioritize features that:
+- Directly address the user's core needs
+- Improve user experience
+- Are achievable with Expo Go
+
+**Response Format (JSON only, no markdown):**
+{
+  "features": [
+    {
+      "title": "Feature Title Here",
+      "description": "What this feature does and why it's valuable for the user.",
+      "is_recommended": true
+    }
+  ]
+}
+
+Return ONLY valid JSON, no markdown code blocks, no explanation before or after.`;
+}

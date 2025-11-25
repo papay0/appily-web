@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     }
 
     // Parse request body
-    const { prompt, projectId, workingDirectory, sandboxId, clientMessageId } =
+    const { prompt, projectId, workingDirectory, sandboxId, clientMessageId, displayMessage } =
       await request.json();
 
     if (!prompt || !projectId) {
@@ -51,6 +51,10 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // displayMessage is what gets stored in DB and shown in chat
+    // prompt is what gets sent to Claude (may include enhanced context)
+    const messageToStore = displayMessage || prompt;
 
     // Get Supabase user ID from Clerk ID
     const { data: userData } = await supabaseAdmin
@@ -72,6 +76,7 @@ export async function POST(request: Request) {
     console.log(`[API] User prompt length: ${prompt.length} chars`);
 
     // Store user message in database (backend-only insert)
+    // Store displayMessage (short version) not the full enhanced prompt
     try {
       await supabaseAdmin.from("agent_events").insert({
         session_id: null,
@@ -80,7 +85,7 @@ export async function POST(request: Request) {
         event_data: {
           type: "user",
           role: "user",
-          content: prompt,
+          content: messageToStore,
           timestamp: new Date().toISOString(),
           clientMessageId,
         },

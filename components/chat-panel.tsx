@@ -11,6 +11,9 @@ import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 import { ChatMessage } from "./chat-message";
 import { TodoList, type Todo } from "./todo-list";
 import { ToolUseGroup } from "./tool-use-group";
+import { FeatureContextCard } from "./feature-context-card";
+import type { Feature } from "@/lib/types/features";
+import { buildEnhancedPrompt } from "@/lib/types/features";
 
 interface Message {
   id: string;
@@ -46,9 +49,15 @@ interface AgentEventRecord {
   created_at: string;
 }
 
+interface FeatureContext {
+  appIdea: string;
+  features: Feature[];
+}
+
 interface ChatPanelProps {
   projectId: string;
   sandboxId?: string;
+  featureContext?: FeatureContext;
 }
 
 // Helper type for grouped rendering
@@ -95,13 +104,14 @@ function groupMessages(messages: Message[]): MessageGroup[] {
   return groups;
 }
 
-export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
+export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelProps) {
   const { isLoaded } = useSession();
   const { user } = useUser();
   const supabase = useSupabaseClient();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [openTodoIndex, setOpenTodoIndex] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const seenEventIds = useRef<{ order: string[]; set: Set<string> }>({
@@ -112,6 +122,7 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
   const MAX_EVENT_CACHE = 500;
   const didInitialFetchRef = useRef(false);
   const pendingUserMessageIds = useRef<Set<string>>(new Set());
+  const didAutoStartRef = useRef(false);
   // const savedEvents = useRef<Set<string>>(new Set()); // No longer needed - saves are backend-triggered
 
   // Reset local caches when switching projects
@@ -120,8 +131,10 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
     // savedEvents.current = new Set(); // No longer needed - saves are backend-triggered
     lastTimestampRef.current = null;
     didInitialFetchRef.current = false;
+    didAutoStartRef.current = false;
     pendingUserMessageIds.current.clear();
     setMessages([]);
+    setInitialLoadComplete(false);
   }, [projectId]);
 
   // Auto-scroll to bottom when new messages arrive
@@ -339,6 +352,8 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
         }
       }
     }
+    // Mark initial load as complete (used by auto-start)
+    setInitialLoadComplete(true);
   }, [projectId, supabase, isLoaded, processAgentEvent]);
 
   const { status: channelStatus } = useRealtimeSubscription({
@@ -366,13 +381,128 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
     }
   }, [channelStatus, fetchHistoricalEvents, isLoaded]);
 
-  const handleSendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+  // Auto-start building when coming from planning page
+  const sendMessageProgrammatically = useCallback(async (messageText: string) => {
+    if (!messageText.trim() || isLoading || !user) return;
+
+    // Check if this is the first message and we have feature context
+    const isFirstMessage = messages.filter(m => m.role === "user").length === 0;
+    const shouldIncludeContext = isFirstMessage && featureContext && featureContext.features.length > 0;
+
+    // Build the prompt - include feature context for first message
+    let promptContent = messageText;
+    if (shouldIncludeContext) {
+      const includedFeatures = featureContext.features.filter(f => f.is_included);
+      const excludedFeatures = featureContext.features.filter(f => !f.is_included);
+      promptContent = buildEnhancedPrompt(messageText, {
+        appIdea: featureContext.appIdea,
+        includedFeatures,
+        excludedFeatures,
+      });
+    }
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: "user",
-      content: input,
+      content: messageText,
+      timestamp: new Date(),
+      avatarUrl: user?.imageUrl,
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    pendingUserMessageIds.current.add(userMessage.id);
+    setIsLoading(true);
+
+    try {
+      const response = await fetch("/api/agents/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: promptContent, // Enhanced prompt for Claude
+          displayMessage: messageText, // Short message for database/display
+          projectId,
+          sandboxId,
+          workingDirectory: "/home/user/project",
+          clientMessageId: userMessage.id,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to start agent");
+      }
+
+      const data = await response.json();
+      console.log("Agent started:", data);
+
+      if (data.status === "processing") {
+        setMessages((prev) => [...prev, {
+          id: crypto.randomUUID(),
+          role: "system",
+          content: "Claude is thinking...",
+          timestamp: new Date(),
+        }]);
+      }
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      pendingUserMessageIds.current.delete(userMessage.id);
+      setMessages((prev) => [...prev, {
+        id: crypto.randomUUID(),
+        role: "system",
+        content: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+        timestamp: new Date(),
+      }]);
+      setIsLoading(false);
+    }
+  }, [isLoading, user, messages, featureContext, projectId, sandboxId]);
+
+  // Auto-start when coming from planning with feature context
+  useEffect(() => {
+    // Only auto-start if:
+    // 1. We have feature context (came from planning)
+    // 2. Initial fetch has completed
+    // 3. Realtime subscription is connected (ensures all logs are received)
+    // 4. We haven't already auto-started
+    // 5. There are no existing messages (fresh start)
+    // 6. Not already loading
+    if (
+      featureContext &&
+      featureContext.features.length > 0 &&
+      initialLoadComplete &&
+      channelStatus === "connected" &&
+      !didAutoStartRef.current &&
+      messages.length === 0 &&
+      !isLoading &&
+      user
+    ) {
+      didAutoStartRef.current = true;
+      // Use a simple prompt - the feature context will be added automatically
+      sendMessageProgrammatically("Build my app based on the plan above");
+    }
+  }, [featureContext, initialLoadComplete, channelStatus, messages.length, isLoading, user, sendMessageProgrammatically]);
+
+  const handleSendMessage = async () => {
+    if (!input.trim() || isLoading) return;
+
+    // Check if this is the first message and we have feature context
+    const isFirstMessage = messages.filter(m => m.role === "user").length === 0;
+    const shouldIncludeContext = isFirstMessage && featureContext && featureContext.features.length > 0;
+
+    // Build the prompt - include feature context for first message
+    let promptContent = input;
+    if (shouldIncludeContext) {
+      const includedFeatures = featureContext.features.filter(f => f.is_included);
+      const excludedFeatures = featureContext.features.filter(f => !f.is_included);
+      promptContent = buildEnhancedPrompt(input, {
+        appIdea: featureContext.appIdea,
+        includedFeatures,
+        excludedFeatures,
+      });
+    }
+
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: input, // Show original input in chat
       timestamp: new Date(),
       avatarUrl: user?.imageUrl,
     };
@@ -387,7 +517,8 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: userMessage.content,
+          prompt: promptContent, // Enhanced prompt for Claude
+          displayMessage: input, // Short message for database/display
           projectId,
           sandboxId,
           workingDirectory: "/home/user/project",
@@ -459,6 +590,7 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
             {(() => {
               const messageGroups = groupMessages(messages);
               const lastTodoWriteIndex = messages.map((m, i) => m.toolUse === "TodoWrite" ? i : -1).filter(i => i !== -1).pop() ?? -1;
+              const firstUserMessageIndex = messages.findIndex(m => m.role === "user");
 
               return messageGroups.map((group, groupIndex) => {
                 if (group.type === 'group') {
@@ -475,10 +607,22 @@ export function ChatPanel({ projectId, sandboxId }: ChatPanelProps) {
                   const message = group.message;
                   const index = group.index;
                   const isLatestTodoWrite = index === lastTodoWriteIndex;
+                  const isFirstUserMessage = index === firstUserMessageIndex && message.role === "user";
+                  const showFeatureContext = isFirstUserMessage && featureContext && featureContext.features.length > 0;
 
                   return (
                     <div key={message.id} className="w-full max-w-full overflow-hidden">
                       <ChatMessage message={message} />
+                      {/* Show feature context after first user message */}
+                      {showFeatureContext && (
+                        <div className="mt-1.5 ml-auto max-w-[85%]">
+                          <FeatureContextCard
+                            appIdea={featureContext.appIdea}
+                            features={featureContext.features}
+                            defaultOpen={false}
+                          />
+                        </div>
+                      )}
                       {/* Show todos after TodoWrite tool use */}
                       {message.toolUse === "TodoWrite" && message.toolInput?.todos && (
                         <div className="mt-1.5 pl-9">

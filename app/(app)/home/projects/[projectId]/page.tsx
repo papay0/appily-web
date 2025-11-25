@@ -12,6 +12,7 @@ import { CodeEditor } from "@/components/code-editor";
 import { DebugPanel } from "@/components/debug-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProjectHeader } from "@/components/project-header";
+import type { Feature } from "@/lib/types/features";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -31,6 +32,8 @@ type Project = {
   expo_url: string | null;
   qr_code: string | null;
   session_id: string | null;
+  app_idea: string | null;
+  planning_completed_at: string | null;
 }
 
 export default function ProjectPage() {
@@ -44,6 +47,7 @@ export default function ProjectPage() {
   // Project state
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  const [features, setFeatures] = useState<Feature[]>([]);
 
   // E2B state (now synced from database via realtime)
   const [sandboxStatus, setSandboxStatus] = useState<SandboxStatus>("idle");
@@ -91,6 +95,19 @@ export default function ProjectPage() {
         }
 
         setProject(projectData);
+
+        // Load features if planning was completed
+        if (projectData.planning_completed_at && projectData.app_idea) {
+          const { data: featuresData } = await supabase
+            .from("project_features")
+            .select("*")
+            .eq("project_id", projectId)
+            .order("sort_order", { ascending: true });
+
+          if (featuresData) {
+            setFeatures(featuresData);
+          }
+        }
 
         // Set initial Expo URL and QR code from database
         if (projectData.expo_url) {
@@ -431,6 +448,11 @@ export default function ProjectPage() {
             <ChatPanel
               projectId={projectId}
               sandboxId={project.e2b_sandbox_id || undefined}
+              featureContext={
+                project.app_idea && features.length > 0
+                  ? { appIdea: project.app_idea, features }
+                  : undefined
+              }
             />
           </ResizablePanel>
 
