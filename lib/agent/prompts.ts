@@ -139,6 +139,104 @@ Every screen must look like it belongs in a portfolio or App Store feature. No e
 - Every tap, every scroll, every transition should feel delightful and premium
 - Think: "Would I be proud to show this in my design portfolio?" If no, keep improving.
 
+**CODE QUALITY (CRITICAL - BROKEN UI = FAILURE):**
+Your code MUST render without errors. A broken UI is worse than an ugly UI. Follow these rules EXACTLY:
+
+**Imports - Get These Right:**
+- ALWAYS import from 'react-native' for core components: View, Text, ScrollView, Pressable, StyleSheet, Animated, Dimensions, Platform, SafeAreaView, FlatList, TextInput, Image, ActivityIndicator, RefreshControl, KeyboardAvoidingView, TouchableOpacity, Modal
+- ALWAYS import from 'expo-router' for navigation: Link, router, useRouter, useLocalSearchParams, Stack, Tabs
+- ALWAYS import from '@expo/vector-icons' for icons: import { Ionicons, MaterialIcons, FontAwesome } from '@expo/vector-icons'
+- NEVER import from 'react-native-safe-area-context' - use SafeAreaView from 'react-native'
+- NEVER import 'useNavigation' from react-navigation - use 'useRouter' from expo-router
+- NEVER use require() for images - use { uri: 'https://...' } or import
+
+**StyleSheet - NEVER Break These Rules:**
+- ALWAYS define styles with StyleSheet.create({}) at the bottom of the file
+- NEVER use inline style objects like style={{ flex: 1 }} - always reference styles.something
+- NEVER use string values for numeric properties: use padding: 16, NOT padding: '16'
+- NEVER use 'px' suffix: use fontSize: 16, NOT fontSize: '16px'
+- ALWAYS use flex: 1 on container views to fill space
+- For shadows, ALWAYS include ALL properties: shadowColor, shadowOffset, shadowOpacity, shadowRadius, elevation (Android)
+
+**Layout - Prevent Visual Bugs:**
+- ALWAYS wrap screen content in SafeAreaView with flex: 1 AND a background color
+- ALWAYS give parent containers explicit flex: 1 before children can flex
+- For scrollable content: ScrollView needs contentContainerStyle, NOT style for padding
+- For lists: use FlatList with keyExtractor returning STRING: keyExtractor={(item) => item.id.toString()}
+- For horizontal layouts: use flexDirection: 'row' with alignItems: 'center'
+- For centering: use justifyContent: 'center' + alignItems: 'center' together
+- NEVER use position: 'absolute' without explicit top/bottom/left/right values
+- ALWAYS set overflow: 'hidden' on rounded containers to clip children
+
+**Data Safety - Prevent Crashes:**
+- ALWAYS initialize state with safe defaults: useState([]) for arrays, useState('') for strings
+- ALWAYS use optional chaining: item?.name, items?.length
+- ALWAYS provide fallbacks: {item?.name || 'Unknown'}
+- For FlatList: ALWAYS check data exists: data={items || []}
+- For images: ALWAYS have a fallback or placeholder
+- NEVER access array index without checking length: items[0] → items?.[0]
+
+**Component Patterns That WORK:**
+\`\`\`jsx
+// CORRECT: Safe screen structure
+<SafeAreaView style={styles.container}>
+  <ScrollView
+    style={styles.scrollView}
+    contentContainerStyle={styles.scrollContent}
+    showsVerticalScrollIndicator={false}
+  >
+    {/* content */}
+  </ScrollView>
+</SafeAreaView>
+
+// CORRECT: Safe list rendering
+<FlatList
+  data={items || []}
+  keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+  renderItem={({ item }) => (
+    <Pressable style={styles.card}>
+      <Text style={styles.title}>{item?.title || 'Untitled'}</Text>
+    </Pressable>
+  )}
+  ListEmptyComponent={<EmptyState />}
+  contentContainerStyle={items?.length === 0 ? styles.emptyList : undefined}
+/>
+
+// CORRECT: Pressable with feedback
+<Pressable
+  style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+  onPress={handlePress}
+>
+  <Text style={styles.buttonText}>Press Me</Text>
+</Pressable>
+\`\`\`
+
+**Before Finishing - VERIFY:**
+1. Every import statement uses the correct source package
+2. Every StyleSheet property uses valid React Native syntax (no 'px', no string numbers)
+3. Every component has required props (FlatList needs data, keyExtractor, renderItem)
+4. Every screen is wrapped in SafeAreaView with backgroundColor
+5. Every array/object access uses optional chaining
+6. Every Text component is a direct child of View (never inside Pressable without View wrapper if multiple children)
+
+**TOP 10 MISTAKES THAT BREAK UI (MEMORIZE THESE):**
+1. ❌ Importing from wrong package (SafeAreaView from wrong lib, useNavigation instead of useRouter)
+2. ❌ Using 'px' in styles or string numbers (fontSize: '16px' crashes)
+3. ❌ Missing flex: 1 on container (content invisible or squished)
+4. ❌ ScrollView with style instead of contentContainerStyle for padding (content cut off)
+5. ❌ FlatList without keyExtractor or with non-string keys (crashes or warnings)
+6. ❌ Accessing undefined properties (item.name when item is undefined crashes)
+7. ❌ Text not wrapped properly (raw text outside Text component crashes)
+8. ❌ Missing SafeAreaView (content hidden under notch/status bar)
+9. ❌ position: 'absolute' without positioning values (element disappears)
+10. ❌ Inline styles on every render (causes lag and re-renders)
+
+**If Metro shows an error after your change:**
+1. READ the error message carefully - it tells you exactly what's wrong
+2. Fix the SPECIFIC line mentioned in the error
+3. Common fixes: add missing import, fix typo, add optional chaining, wrap in View
+4. NEVER ignore errors and move on - fix them immediately
+
 **CRITICAL RULES:**
 - The project is at ${workingDir}
 - Expo/Metro is ALREADY RUNNING on port 8081 - NEVER restart it
