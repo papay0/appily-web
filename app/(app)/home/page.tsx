@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useSupabaseClient } from "@/lib/supabase-client";
-import { ProjectCreationForm } from "@/components/project-creation-form";
-import { ProjectList } from "@/components/project-list";
+import { AppIdeaInput } from "@/components/app-idea-input";
+import { RecentProjectsSection } from "@/components/recent-projects-section";
 import { Skeleton } from "@/components/ui/skeleton";
+import Image from "next/image";
 
 interface Project {
   id: string;
@@ -14,12 +16,14 @@ interface Project {
   updated_at: string;
 }
 
+
 export default function HomePage() {
   const supabase = useSupabaseClient();
+  const router = useRouter();
   const { user } = useUser();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {
     async function loadProjects() {
@@ -53,42 +57,100 @@ export default function HomePage() {
     loadProjects();
   }, [user, supabase]);
 
+  const handleCreateProject = async (appIdea: string, planFeatures: boolean) => {
+    if (!user) return;
+    setIsCreating(true);
+
+    try {
+      // 1. Get Supabase user ID
+      const { data: userData } = await supabase
+        .from("users")
+        .select("id")
+        .eq("clerk_id", user.id)
+        .single();
+
+      if (!userData) throw new Error("User not found");
+
+      // 2. Create minimal project (name will be generated later on build page)
+      const { data: project, error } = await supabase
+        .from("projects")
+        .insert({
+          name: "New Project", // Placeholder - will be generated async on build page
+          user_id: userData.id,
+          app_idea: appIdea,
+          // planning_completed_at is NOT set if planFeatures is true
+          ...(planFeatures ? {} : { planning_completed_at: new Date().toISOString() }),
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // 3. Navigate to appropriate page
+      if (planFeatures) {
+        // Go to plan page to generate and review features
+        router.push(`/home/projects/plan/${project.id}`);
+      } else {
+        // Skip planning, go directly to build
+        router.push(`/home/projects/build/${project.id}`);
+      }
+    } catch (error) {
+      console.error("Error creating project:", error);
+      alert("Failed to create project. Please try again.");
+      setIsCreating(false);
+    }
+  };
+
   if (loading) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-12 w-64" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Skeleton className="h-32" />
-          <Skeleton className="h-32" />
-          <Skeleton className="h-32" />
+      <div className="min-h-screen bg-background">
+        <div className="flex flex-col items-center justify-center min-h-screen px-6 py-12">
+          <div className="text-center mb-12">
+            <Skeleton className="h-12 w-80 mx-auto" />
+            <Skeleton className="h-6 w-64 mx-auto mt-4" />
+          </div>
+          <Skeleton className="h-48 w-full max-w-2xl rounded-2xl" />
         </div>
       </div>
     );
   }
 
-  // Show creation form if no projects or user clicked "New Project"
-  if (projects.length === 0 && !showCreateForm) {
-    return <ProjectCreationForm />;
-  }
-
-  if (showCreateForm) {
-    return (
-      <div>
-        <button
-          onClick={() => setShowCreateForm(false)}
-          className="mb-4 text-sm text-muted-foreground hover:text-foreground"
-        >
-          ← Back to projects
-        </button>
-        <ProjectCreationForm />
-      </div>
-    );
-  }
-
   return (
-    <ProjectList
-      projects={projects}
-      onCreateNew={() => setShowCreateForm(true)}
-    />
+    <div className="min-h-screen bg-background">
+      {/* Content */}
+      <div className="flex flex-col items-center justify-center min-h-screen px-6 py-12">
+        {/* Hero Section */}
+        <div className="text-center mb-12">
+          <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4 flex items-center justify-center gap-3 flex-wrap">
+            Build something
+            <span className="inline-flex items-center gap-2">
+              <Image
+                src="/appily-logo.svg"
+                alt="Appily"
+                width={44}
+                height={44}
+                className="inline"
+                onError={(e) => {
+                  // Hide if logo doesn't exist
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+              <span className="text-primary">
+                Appily
+              </span>
+            </span>
+          </h1>
+          <p className="text-xl text-muted-foreground">
+            Create mobile apps by chatting with AI
+          </p>
+        </div>
+
+        {/* App Idea Input */}
+        <AppIdeaInput onSubmit={handleCreateProject} isLoading={isCreating} />
+
+        {/* Recent Projects */}
+        <RecentProjectsSection projects={projects} maxDisplay={6} />
+      </div>
+    </div>
   );
 }

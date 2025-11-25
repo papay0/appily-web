@@ -42,7 +42,7 @@ export function ProjectList({ projects, onCreateNew }: ProjectListProps) {
           <Card
             key={project.id}
             className="cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => router.push(`/home/projects/${project.id}`)}
+            onClick={() => router.push(`/home/projects/build/${project.id}`)}
           >
             <CardHeader>
               <div className="flex items-start justify-between">

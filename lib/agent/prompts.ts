@@ -201,3 +201,60 @@ Prioritize features that:
 
 Return ONLY valid JSON, no markdown code blocks, no explanation before or after.`;
 }
+
+/**
+ * Options for building the project name generation prompt
+ */
+export interface ProjectNameOptions {
+  /**
+   * The user's app idea description
+   * Example: "A grocery list app that helps me track what I need to buy"
+   */
+  appIdea: string;
+
+  /**
+   * Optional list of features for additional context
+   * Used when user has completed the planning phase
+   */
+  features?: Array<{
+    title: string;
+    description: string;
+  }>;
+}
+
+/**
+ * Build the prompt for generating a project name
+ *
+ * This prompt configures Claude to:
+ * 1. Analyze the app idea (and optional features)
+ * 2. Generate a short, memorable project name
+ * 3. Return just the name, no explanation
+ *
+ * @param options - Configuration for the prompt
+ * @returns Complete prompt string for name generation
+ */
+export function buildProjectNamePrompt(options: ProjectNameOptions): string {
+  const featuresList = options.features
+    ?.map((f) => `- ${f.title}`)
+    .join("\n");
+
+  const featuresSection = featuresList
+    ? `\n\n**Planned Features:**\n${featuresList}`
+    : "";
+
+  return `Generate a short, memorable project name for this mobile app idea.
+
+**App Idea:**
+${options.appIdea}${featuresSection}
+
+**Requirements:**
+- 2-4 words maximum
+- Title Case (e.g., "Grocery Buddy", "Task Flow Pro", "Quick Notes")
+- Descriptive of the app's core purpose
+- Easy to remember and type
+- No special characters, numbers, or emojis
+- Should sound like a real app name
+
+**Response:**
+Return ONLY the project name, nothing else. No quotes, no explanation, no punctuation.`;
+}

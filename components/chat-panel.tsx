@@ -475,8 +475,8 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
       user
     ) {
       didAutoStartRef.current = true;
-      // Use a simple prompt - the feature context will be added automatically
-      sendMessageProgrammatically("Build my app based on the plan above");
+      // Use the user's actual app idea as the first message
+      sendMessageProgrammatically(featureContext.appIdea);
     }
   }, [featureContext, initialLoadComplete, channelStatus, messages.length, isLoading, user, sendMessageProgrammatically]);
 

@@ -14,7 +14,8 @@ export default function AppLayout({
   const pathname = usePathname();
 
   // Don't render header for individual project pages (they render ProjectHeader)
-  const isIndividualProjectPage = pathname.match(/^\/home\/projects\/[^/]+$/);
+  // Match /home/projects/build/[id] or /home/projects/plan/[id] patterns
+  const isIndividualProjectPage = pathname.match(/^\/home\/projects\/(build|plan)\/[^/]+$/);
 
   return (
     <div className="h-screen overflow-hidden flex">

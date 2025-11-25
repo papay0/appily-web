@@ -36,13 +36,13 @@ type Project = {
   planning_completed_at: string | null;
 }
 
-export default function ProjectPage() {
+export default function ProjectBuildPage() {
   const { isLoaded } = useSession();
   const supabase = useSupabaseClient();
   const params = useParams();
   const router = useRouter();
   const { user } = useUser();
-  const projectId = params.projectId as string;
+  const projectId = params.id as string;
 
   // Project state
   const [project, setProject] = useState<Project | null>(null);
@@ -60,6 +60,7 @@ export default function ProjectPage() {
   // UI state
   const [viewMode, setViewMode] = useState<ViewMode>("preview");
   const [isSaving, setIsSaving] = useState(false);
+  const [isGeneratingName, setIsGeneratingName] = useState(false);
 
   // Load project and setup realtime subscription
   useEffect(() => {
@@ -283,6 +284,50 @@ export default function ProjectPage() {
     }
   }, [projectChannelStatus, fetchProjectData, isLoaded]);
 
+  // Async name generation: Generate project name if it's still "New Project"
+  useEffect(() => {
+    if (!project || isGeneratingName) return;
+    if (project.name !== "New Project" || !project.app_idea) return;
+
+    const generateProjectName = async () => {
+      setIsGeneratingName(true);
+      try {
+        const response = await fetch("/api/projects/generate-name", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ appIdea: project.app_idea }),
+        });
+
+        if (!response.ok) {
+          console.error("Failed to generate project name");
+          return;
+        }
+
+        const { name } = await response.json();
+
+        // Update in database
+        const { error } = await supabase
+          .from("projects")
+          .update({ name })
+          .eq("id", project.id);
+
+        if (error) {
+          console.error("Failed to update project name:", error);
+          return;
+        }
+
+        // Update local state
+        setProject((prev) => prev ? { ...prev, name } : null);
+      } catch (error) {
+        console.error("Error generating project name:", error);
+      } finally {
+        setIsGeneratingName(false);
+      }
+    };
+
+    generateProjectName();
+  }, [project, isGeneratingName, supabase]);
+
   const handleStartSandbox = async () => {
     if (!project) return;
 
@@ -430,6 +475,7 @@ export default function ProjectPage() {
     <div className="flex flex-col h-full">
       {/* Unified Header */}
       <ProjectHeader
+        projectId={projectId}
         projectName={project.name}
         viewMode={viewMode}
         onViewModeChange={(mode) => setViewMode(mode)}
