@@ -6,7 +6,9 @@ import { useUser } from "@clerk/nextjs";
 import { useSupabaseClient } from "@/lib/supabase-client";
 import { AppIdeaInput } from "@/components/app-idea-input";
 import { RecentProjectsSection } from "@/components/recent-projects-section";
+import { ParticleField } from "@/components/marketing/ParticleField";
 import Image from "next/image";
+import { Sparkles } from "lucide-react";
 
 interface Project {
   id: string;
@@ -15,6 +17,12 @@ interface Project {
   updated_at: string;
 }
 
+function getGreeting(): { text: string; emoji: string } {
+  const hour = new Date().getHours();
+  if (hour < 12) return { text: "Good morning", emoji: "☀️" };
+  if (hour < 18) return { text: "Good afternoon", emoji: "🌤️" };
+  return { text: "Good evening", emoji: "🌙" };
+}
 
 export default function HomePage() {
   const supabase = useSupabaseClient();
@@ -23,6 +31,7 @@ export default function HomePage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const greeting = getGreeting();
 
   useEffect(() => {
     async function loadProjects() {
@@ -101,40 +110,77 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Content */}
-      <div className="flex flex-col items-center justify-center min-h-screen py-12">
+    <div className="min-h-screen relative overflow-hidden">
+      {/* ============================================
+          AMBIENT BACKGROUND
+          ============================================ */}
+      <div className="fixed inset-0 -z-10">
+        {/* Soft gradient base */}
+        <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-primary/5" />
+
+        {/* Subtle gradient orbs */}
+        <div className="absolute top-0 right-1/4 w-[400px] h-[400px] bg-primary/5 rounded-full blur-3xl animate-pulse-slow" />
+        <div className="absolute bottom-1/4 left-1/4 w-[300px] h-[300px] bg-[var(--magic-violet)]/5 rounded-full blur-3xl animate-pulse-slow animation-delay-2000" />
+
+        {/* Subtle particles */}
+        <ParticleField particleCount={15} />
+
+        {/* Noise texture */}
+        <div className="absolute inset-0 noise-overlay" />
+      </div>
+
+      {/* ============================================
+          MAIN CONTENT
+          ============================================ */}
+      <div className="flex flex-col items-center justify-center min-h-screen py-12 px-4">
         {/* Hero Section */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4 flex items-center justify-center gap-3 flex-wrap">
-            Build something
-            <span className="inline-flex items-center gap-2">
-              <Image
-                src="/appily-logo.svg"
-                alt="Appily"
-                width={44}
-                height={44}
-                className="inline"
-                onError={(e) => {
-                  // Hide if logo doesn't exist
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-              <span className="text-primary">
-                Appily
+        <div className="text-center mb-12 max-w-2xl mx-auto">
+          {/* Greeting with time-based message */}
+          <div className="animate-fade-in-up opacity-0 animation-delay-200">
+            <span className="inline-flex items-center gap-2 text-lg text-muted-foreground mb-4">
+              <span>{greeting.emoji}</span>
+              <span>{greeting.text}</span>
+            </span>
+          </div>
+
+          {/* Main headline */}
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold font-display text-foreground mb-6 animate-fade-in-up opacity-0 animation-delay-400">
+            <span className="flex items-center justify-center gap-3 flex-wrap">
+              What will you
+              <span className="inline-flex items-center gap-2">
+                <Image
+                  src="/appily-logo.svg"
+                  alt="Appily"
+                  width={48}
+                  height={48}
+                  className="inline animate-float-gentle"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+                <span className="text-gradient-magic">build</span>
               </span>
+              today?
             </span>
           </h1>
-          <p className="text-xl text-muted-foreground">
-            Create mobile apps by chatting with AI
+
+          {/* Subtext with sparkle */}
+          <p className="text-lg md:text-xl text-muted-foreground flex items-center justify-center gap-2 animate-fade-in-up opacity-0 animation-delay-600">
+            <Sparkles className="h-5 w-5 text-primary animate-pulse-slow" />
+            <span>Describe your app idea and let AI bring it to life</span>
+            <Sparkles className="h-5 w-5 text-primary animate-pulse-slow animation-delay-1000" />
           </p>
         </div>
 
         {/* App Idea Input */}
-        <AppIdeaInput onSubmit={handleCreateProject} isLoading={isCreating} />
+        <div className="w-full max-w-2xl animate-scale-fade-in opacity-0 animation-delay-800">
+          <AppIdeaInput onSubmit={handleCreateProject} isLoading={isCreating} />
+        </div>
 
         {/* Recent Projects */}
-        <RecentProjectsSection projects={projects} maxDisplay={6} loading={loading} />
+        <div className="w-full animate-fade-in-up opacity-0 animation-delay-1000">
+          <RecentProjectsSection projects={projects} maxDisplay={6} loading={loading} />
+        </div>
       </div>
     </div>
   );
