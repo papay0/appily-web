@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Send, Loader2 } from "lucide-react";
+import { Send, Loader2, Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useSession, useUser } from "@clerk/nextjs";
 import { useSupabaseClient } from "@/lib/supabase-client";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
@@ -567,21 +568,26 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
       {/* Chat Messages */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 pt-4 min-h-0">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center space-y-4 animate-in fade-in duration-500">
-            <div className="h-12 w-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center shadow-sm p-2.5">
-              <Image
-                src="/appily-logo.svg"
-                alt="Appily AI"
-                width={20}
-                height={20}
-              />
+          <div className="flex flex-col items-center justify-center h-full text-center space-y-4 animate-fade-in-up">
+            {/* Magical logo container */}
+            <div className="relative">
+              <div className="h-16 w-16 rounded-2xl glass-morphism flex items-center justify-center p-3 glow-primary">
+                <Image
+                  src="/appily-logo.svg"
+                  alt="Appily AI"
+                  width={32}
+                  height={32}
+                  className="animate-float-gentle"
+                />
+              </div>
+              <Sparkles className="absolute -top-1 -right-1 w-4 h-4 text-[var(--magic-gold)] animate-sparkle" />
             </div>
-            <div>
-              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            <div className="space-y-1">
+              <p className="text-base font-semibold font-display text-foreground">
                 Chat with Claude
               </p>
-              <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                Describe your app and I&apos;ll help build it
+              <p className="text-sm text-muted-foreground max-w-xs">
+                Describe your app and watch the magic happen
               </p>
             </div>
           </div>
@@ -647,8 +653,8 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
         )}
       </div>
 
-      {/* Chat Input */}
-      <div className="border-t bg-white dark:bg-gray-900 p-3">
+      {/* Chat Input - Glassmorphic */}
+      <div className="p-3 glass-morphism border-t border-border/50">
         <div className="flex gap-2">
           <Input
             placeholder="Describe your app..."
@@ -656,18 +662,31 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={handleKeyPress}
             disabled={isLoading}
-            className="flex-1 rounded-lg border shadow-sm focus:shadow-sm transition-shadow bg-white dark:bg-gray-800 text-sm h-9"
+            className={cn(
+              "flex-1 rounded-xl border-border/50 text-sm h-10",
+              "bg-background/50 backdrop-blur-sm",
+              "focus:border-primary/50 focus:ring-1 focus:ring-primary/20",
+              "transition-all duration-300",
+              "placeholder:text-muted-foreground/60"
+            )}
           />
           <Button
             onClick={handleSendMessage}
             disabled={isLoading || !input.trim()}
             size="icon"
-            className="h-9 w-9 rounded-lg bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow-md transition-all"
+            className={cn(
+              "h-10 w-10 rounded-xl",
+              "bg-gradient-to-r from-primary to-[var(--magic-violet)]",
+              "hover:opacity-90 hover:scale-105",
+              "shadow-lg shadow-primary/20",
+              "transition-all duration-300",
+              "disabled:opacity-50 disabled:scale-100"
+            )}
           >
             {isLoading ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Send className="h-3.5 w-3.5" />
+              <Send className="h-4 w-4" />
             )}
           </Button>
         </div>

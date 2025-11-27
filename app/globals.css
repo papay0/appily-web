@@ -752,3 +752,65 @@
   z-index: -1;
   pointer-events: none;
 }
+
+/* ============================================
+   BUILD PAGE MESSAGE ANIMATIONS
+   ============================================ */
+
+/* Message slide in from left (AI messages) */
+.animate-message-left {
+  animation: message-slide-in-left 0.3s ease-out forwards;
+}
+
+/* Message slide in from right (User messages) */
+.animate-message-right {
+  animation: message-slide-in-right 0.3s ease-out forwards;
+}
+
+/* User message bubble gradient */
+.message-bubble-user {
+  background: linear-gradient(135deg, var(--primary), var(--magic-violet));
+  color: white;
+  border-radius: 20px 20px 4px 20px;
+  box-shadow: 0 4px 12px oklch(0.65 0.19 240 / 0.2);
+}
+
+/* AI message bubble glassmorphic */
+.message-bubble-ai {
+  background: oklch(1 0 0 / 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid oklch(0.90 0.01 240 / 0.5);
+  border-radius: 20px 20px 20px 4px;
+}
+
+.dark .message-bubble-ai {
+  background: oklch(0.22 0.015 240 / 0.8);
+  border: 1px solid oklch(0.30 0.02 240 / 0.5);
+}
+
+/* Tool completion celebration */
+@keyframes tool-complete {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+.animate-tool-complete {
+  animation: tool-complete 0.4s ease-out;
+}
+
+/* Subtle glow effect */
+.glow-primary {
+  box-shadow: 0 0 20px oklch(0.65 0.19 240 / 0.15);
+}
+
+.glow-primary-strong {
+  box-shadow: 0 0 30px oklch(0.65 0.19 240 / 0.25);
+}
+
+/* QR code glow */
+.qr-glow {
+  box-shadow: 0 0 40px oklch(0.65 0.19 240 / 0.2);
+  border-radius: 12px;
+}

@@ -9,8 +9,8 @@ import {
   FolderSearch,
   Wrench,
   ChevronDown,
+  CheckCircle2,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import {
   Collapsible,
   CollapsibleContent,
@@ -38,70 +38,107 @@ export function ToolUseGroup({ messages, toolType }: ToolUseGroupProps) {
 
   if (messages.length === 0) return null;
 
-  // Determine icon and color based on tool type
+  // Determine icon and styling based on tool type
   let Icon = Wrench;
-  let badgeClass = "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-200 dark:border-blue-800";
+  let iconColorClass = "text-primary";
+  let glowColorClass = "shadow-primary/10";
+  let borderColorClass = "border-primary/20";
+  let dotColorClass = "bg-primary/60";
 
   if (toolType === "Bash") {
     Icon = Terminal;
-    badgeClass = "bg-gray-800 text-gray-100 dark:bg-gray-700 dark:text-gray-100 border-gray-700 dark:border-gray-600";
+    iconColorClass = "text-gray-600 dark:text-gray-300";
+    glowColorClass = "shadow-gray-500/10";
+    borderColorClass = "border-gray-500/20";
+    dotColorClass = "bg-gray-500/60";
   } else if (toolType === "Read") {
     Icon = FileText;
-    badgeClass = "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-200 dark:border-blue-800";
+    iconColorClass = "text-blue-500";
+    glowColorClass = "shadow-blue-500/10";
+    borderColorClass = "border-blue-500/20";
+    dotColorClass = "bg-blue-500/60";
   } else if (toolType === "Write") {
     Icon = FilePlus;
-    badgeClass = "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-purple-200 dark:border-purple-800";
+    iconColorClass = "text-[var(--magic-violet)]";
+    glowColorClass = "shadow-[var(--magic-violet)]/10";
+    borderColorClass = "border-[var(--magic-violet)]/20";
+    dotColorClass = "bg-[var(--magic-violet)]/60";
   } else if (toolType === "Edit") {
     Icon = FileEdit;
-    badgeClass = "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 border-amber-200 dark:border-amber-800";
+    iconColorClass = "text-amber-500";
+    glowColorClass = "shadow-amber-500/10";
+    borderColorClass = "border-amber-500/20";
+    dotColorClass = "bg-amber-500/60";
   } else if (toolType === "Glob") {
     Icon = FolderSearch;
-    badgeClass = "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 border-indigo-200 dark:border-indigo-800";
+    iconColorClass = "text-indigo-500";
+    glowColorClass = "shadow-indigo-500/10";
+    borderColorClass = "border-indigo-500/20";
+    dotColorClass = "bg-indigo-500/60";
   }
 
   // Get the label based on tool type
   const getLabel = () => {
     const count = messages.length;
-    if (toolType === "Edit") return `Edited files (${count})`;
-    if (toolType === "Read") return `Read files (${count})`;
-    if (toolType === "Write") return `Created files (${count})`;
-    if (toolType === "Bash") return `Commands (${count})`;
-    if (toolType === "Glob") return `File searches (${count})`;
+    if (toolType === "Edit") return `Edited ${count} file${count > 1 ? 's' : ''}`;
+    if (toolType === "Read") return `Read ${count} file${count > 1 ? 's' : ''}`;
+    if (toolType === "Write") return `Created ${count} file${count > 1 ? 's' : ''}`;
+    if (toolType === "Bash") return `Ran ${count} command${count > 1 ? 's' : ''}`;
+    if (toolType === "Glob") return `Searched ${count} pattern${count > 1 ? 's' : ''}`;
     return `${toolType} (${count})`;
   };
 
   return (
-    <div className="flex items-start gap-2 my-1.5 w-full animate-in fade-in duration-300 pl-9">
+    <div className="flex items-start gap-2 my-1.5 w-full animate-fade-in-up pl-9">
       <Collapsible open={isOpen} onOpenChange={setIsOpen} className="max-w-xl">
         <CollapsibleTrigger asChild>
-          <Badge
-            variant="secondary"
+          <button
             className={cn(
-              "gap-1.5 inline-flex items-center border shadow-sm px-2.5 py-1 rounded-md text-xs cursor-pointer hover:opacity-80 transition-opacity",
-              badgeClass
+              "inline-flex items-center gap-2 px-3 py-1.5 rounded-xl",
+              "glass-morphism",
+              "text-xs cursor-pointer",
+              "hover:scale-[1.02] active:scale-[0.98]",
+              "transition-all duration-200",
+              `shadow-lg ${glowColorClass}`,
+              `border ${borderColorClass}`
             )}
           >
-            <Icon className="h-3 w-3 flex-shrink-0" />
-            <span className="font-medium">{getLabel()}</span>
+            <Icon className={cn("h-3.5 w-3.5 flex-shrink-0", iconColorClass)} />
+            <span className="font-medium text-foreground/80">{getLabel()}</span>
             <ChevronDown
               className={cn(
-                "h-3 w-3 flex-shrink-0 transition-transform duration-200 ml-1",
+                "h-3 w-3 flex-shrink-0 transition-transform duration-200 ml-0.5 text-muted-foreground",
                 isOpen && "rotate-180"
               )}
             />
-          </Badge>
+          </button>
         </CollapsibleTrigger>
 
-        <CollapsibleContent className="mt-1.5">
-          <div className="space-y-1 ml-1 border-l-2 border-gray-200 dark:border-gray-700 pl-3">
-            {messages.map((message, index) => (
-              <div key={message.id} className="flex items-center gap-1.5">
-                <div className="h-1 w-1 rounded-full bg-gray-400 dark:bg-gray-600 flex-shrink-0"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-400 font-mono break-all">
+        <CollapsibleContent className="mt-2 animate-accordion-down">
+          <div
+            className={cn(
+              "space-y-1.5 p-3 rounded-xl",
+              "glass-morphism",
+              `border ${borderColorClass}`,
+              `shadow-md ${glowColorClass}`
+            )}
+          >
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className="flex items-start gap-2 group"
+              >
+                <div className={cn("h-1.5 w-1.5 rounded-full flex-shrink-0 mt-1.5", dotColorClass)} />
+                <span className="text-xs text-muted-foreground font-mono break-all leading-relaxed group-hover:text-foreground/70 transition-colors">
                   {message.toolContext || message.content.replace(`Using ${toolType}...`, '').trim()}
                 </span>
               </div>
             ))}
+            {/* Completion indicator */}
+            <div className="flex items-center gap-1.5 pt-1.5 mt-1.5 border-t border-border/50">
+              <CheckCircle2 className="h-3 w-3 text-[var(--magic-mint)]" />
+              <span className="text-xs text-[var(--magic-mint)] font-medium">Completed</span>
+            </div>
           </div>
         </CollapsibleContent>
       </Collapsible>

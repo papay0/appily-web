@@ -55,6 +55,7 @@ function ProjectCard3D({ project, index }: { project: Project; index: number }) 
         "glass-morphism",
         "transition-all duration-300 ease-out",
         "hover:shadow-xl hover:shadow-primary/10",
+        "hover:border-primary/30",
         "animate-fade-in-up opacity-0"
       )}
       style={{
@@ -62,9 +63,6 @@ function ProjectCard3D({ project, index }: { project: Project; index: number }) 
         transformStyle: "preserve-3d",
       }}
     >
-      {/* Gradient border on hover */}
-      <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 gradient-border pointer-events-none" />
-
       {/* Glow effect on hover */}
       <div className="absolute -inset-1 rounded-xl bg-gradient-to-r from-primary/10 via-[var(--magic-violet)]/10 to-primary/10 opacity-0 group-hover:opacity-100 blur-lg transition-opacity duration-300 pointer-events-none" />
 

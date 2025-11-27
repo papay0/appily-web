@@ -1,8 +1,7 @@
 "use client";
 
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, QrCode, RefreshCw, ChevronDown } from "lucide-react";
+import { Loader2, QrCode, RefreshCw, ChevronDown, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { Iphone } from "@/components/ui/iphone";
 import {
@@ -10,6 +9,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { cn } from "@/lib/utils";
 
 interface PreviewPanelProps {
   sandboxStatus: "idle" | "starting" | "ready" | "error";
@@ -49,30 +49,42 @@ export function PreviewPanel({ sandboxStatus, onStartSandbox, expoUrl, qrCode, s
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative overflow-hidden">
+      {/* Ambient Background */}
+      <div className="absolute inset-0 -z-10">
+        <div className="absolute inset-0 bg-gradient-to-br from-background via-primary/5 to-[var(--magic-violet)]/5" />
+        <div className="absolute top-10 right-10 w-[300px] h-[300px] bg-primary/5 rounded-full blur-3xl animate-pulse-slow" />
+        <div className="absolute bottom-20 left-10 w-[250px] h-[250px] bg-[var(--magic-violet)]/5 rounded-full blur-3xl animate-pulse-slow animation-delay-2000" />
+      </div>
+
       {/* Preview Content */}
-      <div className="flex-1 overflow-auto p-6 pt-8 bg-gradient-to-br from-gray-50 via-blue-50/20 to-purple-50/20 dark:from-gray-900 dark:via-blue-950/20 dark:to-purple-950/20">
+      <div className="flex-1 overflow-auto p-6 pt-8">
         <div className="flex flex-col items-center justify-center h-full">
+          {/* Idle State - Ready to Preview */}
           {sandboxStatus === "idle" && !qrCode && (
-            <div className="text-center space-y-6 animate-in fade-in duration-500">
-              <div className="h-20 w-20 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900 dark:to-purple-900 flex items-center justify-center mx-auto shadow-lg">
-                <QrCode className="h-10 w-10 text-blue-600 dark:text-blue-400" />
+            <div className="text-center space-y-6 animate-fade-in-up">
+              <div className="relative">
+                <div className="h-24 w-24 rounded-2xl glass-morphism flex items-center justify-center mx-auto glow-primary">
+                  <QrCode className="h-12 w-12 text-primary animate-pulse-slow" />
+                </div>
+                <Sparkles className="absolute -top-2 -right-2 w-5 h-5 text-[var(--magic-gold)] animate-sparkle" />
               </div>
-              <div>
-                <p className="text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+              <div className="space-y-2">
+                <p className="text-lg font-semibold font-display text-gradient-magic">
                   Ready to Preview
                 </p>
-                <p className="text-sm text-muted-foreground mt-2">
+                <p className="text-sm text-muted-foreground">
                   Click &quot;Start Sandbox&quot; to begin
                 </p>
               </div>
             </div>
           )}
 
+          {/* Idle with existing QR Code */}
           {sandboxStatus === "idle" && qrCode && (
-            <div className="text-center space-y-6 animate-in zoom-in duration-500">
+            <div className="text-center space-y-6 animate-scale-fade-in">
               {/* iPhone Frame with QR Code */}
-              <div className="mx-auto flex justify-center">
+              <div className="mx-auto flex justify-center qr-glow">
                 <Iphone
                   src={qrCode}
                   className="w-[320px]"
@@ -82,7 +94,7 @@ export function PreviewPanel({ sandboxStatus, onStartSandbox, expoUrl, qrCode, s
               {/* Instructions */}
               <div className="space-y-4 max-w-md mx-auto px-4">
                 <div className="text-center space-y-2">
-                  <p className="text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+                  <p className="text-base font-semibold font-display text-gradient-magic">
                     Scan to Reconnect
                   </p>
                   <p className="text-sm text-muted-foreground">
@@ -91,7 +103,7 @@ export function PreviewPanel({ sandboxStatus, onStartSandbox, expoUrl, qrCode, s
                 </div>
 
                 {expoUrl && (
-                  <code className="text-xs bg-white dark:bg-gray-800 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700 break-all block shadow-sm font-mono">
+                  <code className="text-xs glass-morphism px-4 py-3 rounded-xl break-all block font-mono">
                     {expoUrl}
                   </code>
                 )}
@@ -99,39 +111,42 @@ export function PreviewPanel({ sandboxStatus, onStartSandbox, expoUrl, qrCode, s
             </div>
           )}
 
+          {/* Starting State - Loading */}
           {sandboxStatus === "starting" && !qrCode && (
-            <div className="text-center space-y-6 animate-in fade-in duration-500">
+            <div className="text-center space-y-6 animate-fade-in-up">
               <div className="relative">
-                <div className="h-20 w-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mx-auto shadow-lg">
-                  <Loader2 className="h-10 w-10 text-white animate-spin" />
+                <div className="h-24 w-24 rounded-2xl bg-gradient-to-br from-primary to-[var(--magic-violet)] flex items-center justify-center mx-auto shadow-lg shadow-primary/20">
+                  <Loader2 className="h-12 w-12 text-white animate-spin" />
                 </div>
-                <div className="absolute inset-0 h-20 w-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 mx-auto animate-ping opacity-20"></div>
+                <div className="absolute inset-0 h-24 w-24 rounded-2xl bg-gradient-to-br from-primary to-[var(--magic-violet)] mx-auto animate-ping opacity-20" />
+                <Sparkles className="absolute -top-2 -right-2 w-5 h-5 text-[var(--magic-gold)] animate-sparkle" />
               </div>
-              <div>
-                <p className="text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+              <div className="space-y-2">
+                <p className="text-lg font-semibold font-display text-gradient-magic">
                   Initializing Sandbox
                 </p>
-                <p className="text-sm text-muted-foreground mt-2">
+                <p className="text-sm text-muted-foreground">
                   Setting up your development environment
                 </p>
               </div>
             </div>
           )}
 
+          {/* Starting with existing QR Code */}
           {sandboxStatus === "starting" && qrCode && (
-            <div className="text-center space-y-6 animate-in zoom-in duration-500">
-              <div className="mx-auto flex justify-center">
+            <div className="text-center space-y-6 animate-scale-fade-in">
+              <div className="mx-auto flex justify-center qr-glow opacity-75">
                 <Iphone
                   src={qrCode}
                   className="w-[320px]"
                 />
               </div>
               <div className="space-y-3">
-                <p className="text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+                <p className="text-base font-semibold font-display text-gradient-magic">
                   Reconnecting to Sandbox
                 </p>
                 {expoUrl && (
-                  <code className="text-xs bg-white dark:bg-gray-800 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 break-all block shadow-sm">
+                  <code className="text-xs glass-morphism px-4 py-2 rounded-xl break-all block font-mono">
                     {expoUrl}
                   </code>
                 )}
@@ -139,19 +154,22 @@ export function PreviewPanel({ sandboxStatus, onStartSandbox, expoUrl, qrCode, s
             </div>
           )}
 
+          {/* Ready State - Success */}
           {sandboxStatus === "ready" && (
-            <div className="text-center space-y-6 animate-in zoom-in duration-500">
+            <div className="text-center space-y-6 animate-bounce-in">
               {/* iPhone Frame with QR Code */}
               <div className="mx-auto flex justify-center">
                 {qrCode ? (
-                  <Iphone
-                    src={qrCode}
-                    className="w-[320px]"
-                  />
+                  <div className="qr-glow">
+                    <Iphone
+                      src={qrCode}
+                      className="w-[320px]"
+                    />
+                  </div>
                 ) : (
                   <div className="w-[320px] flex items-center justify-center" style={{ aspectRatio: '433/882' }}>
                     <div className="text-center space-y-3">
-                      <Loader2 className="h-12 w-12 text-blue-600 mx-auto animate-spin" />
+                      <Loader2 className="h-12 w-12 text-primary mx-auto animate-spin" />
                       <p className="text-sm text-muted-foreground font-medium">
                         Generating QR code...
                       </p>
@@ -163,9 +181,13 @@ export function PreviewPanel({ sandboxStatus, onStartSandbox, expoUrl, qrCode, s
               {/* Instructions */}
               <div className="space-y-4 max-w-md mx-auto px-4">
                 <div className="text-center space-y-2">
-                  <p className="text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
-                    Scan with Your iPhone
-                  </p>
+                  <div className="flex items-center justify-center gap-2">
+                    <Sparkles className="h-5 w-5 text-[var(--magic-gold)] animate-sparkle" />
+                    <p className="text-lg font-semibold font-display text-gradient-magic">
+                      Scan with Your iPhone
+                    </p>
+                    <Sparkles className="h-5 w-5 text-[var(--magic-gold)] animate-sparkle animation-delay-500" />
+                  </div>
                   <p className="text-sm text-muted-foreground">
                     Open the Expo Go app and scan the QR code
                   </p>
@@ -173,7 +195,7 @@ export function PreviewPanel({ sandboxStatus, onStartSandbox, expoUrl, qrCode, s
 
                 {expoUrl && (
                   <div className="space-y-3">
-                    <code className="text-xs bg-white dark:bg-gray-800 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700 break-all block shadow-sm font-mono">
+                    <code className="text-xs glass-morphism px-4 py-3 rounded-xl break-all block font-mono">
                       {expoUrl}
                     </code>
 
@@ -183,13 +205,14 @@ export function PreviewPanel({ sandboxStatus, onStartSandbox, expoUrl, qrCode, s
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="w-full text-muted-foreground hover:text-foreground"
+                          className="w-full text-muted-foreground hover:text-foreground rounded-xl"
                         >
                           <span className="text-xs">Advanced Options</span>
                           <ChevronDown
-                            className={`h-4 w-4 ml-2 transition-transform ${
-                              isAdvancedOpen ? "rotate-180" : ""
-                            }`}
+                            className={cn(
+                              "h-4 w-4 ml-2 transition-transform duration-200",
+                              isAdvancedOpen && "rotate-180"
+                            )}
                           />
                         </Button>
                       </CollapsibleTrigger>
@@ -200,7 +223,7 @@ export function PreviewPanel({ sandboxStatus, onStartSandbox, expoUrl, qrCode, s
                           disabled={isRestartingMetro || !sandboxId || !projectId}
                           variant="outline"
                           size="sm"
-                          className="w-full shadow-sm hover:shadow-md transition-shadow"
+                          className="w-full rounded-xl glass-morphism border-border/50 hover:border-primary/50 transition-all"
                         >
                           {isRestartingMetro ? (
                             <>
@@ -216,14 +239,14 @@ export function PreviewPanel({ sandboxStatus, onStartSandbox, expoUrl, qrCode, s
                         </Button>
 
                         {/* Help text */}
-                        <div className="p-3 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded-lg">
-                          <p className="text-xs text-amber-900 dark:text-amber-200 font-medium">
+                        <div className="p-3 glass-morphism rounded-xl border-amber-500/20">
+                          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
                             Troubleshooting
                           </p>
-                          <p className="text-xs text-amber-800 dark:text-amber-300 mt-1">
+                          <p className="text-xs text-muted-foreground mt-1">
                             If you get a &quot;sandbox not found&quot; error:
                           </p>
-                          <ul className="text-xs text-amber-800 dark:text-amber-300 mt-2 ml-4 space-y-1 list-disc">
+                          <ul className="text-xs text-muted-foreground mt-2 ml-4 space-y-1 list-disc">
                             <li>Try restarting Metro Server above</li>
                             <li>Or stop and restart the Sandbox</li>
                           </ul>
@@ -236,16 +259,19 @@ export function PreviewPanel({ sandboxStatus, onStartSandbox, expoUrl, qrCode, s
             </div>
           )}
 
+          {/* Error State */}
           {sandboxStatus === "error" && (
-            <div className="text-center space-y-6 animate-in fade-in duration-500">
-              <div className="h-20 w-20 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto shadow-lg">
-                <span className="text-red-600 dark:text-red-400 text-4xl font-bold">!</span>
+            <div className="text-center space-y-6 animate-fade-in-up">
+              <div className="relative">
+                <div className="h-24 w-24 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
+                  <span className="text-red-500 text-4xl font-bold">!</span>
+                </div>
               </div>
-              <div>
-                <p className="text-base font-semibold text-red-600 dark:text-red-400">
+              <div className="space-y-2">
+                <p className="text-lg font-semibold font-display text-red-500">
                   Failed to Start Sandbox
                 </p>
-                <p className="text-sm text-muted-foreground mt-2">
+                <p className="text-sm text-muted-foreground">
                   Please try again or check the debug panel
                 </p>
               </div>
@@ -253,7 +279,7 @@ export function PreviewPanel({ sandboxStatus, onStartSandbox, expoUrl, qrCode, s
                 onClick={onStartSandbox}
                 size="sm"
                 variant="outline"
-                className="shadow-sm hover:shadow-md transition-shadow"
+                className="rounded-xl glass-morphism border-border/50 hover:border-primary/50 transition-all"
               >
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Retry

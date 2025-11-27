@@ -54,12 +54,12 @@ export function ChatMessage({ message }: ChatMessageProps) {
     };
   };
 
-  // User messages
+  // User messages - Messenger style gradient bubble
   if (message.role === "user") {
     return (
-      <div className="flex items-start gap-2.5 w-full justify-end animate-in slide-in-from-right-2 duration-300">
-        <div className="bg-blue-600 text-white rounded-lg px-3 py-2 max-w-[80%] overflow-hidden shadow-sm">
-          <p className="text-sm whitespace-pre-wrap break-all leading-normal">{message.content}</p>
+      <div className="flex items-end gap-2 w-full justify-end animate-message-right">
+        <div className="message-bubble-user px-4 py-2.5 max-w-[80%] overflow-hidden">
+          <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
         </div>
         {message.avatarUrl ? (
           <Image
@@ -67,10 +67,10 @@ export function ChatMessage({ message }: ChatMessageProps) {
             alt="User avatar"
             width={28}
             height={28}
-            className="h-7 w-7 rounded-full object-cover flex-shrink-0"
+            className="h-7 w-7 rounded-full object-cover flex-shrink-0 ring-2 ring-primary/20"
           />
         ) : (
-          <div className="h-7 w-7 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+          <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary to-[var(--magic-violet)] flex items-center justify-center flex-shrink-0 shadow-lg shadow-primary/20">
             <User className="h-3.5 w-3.5 text-white" />
           </div>
         )}
@@ -78,12 +78,21 @@ export function ChatMessage({ message }: ChatMessageProps) {
     );
   }
 
-  // Assistant messages
+  // Assistant messages - Glassmorphic bubble
   if (message.role === "assistant") {
     return (
-      <div className="flex items-start gap-2.5 w-full animate-in slide-in-from-left-2 duration-300">
-        <div className="bg-white dark:bg-gray-800 rounded-lg px-3 py-2 max-w-xl md:max-w-xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="text-sm leading-relaxed text-gray-800 dark:text-gray-100">
+      <div className="flex items-end gap-2 w-full animate-message-left">
+        {/* AI Avatar */}
+        <div className="h-7 w-7 rounded-full glass-morphism flex items-center justify-center flex-shrink-0 p-1">
+          <Image
+            src="/appily-logo.svg"
+            alt="AI"
+            width={16}
+            height={16}
+          />
+        </div>
+        <div className="message-bubble-ai px-4 py-2.5 max-w-[85%] overflow-hidden">
+          <div className="text-sm leading-relaxed text-foreground">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
@@ -180,78 +189,75 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
   // System messages (tool use, completion, errors)
   if (message.role === "system") {
-    // Tool use indicator with specific icons
+    // Tool use indicator with specific icons - glassmorphic style
     if (message.toolUse) {
       // Determine icon and color based on tool type
       let Icon = Wrench;
-      let badgeClass = "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-200 dark:border-blue-800";
+      let iconColorClass = "text-primary";
+      let glowClass = "";
 
       if (message.toolUse === "Bash") {
         Icon = Terminal;
-        badgeClass = "bg-gray-800 text-gray-100 dark:bg-gray-700 dark:text-gray-100 border-gray-700 dark:border-gray-600";
+        iconColorClass = "text-gray-600 dark:text-gray-300";
       } else if (message.toolUse === "Read") {
         Icon = FileText;
-        badgeClass = "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-200 dark:border-blue-800";
+        iconColorClass = "text-blue-500";
       } else if (message.toolUse === "Write") {
         Icon = FilePlus;
-        badgeClass = "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-purple-200 dark:border-purple-800";
+        iconColorClass = "text-[var(--magic-violet)]";
+        glowClass = "shadow-[var(--magic-violet)]/10";
       } else if (message.toolUse === "Edit") {
         Icon = FileEdit;
-        badgeClass = "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 border-amber-200 dark:border-amber-800";
+        iconColorClass = "text-amber-500";
       } else if (message.toolUse === "TodoWrite") {
         Icon = ListTodo;
-        badgeClass = "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-200 dark:border-green-800";
+        iconColorClass = "text-[var(--magic-mint)]";
       } else if (message.toolUse === "Glob") {
         Icon = FolderSearch;
-        badgeClass = "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 border-indigo-200 dark:border-indigo-800";
+        iconColorClass = "text-indigo-500";
       }
 
       return (
-        <div className="flex items-start gap-2 my-1.5 w-full animate-in fade-in duration-300 ">
-          <Badge
-            variant="secondary"
+        <div className="flex items-start gap-2 my-1.5 w-full animate-fade-in-up">
+          <div
             className={cn(
-              "gap-1.5 inline-flex items-start border shadow-sm px-2.5 py-1 rounded-md text-xs max-w-xl",
-              badgeClass
+              "inline-flex items-start gap-2 px-3 py-1.5 rounded-xl",
+              "glass-morphism",
+              "text-xs max-w-xl",
+              glowClass && `shadow-lg ${glowClass}`
             )}
           >
-            <Icon className="h-3 w-3 flex-shrink-0 mt-0.5" />
-            <span className="font-medium break-words whitespace-normal">{message.content}</span>
+            <Icon className={cn("h-3.5 w-3.5 flex-shrink-0 mt-0.5", iconColorClass)} />
+            <span className="font-medium text-foreground/80 break-words whitespace-normal">{message.content}</span>
             {message.toolContext && (
-              <span className="opacity-70 font-mono break-all whitespace-normal">• {message.toolContext}</span>
+              <span className="opacity-60 font-mono text-xs break-all whitespace-normal">• {message.toolContext}</span>
             )}
-          </Badge>
+          </div>
         </div>
       );
     }
 
-    // Expo URL ready indicator (special green badge with larger size)
+    // Expo URL ready indicator - celebration style
     if (message.content.startsWith("🎉 Expo ready:")) {
       return (
-        <div className="flex items-start gap-2 my-1.5 w-full animate-in zoom-in duration-500 ">
-          <Badge
-            variant="default"
-            className="gap-1.5 bg-green-500 hover:bg-green-600 text-white py-1.5 px-3 text-xs font-medium inline-flex items-start shadow-sm border border-green-400 rounded-md max-w-xl"
-          >
-            <Sparkles className="h-3 w-3 flex-shrink-0 mt-0.5" />
-            <span className="break-words whitespace-normal">{message.content}</span>
-          </Badge>
+        <div className="flex items-start gap-2 my-2 w-full animate-bounce-in">
+          <div className="inline-flex items-start gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[var(--magic-mint)] to-green-500 text-white shadow-lg shadow-green-500/20">
+            <Sparkles className="h-4 w-4 flex-shrink-0 mt-0.5 animate-sparkle" />
+            <span className="font-medium text-sm break-words whitespace-normal">{message.content}</span>
+          </div>
         </div>
       );
     }
 
-    // Success indicator
+    // Success indicator - with glow
     if (message.content.startsWith("✓")) {
       const operationalDetails = getOperationalDetails();
       return (
-        <div className="flex flex-col items-start gap-0 my-1.5 w-full animate-in fade-in duration-300 ">
-          <Badge
-            variant="default"
-            className="gap-1.5 bg-green-500 hover:bg-green-600 text-white inline-flex items-start shadow-sm border border-green-400 px-2.5 py-1 rounded-md text-xs max-w-xl"
-          >
-            <CheckCircle2 className="h-3 w-3 flex-shrink-0 mt-0.5" />
-            <span className="font-medium break-words whitespace-normal">{message.content}</span>
-          </Badge>
+        <div className="flex flex-col items-start gap-0 my-1.5 w-full animate-tool-complete">
+          <div className="inline-flex items-start gap-2 px-3 py-1.5 rounded-xl bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400">
+            <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+            <span className="font-medium text-xs break-words whitespace-normal">{message.content}</span>
+          </div>
           {operationalDetails && (
             <OperationalEventDetails
               details={operationalDetails.details}
@@ -263,15 +269,15 @@ export function ChatMessage({ message }: ChatMessageProps) {
       );
     }
 
-    // Error indicator
+    // Error indicator - subtle red
     if (message.content.startsWith("✗") || message.content.startsWith("Error")) {
       const operationalDetails = getOperationalDetails();
       return (
-        <div className="flex flex-col items-start gap-0 my-1.5 w-full animate-in fade-in duration-300 ">
-          <Badge variant="destructive" className="gap-1.5 inline-flex items-start shadow-sm border px-2.5 py-1 rounded-md text-xs max-w-xl">
-            <XCircle className="h-3 w-3 flex-shrink-0 mt-0.5" />
-            <span className="font-medium break-words whitespace-normal">{message.content}</span>
-          </Badge>
+        <div className="flex flex-col items-start gap-0 my-1.5 w-full animate-fade-in-up">
+          <div className="inline-flex items-start gap-2 px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400">
+            <XCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+            <span className="font-medium text-xs break-words whitespace-normal">{message.content}</span>
+          </div>
           {operationalDetails && (
             <OperationalEventDetails
               details={operationalDetails.details}
@@ -283,13 +289,25 @@ export function ChatMessage({ message }: ChatMessageProps) {
       );
     }
 
-    // Generic system message (thinking, etc.)
+    // Generic system message (thinking, etc.) - with typing dots for "thinking"
     const operationalDetails = getOperationalDetails();
+    const isThinking = message.content.toLowerCase().includes("thinking");
     return (
-      <div className="flex flex-col items-start gap-0 my-1.5 w-full animate-in fade-in duration-300">
-        <Badge variant="outline" className="gap-1.5 inline-flex items-start bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm border px-2.5 py-1 rounded-md text-xs max-w-xl">
-          <span className="font-medium text-muted-foreground break-words whitespace-normal">{message.content}</span>
-        </Badge>
+      <div className="flex flex-col items-start gap-0 my-1.5 w-full animate-fade-in-up">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl glass-morphism text-xs">
+          {isThinking ? (
+            <>
+              <span className="font-medium text-muted-foreground">Claude is thinking</span>
+              <span className="flex gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-typing-dot animate-typing-dot-1" />
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-typing-dot animate-typing-dot-2" />
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-typing-dot animate-typing-dot-3" />
+              </span>
+            </>
+          ) : (
+            <span className="font-medium text-muted-foreground break-words whitespace-normal">{message.content}</span>
+          )}
+        </div>
         {operationalDetails && (
           <OperationalEventDetails
             details={operationalDetails.details}

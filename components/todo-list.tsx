@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { CheckCircle2, Circle, Loader2, ChevronDown } from "lucide-react";
+import { CheckCircle2, Circle, Loader2, ChevronDown, ListTodo, Sparkles } from "lucide-react";
 import {
   Collapsible,
   CollapsibleContent,
@@ -38,38 +38,70 @@ export function TodoList({
 
   const completedCount = todos.filter((t) => t.status === "completed").length;
   const totalCount = todos.length;
-  // Only show in_progress status for the latest todo list
-  const inProgressTodo = isLatest ? todos.find((t) => t.status === "in_progress") : undefined;
+  const progressPercent = Math.round((completedCount / totalCount) * 100);
+  const isAllCompleted = completedCount === totalCount;
 
   return (
     <div
       className={cn(
-        "border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 rounded-md overflow-hidden max-w-xl",
+        "glass-morphism rounded-xl overflow-hidden max-w-xl",
+        "border border-border/50",
+        "shadow-lg shadow-primary/5",
+        "animate-fade-in-up",
         className
       )}
     >
       <Collapsible open={isOpen} onOpenChange={onOpenChange}>
         <CollapsibleTrigger className="w-full">
-          <div className="flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-            <div className="flex items-center gap-2">
-              <div className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                TASKS
+          <div className="flex items-center justify-between px-3 py-2.5 hover:bg-foreground/5 transition-colors">
+            <div className="flex items-center gap-2.5">
+              <div className={cn(
+                "h-6 w-6 rounded-lg flex items-center justify-center",
+                isAllCompleted
+                  ? "bg-[var(--magic-mint)]/20"
+                  : "bg-primary/10"
+              )}>
+                {isAllCompleted ? (
+                  <Sparkles className="h-3.5 w-3.5 text-[var(--magic-mint)] animate-sparkle" />
+                ) : (
+                  <ListTodo className="h-3.5 w-3.5 text-primary" />
+                )}
               </div>
-              <div className="text-xs text-gray-500 dark:text-gray-500">
-                {completedCount}/{totalCount}
+              <div className="flex flex-col items-start gap-0.5">
+                <div className="text-xs font-semibold text-foreground/80">
+                  {isAllCompleted ? "All tasks completed" : "Tasks"}
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  {completedCount} of {totalCount} complete
+                </div>
               </div>
             </div>
-            <ChevronDown
-              className={cn(
-                "h-3.5 w-3.5 text-gray-500 transition-transform duration-200",
-                isOpen && "rotate-180"
-              )}
-            />
+
+            <div className="flex items-center gap-3">
+              {/* Progress bar */}
+              <div className="w-16 h-1.5 bg-muted/50 rounded-full overflow-hidden">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all duration-500 ease-out",
+                    isAllCompleted
+                      ? "bg-gradient-to-r from-[var(--magic-mint)] to-green-400"
+                      : "bg-gradient-to-r from-primary to-[var(--magic-violet)]"
+                  )}
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+              <ChevronDown
+                className={cn(
+                  "h-3.5 w-3.5 text-muted-foreground transition-transform duration-200",
+                  isOpen && "rotate-180"
+                )}
+              />
+            </div>
           </div>
         </CollapsibleTrigger>
 
-        <CollapsibleContent>
-          <div className="px-3 pb-2 space-y-0.5 border-t border-gray-200 dark:border-gray-800 pt-1.5">
+        <CollapsibleContent className="animate-accordion-down">
+          <div className="px-3 pb-3 space-y-1 border-t border-border/50 pt-2">
             {todos.map((todo, index) => {
               // For historical todo lists, treat in_progress as completed
               const displayStatus = !isLatest && todo.status === "in_progress" ? "completed" : todo.status;
@@ -77,17 +109,25 @@ export function TodoList({
               return (
                 <div
                   key={index}
-                  className="flex items-start gap-2 py-1"
+                  className={cn(
+                    "flex items-start gap-2.5 py-1.5 px-2 rounded-lg transition-all duration-200",
+                    displayStatus === "in_progress" && "bg-primary/5 border border-primary/10"
+                  )}
                 >
                   <div className="flex-shrink-0 mt-0.5">
                     {displayStatus === "completed" && (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                      <div className="relative">
+                        <CheckCircle2 className="h-4 w-4 text-[var(--magic-mint)]" />
+                      </div>
                     )}
                     {displayStatus === "in_progress" && (
-                      <Loader2 className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 animate-spin" />
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping" />
+                        <Loader2 className="h-4 w-4 text-primary animate-spin relative" />
+                      </div>
                     )}
                     {displayStatus === "pending" && (
-                      <Circle className="h-3.5 w-3.5 text-gray-400 dark:text-gray-600" />
+                      <Circle className="h-4 w-4 text-muted-foreground/40" />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -95,11 +135,11 @@ export function TodoList({
                       className={cn(
                         "text-xs leading-relaxed",
                         displayStatus === "completed" &&
-                          "text-gray-500 dark:text-gray-500 line-through",
+                          "text-muted-foreground line-through decoration-muted-foreground/50",
                         displayStatus === "in_progress" &&
-                          "text-gray-900 dark:text-gray-100",
+                          "text-foreground font-medium",
                         displayStatus === "pending" &&
-                          "text-gray-700 dark:text-gray-400"
+                          "text-muted-foreground"
                       )}
                     >
                       {displayStatus === "in_progress"

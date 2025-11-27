@@ -480,7 +480,14 @@ export default function ProjectBuildPage() {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative overflow-hidden">
+      {/* Ambient Background - subtle for build page */}
+      <div className="fixed inset-0 -z-10 pointer-events-none">
+        <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-primary/3" />
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/3 rounded-full blur-3xl animate-pulse-slow" />
+        <div className="absolute bottom-0 left-1/4 w-[400px] h-[400px] bg-[var(--magic-violet)]/3 rounded-full blur-3xl animate-pulse-slow animation-delay-2000" />
+      </div>
+
       {/* Unified Header */}
       <ProjectHeader
         projectId={projectId}
