@@ -25,10 +25,16 @@ export async function createSandbox(): Promise<{
     throw new Error("E2B_API_KEY is not configured");
   }
 
+  const templateId = process.env.E2B_TEMPLATE_ID;
+
+  if (!templateId) {
+    throw new Error("E2B_TEMPLATE_ID is not configured");
+  }
+
   try {
-    console.log("[createSandbox] Creating E2B sandbox with template 1fzoj162ooq36dtkcdc1 (4GB RAM, 1 hour timeout)...");
+    console.log(`[createSandbox] Creating E2B sandbox with template ${templateId} (8GB RAM, 8 vCPUs, 1 hour timeout)...`);
     const sandbox = await Sandbox.create(
-      "1fzoj162ooq36dtkcdc1", // appily-autofix-v2 template with 4GB RAM (first parameter)
+      templateId, // Template ID from E2B_TEMPLATE_ID env var (8 vCPUs, 8GB RAM)
       {
         apiKey,
         timeoutMs: 3600000, // 1 hour = 60 minutes * 60 seconds * 1000 milliseconds

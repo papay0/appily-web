@@ -1,0 +1,4 @@
+# E2B v2 Template Configuration
+# This file is now optional in v2, template is defined in template.ts
+
+# template_id will be set after first build
