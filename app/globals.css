@@ -8,6 +8,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-bricolage);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -279,4 +280,475 @@
 
 .animation-delay-4000 {
   animation-delay: 4000ms;
+}
+
+/* ============================================
+   MAGICAL LANDING PAGE ENHANCEMENTS
+   ============================================ */
+
+/* Magical accent colors */
+:root {
+  --magic-violet: oklch(0.70 0.15 280);
+  --magic-coral: oklch(0.75 0.14 25);
+  --magic-gold: oklch(0.80 0.12 85);
+  --magic-mint: oklch(0.85 0.10 160);
+
+  /* Gradient definitions */
+  --gradient-hero: linear-gradient(135deg, oklch(0.97 0.02 230), oklch(0.70 0.15 280 / 0.1), oklch(0.99 0.005 240));
+  --gradient-card-glow: linear-gradient(180deg, oklch(0.97 0.02 230), transparent);
+  --gradient-text-magic: linear-gradient(90deg, var(--primary), var(--magic-violet), var(--primary));
+  --gradient-portal: radial-gradient(circle, var(--magic-violet), oklch(0.45 0.16 230), transparent);
+}
+
+.dark {
+  --magic-violet: oklch(0.75 0.18 280);
+  --magic-coral: oklch(0.70 0.16 25);
+  --magic-gold: oklch(0.75 0.14 85);
+  --magic-mint: oklch(0.80 0.12 160);
+
+  --gradient-hero: linear-gradient(135deg, oklch(0.18 0.02 240), oklch(0.75 0.18 280 / 0.15), oklch(0.15 0.015 240));
+  --gradient-portal: radial-gradient(circle, var(--magic-violet), oklch(0.35 0.14 230), transparent);
+}
+
+/* ============================================
+   NEW MAGICAL ANIMATIONS
+   ============================================ */
+
+/* Gentle floating with rotation */
+@keyframes float-gentle {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-15px) rotate(2deg);
+  }
+}
+
+/* Sparkle effect */
+@keyframes sparkle {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1) rotate(180deg);
+  }
+}
+
+/* Sparkle with stagger */
+@keyframes sparkle-stagger {
+  0%, 20%, 100% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  40%, 60% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Magnetic button pulse */
+@keyframes magnetic-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 oklch(0.62 0.18 230 / 0.4);
+  }
+  50% {
+    box-shadow: 0 0 20px 10px oklch(0.62 0.18 230 / 0.1);
+  }
+}
+
+/* Text shimmer gradient */
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+/* Particle drift upward */
+@keyframes drift-up {
+  0% {
+    transform: translateY(100%) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.6;
+  }
+  90% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(-100vh) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+/* Portal pulse effect */
+@keyframes portal-pulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: blur(40px);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.15);
+    filter: blur(60px);
+    opacity: 0.7;
+  }
+}
+
+/* Typing cursor blink */
+@keyframes blink-cursor {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+/* Bounce in */
+@keyframes bounce-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Slide up with bounce */
+@keyframes slide-up-bounce {
+  0% {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  60% {
+    transform: translateY(-5px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Glow pulse */
+@keyframes glow-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 5px oklch(0.62 0.18 230 / 0.3));
+  }
+  50% {
+    filter: drop-shadow(0 0 20px oklch(0.62 0.18 230 / 0.6));
+  }
+}
+
+/* Scale in with fade */
+@keyframes scale-fade-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Typing dots bounce */
+@keyframes typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-8px);
+  }
+}
+
+/* Message slide in from side */
+@keyframes message-slide-in-left {
+  0% {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes message-slide-in-right {
+  0% {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Ripple effect */
+@keyframes ripple {
+  0% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+/* Gradient rotation */
+@keyframes gradient-rotate {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* 3D tilt hover */
+@keyframes tilt-shake {
+  0%, 100% {
+    transform: perspective(1000px) rotateX(0) rotateY(0);
+  }
+  25% {
+    transform: perspective(1000px) rotateX(2deg) rotateY(-2deg);
+  }
+  75% {
+    transform: perspective(1000px) rotateX(-2deg) rotateY(2deg);
+  }
+}
+
+/* Confetti burst */
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(-100%) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+/* ============================================
+   ANIMATION UTILITY CLASSES
+   ============================================ */
+
+.animate-float-gentle {
+  animation: float-gentle 6s ease-in-out infinite;
+}
+
+.animate-sparkle {
+  animation: sparkle 2s ease-in-out infinite;
+}
+
+.animate-magnetic-pulse {
+  animation: magnetic-pulse 2s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background-size: 200% auto;
+  animation: shimmer 3s linear infinite;
+}
+
+.animate-drift-up {
+  animation: drift-up 15s linear infinite;
+}
+
+.animate-portal-pulse {
+  animation: portal-pulse 4s ease-in-out infinite;
+}
+
+.animate-blink-cursor {
+  animation: blink-cursor 1s step-end infinite;
+}
+
+.animate-bounce-in {
+  animation: bounce-in 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+}
+
+.animate-slide-up-bounce {
+  animation: slide-up-bounce 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.animate-scale-fade-in {
+  animation: scale-fade-in 0.5s ease-out forwards;
+}
+
+.animate-gradient-rotate {
+  background-size: 200% 200%;
+  animation: gradient-rotate 8s ease infinite;
+}
+
+/* Typing indicator dots */
+.animate-typing-dot {
+  animation: typing-bounce 1.4s ease-in-out infinite;
+}
+
+.animate-typing-dot-1 {
+  animation-delay: 0s;
+}
+
+.animate-typing-dot-2 {
+  animation-delay: 0.2s;
+}
+
+.animate-typing-dot-3 {
+  animation-delay: 0.4s;
+}
+
+/* Additional animation delays */
+.animation-delay-100 {
+  animation-delay: 100ms;
+}
+
+.animation-delay-300 {
+  animation-delay: 300ms;
+}
+
+.animation-delay-700 {
+  animation-delay: 700ms;
+}
+
+.animation-delay-900 {
+  animation-delay: 900ms;
+}
+
+.animation-delay-1400 {
+  animation-delay: 1400ms;
+}
+
+.animation-delay-1600 {
+  animation-delay: 1600ms;
+}
+
+.animation-delay-1800 {
+  animation-delay: 1800ms;
+}
+
+.animation-delay-3000 {
+  animation-delay: 3000ms;
+}
+
+.animation-delay-5000 {
+  animation-delay: 5000ms;
+}
+
+/* ============================================
+   SPECIAL EFFECTS UTILITIES
+   ============================================ */
+
+/* Gradient text */
+.text-gradient-magic {
+  background: var(--gradient-text-magic);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 4s linear infinite;
+}
+
+/* Glassmorphism enhanced */
+.glass-morphism {
+  background: oklch(1 0 0 / 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid oklch(0.90 0.01 240 / 0.5);
+}
+
+.dark .glass-morphism {
+  background: oklch(0.20 0.015 240 / 0.6);
+  border: 1px solid oklch(0.30 0.02 240 / 0.5);
+}
+
+/* Noise texture overlay */
+.noise-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Gradient border */
+.gradient-border {
+  position: relative;
+}
+
+.gradient-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  background: linear-gradient(135deg, var(--primary), var(--magic-violet), var(--primary));
+  border-radius: inherit;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+  pointer-events: none;
+}
+
+/* Font display class */
+.font-display {
+  font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
+}
+
+/* Perspective container for 3D effects */
+.perspective-container {
+  perspective: 1000px;
+  transform-style: preserve-3d;
+}
+
+/* 3D tilt card base */
+.card-3d {
+  transform-style: preserve-3d;
+  transition: transform 0.3s ease;
+}
+
+.card-3d:hover {
+  transform: perspective(1000px) rotateX(5deg) rotateY(-5deg) translateZ(20px);
+}
+
+/* Magnetic hover effect base */
+.magnetic-hover {
+  transition: transform 0.2s ease-out;
+}
+
+/* Portal glow */
+.portal-glow {
+  position: relative;
+}
+
+.portal-glow::after {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  background: var(--gradient-portal);
+  animation: portal-pulse 4s ease-in-out infinite;
+  z-index: -1;
+  pointer-events: none;
 }
