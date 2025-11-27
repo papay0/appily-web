@@ -10,6 +10,8 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { SandboxStatusOverlay } from "@/components/sandbox-status-overlay";
+import type { HealthStatus } from "@/app/api/sandbox/health/route";
 
 interface PreviewPanelProps {
   sandboxStatus: "idle" | "starting" | "ready" | "error";
@@ -18,11 +20,25 @@ interface PreviewPanelProps {
   qrCode?: string;
   sandboxId?: string;
   projectId?: string;
+  healthStatus?: HealthStatus | null;
+  healthMessage?: string;
 }
 
-export function PreviewPanel({ sandboxStatus, onStartSandbox, expoUrl, qrCode, sandboxId, projectId }: PreviewPanelProps) {
+export function PreviewPanel({
+  sandboxStatus,
+  onStartSandbox,
+  expoUrl,
+  qrCode,
+  sandboxId,
+  projectId,
+  healthStatus,
+  healthMessage,
+}: PreviewPanelProps) {
   const [isRestartingMetro, setIsRestartingMetro] = useState(false);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+
+  // Determine if we should show the health overlay
+  const showHealthOverlay = healthStatus && healthStatus !== "ready";
 
   const handleRestartMetro = async () => {
     if (!sandboxId || !projectId) return;
@@ -56,6 +72,16 @@ export function PreviewPanel({ sandboxStatus, onStartSandbox, expoUrl, qrCode, s
         <div className="absolute top-10 right-10 w-[300px] h-[300px] bg-primary/5 rounded-full blur-3xl animate-pulse-slow" />
         <div className="absolute bottom-20 left-10 w-[250px] h-[250px] bg-[var(--magic-violet)]/5 rounded-full blur-3xl animate-pulse-slow animation-delay-2000" />
       </div>
+
+      {/* Health Status Overlay - shown when sandbox is sleeping/starting */}
+      {showHealthOverlay && (
+        <SandboxStatusOverlay
+          status={healthStatus}
+          message={healthMessage || ""}
+          onWakeUp={onStartSandbox}
+          isWakingUp={sandboxStatus === "starting"}
+        />
+      )}
 
       {/* Preview Content */}
       <div className="flex-1 overflow-auto p-6 pt-8">

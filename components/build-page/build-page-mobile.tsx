@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { ChatPanel } from "@/components/chat-panel";
 import { QrCodeSheet } from "@/components/qr-code-sheet";
 import type { BuildPageLayoutProps } from "./types";
@@ -14,10 +13,14 @@ export function BuildPageMobile({
   projectId,
   sandboxId,
   featureContext,
+  sandboxStatus,
+  onStartSandbox,
   expoUrl,
   qrCode,
   qrSheetOpen,
   onQrSheetOpenChange,
+  healthStatus,
+  healthMessage,
 }: BuildPageMobileProps) {
   return (
     <>
@@ -36,6 +39,10 @@ export function BuildPageMobile({
         onOpenChange={onQrSheetOpenChange}
         qrCode={qrCode}
         expoUrl={expoUrl}
+        healthStatus={healthStatus}
+        healthMessage={healthMessage}
+        onStartPreview={onStartSandbox}
+        isStarting={sandboxStatus === "starting"}
       />
     </>
   );

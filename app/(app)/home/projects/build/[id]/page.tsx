@@ -6,11 +6,14 @@ import { useUser, useSession } from "@clerk/nextjs";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { useSupabaseClient } from "@/lib/supabase-client";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
+import { useSandboxHealth } from "@/hooks/use-sandbox-health";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { DebugPanel } from "@/components/debug-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProjectHeader } from "@/components/project-header";
 import { BuildPageDesktop, BuildPageMobile } from "@/components/build-page";
 import type { Feature } from "@/lib/types/features";
+import type { HealthStatus } from "@/app/api/sandbox/health/route";
 
 type ViewMode = "preview" | "code";
 type SandboxStatus = "idle" | "starting" | "ready" | "error";
@@ -36,6 +39,7 @@ export default function ProjectBuildPage() {
   const router = useRouter();
   const { user } = useUser();
   const projectId = params.id as string;
+  const isMobile = useIsMobile();
 
   // Project state
   const [project, setProject] = useState<Project | null>(null);
@@ -46,7 +50,6 @@ export default function ProjectBuildPage() {
   const [sandboxStatus, setSandboxStatus] = useState<SandboxStatus>("idle");
   const [sandboxError, setSandboxError] = useState<string>();
   const [uptime, setUptime] = useState(0);
-  const [isReconnecting, setIsReconnecting] = useState(false);
   const [expoUrl, setExpoUrl] = useState<string>();
   const [qrCode, setQrCode] = useState<string>();
 
@@ -55,6 +58,48 @@ export default function ProjectBuildPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingName, setIsGeneratingName] = useState(false);
   const [qrSheetOpen, setQrSheetOpen] = useState(false);
+
+  // Health status state (from health hook)
+  const [healthStatus, setHealthStatus] = useState<HealthStatus | null>(null);
+  const [healthMessage, setHealthMessage] = useState<string>("");
+
+  // Health status change callback
+  const handleHealthStatusChange = useCallback((status: HealthStatus) => {
+    console.log("[ProjectPage] Health status changed:", status);
+    setHealthStatus(status);
+
+    // Map health status to sandbox status for existing UI components
+    if (status === "ready") {
+      setSandboxStatus("ready");
+    } else if (status === "sleeping") {
+      // Don't change sandbox status to idle if we're in the middle of something
+      // The health hook will auto-restart
+    } else if (status === "starting" || status === "metro_starting") {
+      setSandboxStatus("starting");
+    } else if (status === "error") {
+      setSandboxStatus("error");
+    }
+  }, []);
+
+  // Use the health hook for health monitoring only (QR/URL come from database + realtime)
+  const {
+    status: currentHealthStatus,
+    message: currentHealthMessage,
+  } = useSandboxHealth({
+    projectId,
+    sandboxId: project?.e2b_sandbox_id || null,
+    enabled: !loading && !!project, // Only enable after project loads
+    autoRestart: false, // User will click "Start Preview" button instead
+    onStatusChange: handleHealthStatusChange,
+  });
+
+  // Sync health status to local state (QR/URL come from database + realtime, not health hook)
+  useEffect(() => {
+    if (currentHealthStatus) {
+      setHealthStatus(currentHealthStatus);
+      setHealthMessage(currentHealthMessage);
+    }
+  }, [currentHealthStatus, currentHealthMessage]);
 
   // Load project and setup realtime subscription
   useEffect(() => {
@@ -113,51 +158,16 @@ export default function ProjectBuildPage() {
         }
 
         // Set initial sandbox status from database
+        // The health hook will handle checking if sandbox is alive and auto-restarting if needed
         if (projectData.e2b_sandbox_id && projectData.e2b_sandbox_status) {
-          // Try to reconnect to existing sandbox
-          setIsReconnecting(true);
-          setSandboxStatus("starting");
+          // Set initial status from database - health hook will verify and update
+          setSandboxStatus(projectData.e2b_sandbox_status as SandboxStatus);
 
-          try {
-            const response = await fetch("/api/sandbox/connect", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ sandboxId: projectData.e2b_sandbox_id }),
-            });
-
-            const data = await response.json();
-
-            if (data.connected) {
-              setSandboxStatus("ready");
-              // Calculate uptime
-              if (projectData.e2b_sandbox_created_at) {
-                const createdAt = new Date(projectData.e2b_sandbox_created_at);
-                const elapsed = Math.floor((Date.now() - createdAt.getTime()) / 1000);
-                setUptime(elapsed);
-              }
-            } else {
-              // Sandbox died, clear from database
-              await fetch("/api/sandbox/close", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  sandboxId: projectData.e2b_sandbox_id,
-                  projectId: projectData.id
-                }),
-              });
-              setSandboxStatus("idle");
-              // Clear old QR code and Expo URL from UI
-              setExpoUrl(undefined);
-              setQrCode(undefined);
-            }
-          } catch (error) {
-            console.error("Failed to reconnect to sandbox:", error);
-            setSandboxStatus("idle");
-            // Clear old QR code and Expo URL from UI
-            setExpoUrl(undefined);
-            setQrCode(undefined);
-          } finally {
-            setIsReconnecting(false);
+          // Calculate uptime if sandbox was previously ready
+          if (projectData.e2b_sandbox_status === "ready" && projectData.e2b_sandbox_created_at) {
+            const createdAt = new Date(projectData.e2b_sandbox_created_at);
+            const elapsed = Math.floor((Date.now() - createdAt.getTime()) / 1000);
+            setUptime(elapsed);
           }
         } else {
           setSandboxStatus("idle");
@@ -498,44 +508,49 @@ export default function ProjectBuildPage() {
         onOpenQrSheet={() => setQrSheetOpen(true)}
       />
 
-      {/* Mobile Layout */}
-      <BuildPageMobile
-        projectId={projectId}
-        sandboxId={project.e2b_sandbox_id || undefined}
-        featureContext={
-          project.app_idea && features.length > 0
-            ? { appIdea: project.app_idea, features }
-            : undefined
-        }
-        sandboxStatus={sandboxStatus}
-        onStartSandbox={handleStartSandbox}
-        expoUrl={expoUrl}
-        qrCode={qrCode}
-        qrSheetOpen={qrSheetOpen}
-        onQrSheetOpenChange={setQrSheetOpen}
-      />
-
-      {/* Desktop Layout */}
-      <BuildPageDesktop
-        projectId={projectId}
-        sandboxId={project.e2b_sandbox_id || undefined}
-        featureContext={
-          project.app_idea && features.length > 0
-            ? { appIdea: project.app_idea, features }
-            : undefined
-        }
-        sandboxStatus={sandboxStatus}
-        onStartSandbox={handleStartSandbox}
-        expoUrl={expoUrl}
-        qrCode={qrCode}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-      />
+      {/* Conditionally render Mobile OR Desktop - never both */}
+      {isMobile ? (
+        <BuildPageMobile
+          projectId={projectId}
+          sandboxId={project.e2b_sandbox_id || undefined}
+          featureContext={
+            project.app_idea
+              ? { appIdea: project.app_idea, features }
+              : undefined
+          }
+          sandboxStatus={sandboxStatus}
+          onStartSandbox={handleStartSandbox}
+          expoUrl={expoUrl}
+          qrCode={qrCode}
+          qrSheetOpen={qrSheetOpen}
+          onQrSheetOpenChange={setQrSheetOpen}
+          healthStatus={healthStatus}
+          healthMessage={healthMessage}
+        />
+      ) : (
+        <BuildPageDesktop
+          projectId={projectId}
+          sandboxId={project.e2b_sandbox_id || undefined}
+          featureContext={
+            project.app_idea
+              ? { appIdea: project.app_idea, features }
+              : undefined
+          }
+          sandboxStatus={sandboxStatus}
+          onStartSandbox={handleStartSandbox}
+          expoUrl={expoUrl}
+          qrCode={qrCode}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          healthStatus={healthStatus}
+          healthMessage={healthMessage}
+        />
+      )}
 
       {/* Debug Panel */}
       <DebugPanel
         sandboxId={project.e2b_sandbox_id || undefined}
-        sandboxStatus={isReconnecting ? "starting" : sandboxStatus}
+        sandboxStatus={sandboxStatus}
         uptime={uptime}
         error={sandboxError}
         onStartSandbox={handleStartSandbox}

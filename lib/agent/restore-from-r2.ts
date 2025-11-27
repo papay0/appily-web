@@ -83,6 +83,17 @@ export async function restoreProjectFromR2(
 
     console.log(`[RestoreFromR2] ✓ Restored ${restoredCount} files successfully`);
 
+    // Fix file permissions - E2B file write may not set proper permissions
+    // This ensures all files are readable/writable by the user, preventing
+    // "EACCES: permission denied" errors in Expo/Metro
+    console.log("[RestoreFromR2] Fixing file permissions...");
+    try {
+      await sandbox.commands.run(`chmod -R u+rw "${targetDir}"`, { timeoutMs: 30000 });
+      console.log("[RestoreFromR2] ✓ File permissions fixed");
+    } catch (permError) {
+      console.warn("[RestoreFromR2] Warning: Could not fix permissions:", permError);
+    }
+
     return { success: true, fileCount: restoredCount };
   } catch (error) {
     console.error("[RestoreFromR2] Error:", error);

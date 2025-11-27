@@ -17,6 +17,10 @@ import type { Feature } from "@/lib/types/features";
 import { buildEnhancedPrompt } from "@/lib/types/features";
 import { generateId } from "@/lib/uuid";
 
+// Module-level Set to track projects that have auto-started
+// This persists across React Strict Mode's mount/unmount/remount cycle
+const autoStartedProjects = new Set<string>();
+
 interface Message {
   id: string;
   role: "user" | "assistant" | "system";
@@ -460,27 +464,30 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
   // Auto-start when coming from planning with feature context
   useEffect(() => {
     // Only auto-start if:
-    // 1. We have feature context (came from planning)
+    // 1. We have an app idea (from planning or direct creation)
     // 2. Initial fetch has completed
     // 3. Realtime subscription is connected (ensures all logs are received)
-    // 4. We haven't already auto-started
+    // 4. We haven't already auto-started THIS project (module-level Set survives Strict Mode)
     // 5. There are no existing messages (fresh start)
     // 6. Not already loading
     if (
       featureContext &&
-      featureContext.features.length > 0 &&
+      featureContext.appIdea &&
       initialLoadComplete &&
       channelStatus === "connected" &&
+      !autoStartedProjects.has(projectId) &&
       !didAutoStartRef.current &&
       messages.length === 0 &&
       !isLoading &&
       user
     ) {
+      // Mark as started in BOTH places to prevent any race condition
+      autoStartedProjects.add(projectId);
       didAutoStartRef.current = true;
       // Use the user's actual app idea as the first message
       sendMessageProgrammatically(featureContext.appIdea);
     }
-  }, [featureContext, initialLoadComplete, channelStatus, messages.length, isLoading, user, sendMessageProgrammatically]);
+  }, [featureContext, initialLoadComplete, channelStatus, messages.length, isLoading, user, sendMessageProgrammatically, projectId]);
 
   const handleSendMessage = async () => {
     if (!input.trim() || isLoading) return;

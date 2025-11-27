@@ -152,6 +152,11 @@ export async function startExpo(
   try {
     console.log(`[startExpo] Starting Expo setup in ${projectDir}`);
 
+    // Fix file permissions FIRST - ensure all files are readable/writable
+    console.log("[startExpo] Fixing file permissions...");
+    await sandbox.commands.run(`chmod -R u+rw "${projectDir}" 2>/dev/null || true`, { timeoutMs: 30000 });
+    console.log("[startExpo] ✓ Permissions fixed");
+
     // Get the E2B public hostname
     console.log("[startExpo] Getting E2B public hostname...");
     const hostname = await sandbox.getHost(8081);
@@ -290,6 +295,12 @@ export async function setupExpoProject(
   console.log("[setupExpoProject] Step 1/2: Cloning template repository...");
   await cloneGitHubRepo(sandbox, templateRepoUrl, projectDir);
   console.log("[setupExpoProject] ✓ Step 1/2 complete");
+
+  // Fix file permissions to prevent EACCES errors
+  // This ensures all files are readable/writable before Expo starts
+  console.log("[setupExpoProject] Fixing file permissions...");
+  await sandbox.commands.run(`chmod -R u+rw "${projectDir}"`, { timeoutMs: 30000 });
+  console.log("[setupExpoProject] ✓ Permissions fixed");
 
   // Start Expo and get the public URL
   console.log("[setupExpoProject] Step 2/2: Starting Expo...");

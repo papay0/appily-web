@@ -19,6 +19,8 @@ export function BuildPageDesktop({
   expoUrl,
   qrCode,
   viewMode,
+  healthStatus,
+  healthMessage,
 }: BuildPageLayoutProps) {
   return (
     <div className="flex-1 min-h-0 hidden md:block">
@@ -45,6 +47,8 @@ export function BuildPageDesktop({
                 qrCode={qrCode}
                 sandboxId={sandboxId}
                 projectId={projectId}
+                healthStatus={healthStatus}
+                healthMessage={healthMessage}
               />
             ) : (
               <CodeEditor />
