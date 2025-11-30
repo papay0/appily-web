@@ -16,6 +16,7 @@ import type { Sandbox } from "e2b";
 import { NextResponse } from "next/server";
 import { buildExpoAgentPrompt } from "./prompts";
 import { executeSetupInE2B, executeClaudeInE2B } from "./cli-executor";
+import { downloadImagesToSandbox, buildImageContext } from "./download-images-to-sandbox";
 
 /**
  * Options for new project flow
@@ -26,6 +27,7 @@ export interface NewProjectFlowOptions {
   userId: string;
   userPrompt: string;
   workingDir?: string;
+  imageKeys?: string[];
 }
 
 /**
@@ -40,6 +42,7 @@ export interface ExistingProjectFlowOptions {
   sessionId?: string | null;
   qrCode?: string | null;
   workingDir?: string;
+  imageKeys?: string[];
 }
 
 /**
@@ -66,14 +69,28 @@ export interface ExistingProjectFlowOptions {
 export async function handleNewProjectFlow(
   options: NewProjectFlowOptions
 ): Promise<NextResponse> {
-  const { sandbox, projectId, userId, userPrompt, workingDir } = options;
+  const { sandbox, projectId, userId, userPrompt, workingDir, imageKeys } = options;
 
   console.log(`[FLOW] Starting NEW PROJECT flow for ${projectId}`);
   console.log(`[FLOW] Sandbox: ${sandbox.sandboxId}`);
+  console.log(`[FLOW] Images to download: ${imageKeys?.length || 0}`);
+
+  // Download images to sandbox if provided
+  let imageContext = "";
+  if (imageKeys && imageKeys.length > 0) {
+    const downloadResult = await downloadImagesToSandbox(sandbox, imageKeys);
+    if (downloadResult.localPaths.length > 0) {
+      imageContext = buildImageContext(downloadResult.localPaths);
+      console.log(`[FLOW] ✓ Downloaded ${downloadResult.localPaths.length} images`);
+    }
+    if (downloadResult.errors.length > 0) {
+      console.warn(`[FLOW] Image download errors:`, downloadResult.errors);
+    }
+  }
 
   // Build agent system prompt (no Expo URL yet - will be generated)
   const systemPrompt = buildExpoAgentPrompt({
-    userTask: userPrompt,
+    userTask: userPrompt + imageContext,
     workingDir: workingDir || "/home/user/project",
     // expoUrl: undefined - not available yet
   });
@@ -132,16 +149,31 @@ export async function handleExistingProjectFlow(
     sessionId,
     qrCode,
     workingDir,
+    imageKeys,
   } = options;
 
   console.log(`[FLOW] Starting EXISTING PROJECT flow for ${projectId}`);
   console.log(`[FLOW] Sandbox: ${sandbox.sandboxId}`);
   console.log(`[FLOW] Session: ${sessionId || "(new)"}`);
   console.log(`[FLOW] Expo URL: ${expoUrl || "(not available)"}`);
+  console.log(`[FLOW] Images to download: ${imageKeys?.length || 0}`);
+
+  // Download images to sandbox if provided
+  let imageContext = "";
+  if (imageKeys && imageKeys.length > 0) {
+    const downloadResult = await downloadImagesToSandbox(sandbox, imageKeys);
+    if (downloadResult.localPaths.length > 0) {
+      imageContext = buildImageContext(downloadResult.localPaths);
+      console.log(`[FLOW] ✓ Downloaded ${downloadResult.localPaths.length} images`);
+    }
+    if (downloadResult.errors.length > 0) {
+      console.warn(`[FLOW] Image download errors:`, downloadResult.errors);
+    }
+  }
 
   // Build agent system prompt (includes Expo URL if available)
   const systemPrompt = buildExpoAgentPrompt({
-    userTask: userPrompt,
+    userTask: userPrompt + imageContext,
     expoUrl: expoUrl || undefined,
     workingDir: workingDir || "/home/user/project",
   });

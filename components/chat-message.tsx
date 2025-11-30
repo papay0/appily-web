@@ -30,6 +30,7 @@ interface Message {
   toolUse?: string;
   toolContext?: string; // Additional context about tool use
   avatarUrl?: string;
+  imageUrls?: string[]; // Preview URLs for attached images
   eventData?: Record<string, unknown>; // Full event_data for operational logs
 }
 
@@ -56,10 +57,35 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
   // User messages - Messenger style gradient bubble
   if (message.role === "user") {
+    const hasImages = message.imageUrls && message.imageUrls.length > 0;
+
     return (
       <div className="flex items-end gap-2 w-full justify-end animate-message-right">
-        <div className="message-bubble-user px-4 py-2.5 max-w-[80%] overflow-hidden">
-          <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
+        <div className="flex flex-col items-end gap-1.5 max-w-[80%]">
+          {/* Image thumbnails */}
+          {hasImages && (
+            <div className="flex flex-wrap gap-1.5 justify-end">
+              {message.imageUrls!.map((url, index) => (
+                <div
+                  key={index}
+                  className="w-16 h-16 rounded-lg overflow-hidden ring-1 ring-white/20"
+                >
+                  <Image
+                    src={url}
+                    alt={`Attached image ${index + 1}`}
+                    width={64}
+                    height={64}
+                    className="w-full h-full object-cover"
+                    unoptimized
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Text bubble */}
+          <div className="message-bubble-user px-4 py-2.5 overflow-hidden">
+            <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
+          </div>
         </div>
         {message.avatarUrl ? (
           <Image

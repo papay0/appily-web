@@ -26,7 +26,7 @@ export function BuildPageDesktop({
     <div className="flex-1 min-h-0 hidden md:block">
       <ResizablePanelGroup direction="horizontal" className="h-full">
         {/* Left Panel - Chat */}
-        <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
+        <ResizablePanel defaultSize={50} minSize={20} maxSize={80}>
           <ChatPanel
             projectId={projectId}
             sandboxId={sandboxId}
@@ -37,7 +37,7 @@ export function BuildPageDesktop({
         <ResizableHandle withHandle />
 
         {/* Right Panel - Preview/Code */}
-        <ResizablePanel defaultSize={70}>
+        <ResizablePanel defaultSize={50}>
           <div className="h-full overflow-hidden">
             {viewMode === "preview" ? (
               <PreviewPanel

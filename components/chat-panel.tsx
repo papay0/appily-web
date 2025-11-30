@@ -2,10 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Send, Loader2, Sparkles } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Sparkles } from "lucide-react";
 import { useSession, useUser } from "@clerk/nextjs";
 import { useSupabaseClient } from "@/lib/supabase-client";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
@@ -13,6 +10,7 @@ import { ChatMessage } from "./chat-message";
 import { TodoList, type Todo } from "./todo-list";
 import { ToolUseGroup } from "./tool-use-group";
 import { FeatureContextCard } from "./feature-context-card";
+import { UnifiedInput } from "./unified-input";
 import type { Feature } from "@/lib/types/features";
 import { buildEnhancedPrompt } from "@/lib/types/features";
 import { generateId } from "@/lib/uuid";
@@ -29,6 +27,7 @@ interface Message {
   toolUse?: string;
   toolContext?: string;
   avatarUrl?: string;
+  imageUrls?: string[]; // Preview URLs for attached images
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   toolInput?: any; // Stores the input data from tool use (e.g., todos for TodoWrite)
   eventData?: Record<string, unknown>; // Full event_data for operational logs
@@ -115,7 +114,6 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
   const { user } = useUser();
   const supabase = useSupabaseClient();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [openTodoIndex, setOpenTodoIndex] = useState<number | null>(null);
@@ -387,8 +385,8 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
     }
   }, [channelStatus, fetchHistoricalEvents, isLoaded]);
 
-  // Auto-start building when coming from planning page
-  const sendMessageProgrammatically = useCallback(async (messageText: string) => {
+  // Send message helper - used by both auto-start and manual send
+  const sendMessageProgrammatically = useCallback(async (messageText: string, imageKeys: string[] = [], imagePreviewUrls: string[] = []) => {
     if (!messageText.trim() || isLoading || !user) return;
 
     // Check if this is the first message and we have feature context
@@ -413,6 +411,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
       content: messageText,
       timestamp: new Date(),
       avatarUrl: user?.imageUrl,
+      imageUrls: imagePreviewUrls.length > 0 ? imagePreviewUrls : undefined,
     };
 
     setMessages((prev) => [...prev, userMessage]);
@@ -430,6 +429,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
           sandboxId,
           workingDirectory: "/home/user/project",
           clientMessageId: userMessage.id,
+          imageKeys, // R2 keys of attached images
         }),
       });
 
@@ -489,86 +489,10 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
     }
   }, [featureContext, initialLoadComplete, channelStatus, messages.length, isLoading, user, sendMessageProgrammatically, projectId]);
 
-  const handleSendMessage = async () => {
-    if (!input.trim() || isLoading) return;
-
-    // Check if this is the first message and we have feature context
-    const isFirstMessage = messages.filter(m => m.role === "user").length === 0;
-    const shouldIncludeContext = isFirstMessage && featureContext && featureContext.features.length > 0;
-
-    // Build the prompt - include feature context for first message
-    let promptContent = input;
-    if (shouldIncludeContext) {
-      const includedFeatures = featureContext.features.filter(f => f.is_included);
-      const excludedFeatures = featureContext.features.filter(f => !f.is_included);
-      promptContent = buildEnhancedPrompt(input, {
-        appIdea: featureContext.appIdea,
-        includedFeatures,
-        excludedFeatures,
-      });
-    }
-
-    const userMessage: Message = {
-      id: generateId(),
-      role: "user",
-      content: input, // Show original input in chat
-      timestamp: new Date(),
-      avatarUrl: user?.imageUrl,
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    pendingUserMessageIds.current.add(userMessage.id);
-    setInput("");
-    setIsLoading(true);
-
-    try {
-      const response = await fetch("/api/agents/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: promptContent, // Enhanced prompt for Claude
-          displayMessage: input, // Short message for database/display
-          projectId,
-          sandboxId,
-          workingDirectory: "/home/user/project",
-          clientMessageId: userMessage.id,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to start agent");
-      }
-
-      const data = await response.json();
-      console.log("Agent started:", data);
-
-      if (data.status === "processing") {
-        setMessages((prev) => [...prev, {
-          id: generateId(),
-          role: "system",
-          content: "Claude is thinking...",
-          timestamp: new Date(),
-        }]);
-      }
-    } catch (error) {
-      console.error("Failed to send message:", error);
-      pendingUserMessageIds.current.delete(userMessage.id);
-      setMessages((prev) => [...prev, {
-        id: generateId(),
-        role: "system",
-        content: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
-        timestamp: new Date(),
-      }]);
-      setIsLoading(false);
-    }
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
+  // Handle manual message send from UnifiedInput
+  const handleSendMessage = useCallback((text: string, imageKeys: string[], imagePreviewUrls: string[]) => {
+    sendMessageProgrammatically(text, imageKeys, imagePreviewUrls);
+  }, [sendMessageProgrammatically]);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -660,44 +584,13 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
         )}
       </div>
 
-      {/* Chat Input - Glassmorphic */}
-      <div className="p-3 glass-morphism border-t border-border/50">
-        <div className="flex gap-2">
-          <Input
-            placeholder="Describe your app..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            disabled={isLoading}
-            className={cn(
-              "flex-1 rounded-xl border-border/50 text-sm h-10",
-              "bg-background/50 backdrop-blur-sm",
-              "focus:border-primary/50 focus:ring-1 focus:ring-primary/20",
-              "transition-all duration-300",
-              "placeholder:text-muted-foreground/60"
-            )}
-          />
-          <Button
-            onClick={handleSendMessage}
-            disabled={isLoading || !input.trim()}
-            size="icon"
-            className={cn(
-              "h-10 w-10 rounded-xl",
-              "bg-gradient-to-r from-primary to-[var(--magic-violet)]",
-              "hover:opacity-90 hover:scale-105",
-              "shadow-lg shadow-primary/20",
-              "transition-all duration-300",
-              "disabled:opacity-50 disabled:scale-100"
-            )}
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-      </div>
+      {/* Chat Input - Using UnifiedInput */}
+      <UnifiedInput
+        variant="build"
+        onSubmit={handleSendMessage}
+        isLoading={isLoading}
+        projectId={projectId}
+      />
     </div>
   );
 }

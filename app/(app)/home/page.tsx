@@ -65,7 +65,12 @@ export default function HomePage() {
     loadProjects();
   }, [user, supabase]);
 
-  const handleCreateProject = async (appIdea: string, planFeatures: boolean) => {
+  const handleCreateProject = async (
+    appIdea: string,
+    planFeatures: boolean,
+    imageKeys: string[],
+    tempUploadId: string
+  ) => {
     if (!user) return;
     setIsCreating(true);
 
@@ -94,13 +99,41 @@ export default function HomePage() {
 
       if (error) throw error;
 
-      // 3. Navigate to appropriate page
+      // 3. Link temp images to project (if any)
+      let linkedImageKeys: string[] = [];
+      if (imageKeys.length > 0 && tempUploadId) {
+        try {
+          const linkResponse = await fetch("/api/images/link", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              tempUploadId,
+              projectId: project.id,
+            }),
+          });
+
+          if (linkResponse.ok) {
+            const linkData = await linkResponse.json();
+            linkedImageKeys = linkData.newKeys || [];
+            console.log(`Linked ${linkedImageKeys.length} images to project ${project.id}`);
+          }
+        } catch (linkError) {
+          console.error("Failed to link images:", linkError);
+          // Continue anyway - images are not critical
+        }
+      }
+
+      // 4. Navigate to appropriate page with image keys in URL state
+      const imageParam = linkedImageKeys.length > 0
+        ? `?imageKeys=${encodeURIComponent(JSON.stringify(linkedImageKeys))}`
+        : "";
+
       if (planFeatures) {
         // Go to plan page to generate and review features
-        router.push(`/home/projects/plan/${project.id}`);
+        router.push(`/home/projects/plan/${project.id}${imageParam}`);
       } else {
         // Skip planning, go directly to build
-        router.push(`/home/projects/build/${project.id}`);
+        router.push(`/home/projects/build/${project.id}${imageParam}`);
       }
     } catch (error) {
       console.error("Error creating project:", error);

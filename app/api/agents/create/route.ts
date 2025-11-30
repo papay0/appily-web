@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     }
 
     // Parse request body
-    const { prompt, projectId, workingDirectory, sandboxId, clientMessageId, displayMessage } =
+    const { prompt, projectId, workingDirectory, sandboxId, clientMessageId, displayMessage, imageKeys } =
       await request.json();
 
     if (!prompt || !projectId) {
@@ -51,6 +51,9 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // Validate imageKeys if provided
+    const validatedImageKeys: string[] = Array.isArray(imageKeys) ? imageKeys.filter((k: unknown) => typeof k === "string") : [];
 
     // displayMessage is what gets stored in DB and shown in chat
     // prompt is what gets sent to Claude (may include enhanced context)
@@ -74,6 +77,7 @@ export async function POST(request: Request) {
     console.log(`[API] User: ${userId}`);
     console.log(`[API] Working directory: ${cwd}`);
     console.log(`[API] User prompt length: ${prompt.length} chars`);
+    console.log(`[API] Attached images: ${validatedImageKeys.length}`);
 
     // Store user message in database (backend-only insert)
     // Store displayMessage (short version) not the full enhanced prompt
@@ -181,6 +185,7 @@ export async function POST(request: Request) {
         userId,
         userPrompt: prompt,
         workingDir: cwd,
+        imageKeys: validatedImageKeys,
       });
     }
 
@@ -196,6 +201,7 @@ export async function POST(request: Request) {
       sessionId: existingSessionId,
       qrCode,
       workingDir: cwd,
+      imageKeys: validatedImageKeys,
     });
   } catch (error) {
     console.error("[API] Error creating CLI agent session:", error);
