@@ -1,14 +1,9 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Loader2, QrCode, RefreshCw, ChevronDown, Sparkles } from "lucide-react";
+import { Loader2, QrCode, Sparkles, Globe, ExternalLink, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { Iphone } from "@/components/ui/iphone";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { SandboxStatusOverlay } from "@/components/sandbox-status-overlay";
 import type { HealthStatus } from "@/app/api/sandbox/health/route";
@@ -34,35 +29,16 @@ export function PreviewPanel({
   healthStatus,
   healthMessage,
 }: PreviewPanelProps) {
-  const [isRestartingMetro, setIsRestartingMetro] = useState(false);
-  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"qr" | "web">("qr");
+
+  // Derive web URL from expo URL (exp:// -> https://)
+  const webUrl = expoUrl ? expoUrl.replace("exp://", "https://") : undefined;
 
   // Determine if we should show the health overlay
   const showHealthOverlay = healthStatus && healthStatus !== "ready";
 
-  const handleRestartMetro = async () => {
-    if (!sandboxId || !projectId) return;
-
-    setIsRestartingMetro(true);
-    try {
-      const response = await fetch("/api/sandbox/restart-metro", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sandboxId, projectId }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to restart Metro");
-      }
-
-      // Success - the realtime subscription will update the UI with new QR code
-    } catch (error) {
-      console.error("Failed to restart Metro:", error);
-      alert("Failed to restart Metro server. Please try stopping and starting the sandbox.");
-    } finally {
-      setIsRestartingMetro(false);
-    }
-  };
+  // Show tabs when we have a QR code/URL available
+  const showTabs = !!(qrCode && expoUrl);
 
   return (
     <div className="flex flex-col h-full relative overflow-hidden">
@@ -83,8 +59,40 @@ export function PreviewPanel({
         />
       )}
 
+      {/* View Mode Tabs */}
+      {showTabs && (
+        <div className="flex justify-center pt-4">
+          <div className="inline-flex glass-morphism rounded-lg p-0.5">
+            <button
+              onClick={() => setViewMode("qr")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                viewMode === "qr"
+                  ? "bg-gradient-to-r from-primary to-[var(--magic-violet)] text-white shadow-md"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <QrCode className="h-3.5 w-3.5" />
+              Expo Go
+            </button>
+            <button
+              onClick={() => setViewMode("web")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                viewMode === "web"
+                  ? "bg-gradient-to-r from-primary to-[var(--magic-violet)] text-white shadow-md"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Globe className="h-3.5 w-3.5" />
+              Web Preview
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Preview Content */}
-      <div className="flex-1 overflow-auto p-6 pt-8">
+      <div className={cn("flex-1 overflow-auto p-6", !showTabs && "pt-8")}>
         <div className="flex flex-col items-center justify-center h-full">
           {/* Idle State - Ready to Preview */}
           {sandboxStatus === "idle" && !qrCode && (
@@ -109,29 +117,69 @@ export function PreviewPanel({
           {/* Idle with existing QR Code */}
           {sandboxStatus === "idle" && qrCode && (
             <div className="text-center space-y-6 animate-scale-fade-in">
-              {/* iPhone Frame with QR Code */}
-              <div className="mx-auto flex justify-center qr-glow">
-                <Iphone
-                  src={qrCode}
-                  className="w-[320px]"
-                />
+              {/* iPhone Frame with QR Code or Web Preview */}
+              <div className="mx-auto flex justify-center">
+                {viewMode === "qr" ? (
+                  <div className="qr-glow">
+                    <Iphone
+                      src={qrCode}
+                      className="w-[320px]"
+                    />
+                  </div>
+                ) : (
+                  webUrl && (
+                    <div className="web-preview-glow">
+                      <Iphone
+                        iframeSrc={webUrl}
+                        className="w-[320px]"
+                      />
+                    </div>
+                  )
+                )}
               </div>
 
               {/* Instructions */}
               <div className="space-y-4 max-w-md mx-auto px-4">
-                <div className="text-center space-y-2">
-                  <p className="text-base font-semibold font-display text-gradient-magic">
-                    Scan to Reconnect
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Open the Expo Go app and scan the QR code
-                  </p>
-                </div>
+                {viewMode === "qr" ? (
+                  <>
+                    <div className="text-center space-y-2">
+                      <p className="text-base font-semibold font-display text-gradient-magic">
+                        Scan to Reconnect
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Open the Expo Go app and scan the QR code
+                      </p>
+                    </div>
 
-                {expoUrl && (
-                  <code className="text-xs glass-morphism px-4 py-3 rounded-xl break-all block font-mono">
-                    {expoUrl}
-                  </code>
+                    {expoUrl && (
+                      <code className="text-xs glass-morphism px-4 py-3 rounded-xl break-all block font-mono">
+                        {expoUrl}
+                      </code>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="text-center space-y-2">
+                      <p className="text-base font-semibold font-display text-gradient-magic">
+                        Web Preview
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Interact with your app directly
+                      </p>
+                    </div>
+
+                    {webUrl && (
+                      <a
+                        href={webUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Open in new tab
+                      </a>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -161,17 +209,30 @@ export function PreviewPanel({
           {/* Starting with existing QR Code */}
           {sandboxStatus === "starting" && qrCode && (
             <div className="text-center space-y-6 animate-scale-fade-in">
-              <div className="mx-auto flex justify-center qr-glow opacity-75">
-                <Iphone
-                  src={qrCode}
-                  className="w-[320px]"
-                />
+              <div className="mx-auto flex justify-center opacity-75">
+                {viewMode === "qr" ? (
+                  <div className="qr-glow">
+                    <Iphone
+                      src={qrCode}
+                      className="w-[320px]"
+                    />
+                  </div>
+                ) : (
+                  webUrl && (
+                    <div className="web-preview-glow">
+                      <Iphone
+                        iframeSrc={webUrl}
+                        className="w-[320px]"
+                      />
+                    </div>
+                  )
+                )}
               </div>
               <div className="space-y-3">
                 <p className="text-base font-semibold font-display text-gradient-magic">
                   Reconnecting to Sandbox
                 </p>
-                {expoUrl && (
+                {viewMode === "qr" && expoUrl && (
                   <code className="text-xs glass-morphism px-4 py-2 rounded-xl break-all block font-mono">
                     {expoUrl}
                   </code>
@@ -183,103 +244,102 @@ export function PreviewPanel({
           {/* Ready State - Success */}
           {sandboxStatus === "ready" && (
             <div className="text-center space-y-6 animate-bounce-in">
-              {/* iPhone Frame with QR Code */}
+              {/* iPhone Frame with QR Code or Web Preview */}
               <div className="mx-auto flex justify-center">
-                {qrCode ? (
-                  <div className="qr-glow">
-                    <Iphone
-                      src={qrCode}
-                      className="w-[320px]"
-                    />
-                  </div>
-                ) : (
-                  <div className="w-[320px] flex items-center justify-center" style={{ aspectRatio: '433/882' }}>
-                    <div className="text-center space-y-3">
-                      <Loader2 className="h-12 w-12 text-primary mx-auto animate-spin" />
-                      <p className="text-sm text-muted-foreground font-medium">
-                        Generating QR code...
-                      </p>
+                {viewMode === "qr" ? (
+                  // QR Code View
+                  qrCode ? (
+                    <div className="qr-glow">
+                      <Iphone
+                        src={qrCode}
+                        className="w-[320px]"
+                      />
                     </div>
-                  </div>
+                  ) : (
+                    <div className="w-[320px] flex items-center justify-center" style={{ aspectRatio: '433/882' }}>
+                      <div className="text-center space-y-3">
+                        <Loader2 className="h-12 w-12 text-primary mx-auto animate-spin" />
+                        <p className="text-sm text-muted-foreground font-medium">
+                          Generating QR code...
+                        </p>
+                      </div>
+                    </div>
+                  )
+                ) : (
+                  // Web Preview View
+                  webUrl ? (
+                    <div className="web-preview-glow">
+                      <Iphone
+                        iframeSrc={webUrl}
+                        className="w-[320px]"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-[320px] flex items-center justify-center" style={{ aspectRatio: '433/882' }}>
+                      <div className="text-center space-y-3">
+                        <Loader2 className="h-12 w-12 text-primary mx-auto animate-spin" />
+                        <p className="text-sm text-muted-foreground font-medium">
+                          Loading web preview...
+                        </p>
+                      </div>
+                    </div>
+                  )
                 )}
               </div>
 
-              {/* Instructions */}
+              {/* Instructions - different for QR vs Web */}
               <div className="space-y-4 max-w-md mx-auto px-4">
-                <div className="text-center space-y-2">
-                  <div className="flex items-center justify-center gap-2">
-                    <Sparkles className="h-5 w-5 text-[var(--magic-gold)] animate-sparkle" />
-                    <p className="text-lg font-semibold font-display text-gradient-magic">
-                      Scan with Your iPhone
-                    </p>
-                    <Sparkles className="h-5 w-5 text-[var(--magic-gold)] animate-sparkle animation-delay-500" />
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Open the Expo Go app and scan the QR code
-                  </p>
-                </div>
+                {viewMode === "qr" ? (
+                  // QR Code Instructions
+                  <>
+                    <div className="text-center space-y-2">
+                      <div className="flex items-center justify-center gap-2">
+                        <Sparkles className="h-5 w-5 text-[var(--magic-gold)] animate-sparkle" />
+                        <p className="text-lg font-semibold font-display text-gradient-magic">
+                          Scan with Your iPhone
+                        </p>
+                        <Sparkles className="h-5 w-5 text-[var(--magic-gold)] animate-sparkle animation-delay-500" />
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Open the Expo Go app and scan the QR code
+                      </p>
+                    </div>
 
-                {expoUrl && (
-                  <div className="space-y-3">
-                    <code className="text-xs glass-morphism px-4 py-3 rounded-xl break-all block font-mono">
-                      {expoUrl}
-                    </code>
+                    {expoUrl && (
+                      <code className="text-xs glass-morphism px-4 py-3 rounded-xl break-all block font-mono">
+                        {expoUrl}
+                      </code>
+                    )}
+                  </>
+                ) : (
+                  // Web Preview Instructions
+                  <>
+                    <div className="text-center space-y-2">
+                      <div className="flex items-center justify-center gap-2">
+                        <Globe className="h-5 w-5 text-primary" />
+                        <p className="text-lg font-semibold font-display text-gradient-magic">
+                          Web Preview
+                        </p>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Interact with your app directly in the browser
+                      </p>
+                    </div>
 
-                    {/* Collapsible Advanced Options */}
-                    <Collapsible open={isAdvancedOpen} onOpenChange={setIsAdvancedOpen}>
-                      <CollapsibleTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full text-muted-foreground hover:text-foreground rounded-xl"
+                    {webUrl && (
+                      <div className="space-y-3">
+                        <a
+                          href={webUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
                         >
-                          <span className="text-xs">Advanced Options</span>
-                          <ChevronDown
-                            className={cn(
-                              "h-4 w-4 ml-2 transition-transform duration-200",
-                              isAdvancedOpen && "rotate-180"
-                            )}
-                          />
-                        </Button>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="space-y-3 mt-2">
-                        {/* Restart Metro Button */}
-                        <Button
-                          onClick={handleRestartMetro}
-                          disabled={isRestartingMetro || !sandboxId || !projectId}
-                          variant="outline"
-                          size="sm"
-                          className="w-full rounded-xl glass-morphism border-border/50 hover:border-primary/50 transition-all"
-                        >
-                          {isRestartingMetro ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Restarting Metro...
-                            </>
-                          ) : (
-                            <>
-                              <RefreshCw className="h-4 w-4 mr-2" />
-                              Restart Metro Server
-                            </>
-                          )}
-                        </Button>
-
-                        {/* Help text */}
-                        <div className="p-3 glass-morphism rounded-xl border-amber-500/20">
-                          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-                            Troubleshooting
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            If you get a &quot;sandbox not found&quot; error:
-                          </p>
-                          <ul className="text-xs text-muted-foreground mt-2 ml-4 space-y-1 list-disc">
-                            <li>Try restarting Metro Server above</li>
-                            <li>Or stop and restart the Sandbox</li>
-                          </ul>
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  </div>
+                          <ExternalLink className="h-4 w-4" />
+                          Open in new tab
+                        </a>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
