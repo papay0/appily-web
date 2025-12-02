@@ -39,6 +39,8 @@ export function ProjectHeader({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const showControls = viewMode && onViewModeChange;
+  // TODO: Enable when Code view is implemented
+  const showViewModeTabs = false;
 
   // Update display name when projectName prop changes
   useEffect(() => {
@@ -174,7 +176,8 @@ export function ProjectHeader({
       </div>
 
       {/* Center: View mode tabs (only on project pages, hidden on mobile) */}
-      {showControls && (
+      {/* Hidden until Code view is implemented - set showViewModeTabs to true to enable */}
+      {showViewModeTabs && showControls && (
         <div className="hidden md:flex items-center gap-1 p-1 rounded-xl glass-morphism border border-border/50">
           <button
             onClick={() => onViewModeChange("preview")}
