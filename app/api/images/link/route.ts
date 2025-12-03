@@ -21,6 +21,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { uploadFile, downloadFile, listFiles, deleteFile } from "@/lib/r2-client";
 import { parseR2ImageKey, getR2ImagePath, getContentType } from "@/lib/image-utils";
+import { createClient } from "@supabase/supabase-js";
 
 export async function POST(request: Request) {
   try {
@@ -96,6 +97,35 @@ export async function POST(request: Request) {
     }
 
     console.log(`[Images Link] Successfully linked ${newKeys.length} images`);
+
+    // Save image keys to the database - this is REQUIRED for images to work on plan/build pages
+    if (newKeys.length > 0) {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const { error: updateError } = await supabase
+        .from("projects")
+        .update({ image_keys: newKeys })
+        .eq("id", projectId);
+
+      if (updateError) {
+        console.error(`[Images Link] Failed to save image keys to DB:`, updateError);
+        // This is a critical error - images are in R2 but won't be accessible from DB
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Failed to save image references to database",
+            linkedCount: newKeys.length,
+            newKeys, // Return keys anyway in case caller wants to retry
+          },
+          { status: 500 }
+        );
+      }
+
+      console.log(`[Images Link] ✓ Saved ${newKeys.length} image keys to database`);
+    }
 
     return NextResponse.json({
       success: true,

@@ -123,17 +123,13 @@ export default function HomePage() {
         }
       }
 
-      // 4. Navigate to appropriate page with image keys in URL state
-      const imageParam = linkedImageKeys.length > 0
-        ? `?imageKeys=${encodeURIComponent(JSON.stringify(linkedImageKeys))}`
-        : "";
-
+      // 4. Navigate to appropriate page (image keys are now stored in DB by /api/images/link)
       if (planFeatures) {
         // Go to plan page to generate and review features
-        router.push(`/home/projects/plan/${project.id}${imageParam}`);
+        router.push(`/home/projects/plan/${project.id}`);
       } else {
         // Skip planning, go directly to build
-        router.push(`/home/projects/build/${project.id}${imageParam}`);
+        router.push(`/home/projects/build/${project.id}`);
       }
     } catch (error) {
       console.error("Error creating project:", error);

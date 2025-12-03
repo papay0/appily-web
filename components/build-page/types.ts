@@ -10,6 +10,7 @@ export interface BuildPageLayoutProps {
   featureContext?: {
     appIdea: string;
     features: Feature[];
+    imageKeys?: string[];
   };
 
   // Preview panel props

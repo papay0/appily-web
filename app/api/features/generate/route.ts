@@ -18,6 +18,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { buildFeatureGenerationPrompt } from "@/lib/agent/prompts";
+import { downloadFile } from "@/lib/r2-client";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
     }
 
     // Parse request body
-    const { projectId, appIdea } = await request.json();
+    const { projectId, appIdea, imageKeys } = await request.json();
 
     if (!projectId || !appIdea) {
       return NextResponse.json(
@@ -59,16 +60,58 @@ export async function POST(request: Request) {
       );
     }
 
+    // Validate imageKeys
+    const validatedImageKeys: string[] = Array.isArray(imageKeys)
+      ? imageKeys.filter((k: unknown) => typeof k === "string")
+      : [];
+
     console.log(`[API] Generating features for project: ${projectId}`);
     console.log(`[API] App idea length: ${appIdea.length} chars`);
+    console.log(`[API] Image keys: ${validatedImageKeys.length}`);
 
-    // Build prompt and call Claude
-    const prompt = buildFeatureGenerationPrompt({ appIdea });
+    // Fetch images from R2 as base64 for Claude Vision API
+    const imageContents: Anthropic.ImageBlockParam[] = [];
+    for (const key of validatedImageKeys) {
+      try {
+        const buffer = await downloadFile(key);
+        const ext = key.split(".").pop()?.toLowerCase();
+        const mediaType: "image/png" | "image/gif" | "image/webp" | "image/jpeg" =
+          ext === "png"
+            ? "image/png"
+            : ext === "gif"
+              ? "image/gif"
+              : ext === "webp"
+                ? "image/webp"
+                : "image/jpeg";
+        imageContents.push({
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: mediaType,
+            data: buffer.toString("base64"),
+          },
+        });
+        console.log(`[API] ✓ Loaded image: ${key}`);
+      } catch (error) {
+        console.error(`[API] ✗ Failed to load image ${key}:`, error);
+        // Continue without this image
+      }
+    }
+
+    // Build prompt and multimodal content for Claude
+    const hasImages = imageContents.length > 0;
+    const prompt = buildFeatureGenerationPrompt({ appIdea, hasImages });
+
+    // Build content array: images first, then text (per Claude Vision docs)
+    const content: Anthropic.ContentBlockParam[] = [
+      ...imageContents,
+      { type: "text", text: prompt },
+    ];
 
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 2048,
-      messages: [{ role: "user", content: prompt }],
+      messages: [{ role: "user", content }],
     });
 
     // Extract text content from response

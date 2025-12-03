@@ -57,6 +57,7 @@ interface AgentEventRecord {
 interface FeatureContext {
   appIdea: string;
   features: Feature[];
+  imageKeys?: string[];
 }
 
 interface ChatPanelProps {
@@ -484,8 +485,36 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
       // Mark as started in BOTH places to prevent any race condition
       autoStartedProjects.add(projectId);
       didAutoStartRef.current = true;
-      // Use the user's actual app idea as the first message
-      sendMessageProgrammatically(featureContext.appIdea);
+
+      // Use the user's actual app idea as the first message, including any attached images
+      const imageKeys = featureContext.imageKeys || [];
+
+      // If there are images, fetch signed preview URLs before sending
+      if (imageKeys.length > 0) {
+        (async () => {
+          try {
+            const response = await fetch("/api/images/preview", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ imageKeys }),
+            });
+
+            if (response.ok) {
+              const { previewUrls } = await response.json();
+              sendMessageProgrammatically(featureContext.appIdea, imageKeys, previewUrls);
+            } else {
+              // Fallback: send without preview URLs (images won't display but agent still gets them)
+              console.warn("[ChatPanel] Failed to fetch preview URLs, sending without them");
+              sendMessageProgrammatically(featureContext.appIdea, imageKeys);
+            }
+          } catch (error) {
+            console.error("[ChatPanel] Error fetching preview URLs:", error);
+            sendMessageProgrammatically(featureContext.appIdea, imageKeys);
+          }
+        })();
+      } else {
+        sendMessageProgrammatically(featureContext.appIdea);
+      }
     }
   }, [featureContext, initialLoadComplete, channelStatus, messages.length, isLoading, user, sendMessageProgrammatically, projectId]);
 

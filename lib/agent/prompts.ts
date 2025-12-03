@@ -293,6 +293,12 @@ export interface FeatureGenerationOptions {
    * Example: "A grocery list app that helps me track what I need to buy"
    */
   appIdea: string;
+
+  /**
+   * Whether the user has attached reference images
+   * When true, the prompt will instruct Claude to analyze the images
+   */
+  hasImages?: boolean;
 }
 
 /**
@@ -310,8 +316,22 @@ export interface FeatureGenerationOptions {
 export function buildFeatureGenerationPrompt(
   options: FeatureGenerationOptions
 ): string {
-  return `You are an expert mobile app product manager. Analyze the following app idea and generate a list of features that would make this app successful.
+  const imageContext = options.hasImages
+    ? `
 
+**Reference Images:**
+The user has attached screenshot(s) or mockup(s) showing their vision for the app. Carefully analyze these images to understand:
+- The UI design and layout they want
+- Any specific screens or features shown
+- Color schemes, branding, or visual style preferences
+- Specific functionality visible in the mockups
+
+Use this visual information along with their text description to generate relevant features that match what they're envisioning.
+`
+    : "";
+
+  return `You are an expert mobile app product manager. Analyze the following app idea and generate a list of features that would make this app successful.
+${imageContext}
 **User's App Idea:**
 ${options.appIdea}
 

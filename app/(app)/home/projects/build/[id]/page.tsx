@@ -30,6 +30,7 @@ type Project = {
   session_id: string | null;
   app_idea: string | null;
   planning_completed_at: string | null;
+  image_keys: string[] | null;
 }
 
 export default function ProjectBuildPage() {
@@ -515,7 +516,7 @@ export default function ProjectBuildPage() {
           sandboxId={project.e2b_sandbox_id || undefined}
           featureContext={
             project.app_idea
-              ? { appIdea: project.app_idea, features }
+              ? { appIdea: project.app_idea, features, imageKeys: project.image_keys || [] }
               : undefined
           }
           sandboxStatus={sandboxStatus}
@@ -533,7 +534,7 @@ export default function ProjectBuildPage() {
           sandboxId={project.e2b_sandbox_id || undefined}
           featureContext={
             project.app_idea
-              ? { appIdea: project.app_idea, features }
+              ? { appIdea: project.app_idea, features, imageKeys: project.image_keys || [] }
               : undefined
           }
           sandboxStatus={sandboxStatus}
