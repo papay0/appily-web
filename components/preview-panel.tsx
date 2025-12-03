@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Loader2, QrCode, Sparkles, Globe, ExternalLink, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Iphone } from "@/components/ui/iphone";
 import { cn } from "@/lib/utils";
 import { SandboxStatusOverlay } from "@/components/sandbox-status-overlay";
@@ -30,9 +30,24 @@ export function PreviewPanel({
   healthMessage,
 }: PreviewPanelProps) {
   const [viewMode, setViewMode] = useState<"qr" | "web">("qr");
+  const [isWebLoading, setIsWebLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Derive web URL from expo URL (exp:// -> https://)
   const webUrl = expoUrl ? expoUrl.replace("exp://", "https://") : undefined;
+
+  // Reset loading state when URL changes
+  useEffect(() => {
+    if (webUrl) {
+      setIsWebLoading(true);
+    }
+  }, [webUrl]);
+
+  // Handle refresh button click
+  const handleRefresh = () => {
+    setIsWebLoading(true);
+    setRefreshKey(prev => prev + 1);
+  };
 
   // Determine if we should show the health overlay
   const showHealthOverlay = healthStatus && healthStatus !== "ready";
@@ -62,7 +77,7 @@ export function PreviewPanel({
       {/* View Mode Tabs */}
       {showTabs && (
         <div className="flex justify-center pt-4">
-          <div className="inline-flex glass-morphism rounded-lg p-0.5">
+          <div className="inline-flex items-center glass-morphism rounded-lg p-0.5">
             <button
               onClick={() => setViewMode("qr")}
               className={cn(
@@ -87,6 +102,15 @@ export function PreviewPanel({
               <Globe className="h-3.5 w-3.5" />
               Web Preview
             </button>
+            {viewMode === "web" && (
+              <button
+                onClick={handleRefresh}
+                className="p-1.5 ml-0.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/10 transition-all"
+                title="Refresh preview"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -117,24 +141,24 @@ export function PreviewPanel({
           {/* Idle with existing QR Code */}
           {sandboxStatus === "idle" && qrCode && (
             <div className="text-center space-y-6 animate-scale-fade-in">
-              {/* iPhone Frame with QR Code or Web Preview */}
-              <div className="mx-auto flex justify-center">
-                {viewMode === "qr" ? (
-                  <div className="qr-glow">
+              {/* iPhone Frame with QR Code or Web Preview - both rendered, CSS hidden */}
+              <div className="relative mx-auto flex justify-center">
+                <div className={cn("qr-glow", viewMode !== "qr" && "invisible absolute")}>
+                  <Iphone
+                    src={qrCode}
+                    className="w-[320px]"
+                  />
+                </div>
+                {webUrl && (
+                  <div className={cn("web-preview-glow", viewMode !== "web" && "invisible absolute")}>
                     <Iphone
-                      src={qrCode}
+                      key={refreshKey}
+                      iframeSrc={webUrl}
+                      isIframeLoading={isWebLoading}
+                      onIframeLoad={() => setIsWebLoading(false)}
                       className="w-[320px]"
                     />
                   </div>
-                ) : (
-                  webUrl && (
-                    <div className="web-preview-glow">
-                      <Iphone
-                        iframeSrc={webUrl}
-                        className="w-[320px]"
-                      />
-                    </div>
-                  )
                 )}
               </div>
 
@@ -209,23 +233,23 @@ export function PreviewPanel({
           {/* Starting with existing QR Code */}
           {sandboxStatus === "starting" && qrCode && (
             <div className="text-center space-y-6 animate-scale-fade-in">
-              <div className="mx-auto flex justify-center opacity-75">
-                {viewMode === "qr" ? (
-                  <div className="qr-glow">
+              <div className="relative mx-auto flex justify-center opacity-75">
+                <div className={cn("qr-glow", viewMode !== "qr" && "invisible absolute")}>
+                  <Iphone
+                    src={qrCode}
+                    className="w-[320px]"
+                  />
+                </div>
+                {webUrl && (
+                  <div className={cn("web-preview-glow", viewMode !== "web" && "invisible absolute")}>
                     <Iphone
-                      src={qrCode}
+                      key={refreshKey}
+                      iframeSrc={webUrl}
+                      isIframeLoading={isWebLoading}
+                      onIframeLoad={() => setIsWebLoading(false)}
                       className="w-[320px]"
                     />
                   </div>
-                ) : (
-                  webUrl && (
-                    <div className="web-preview-glow">
-                      <Iphone
-                        iframeSrc={webUrl}
-                        className="w-[320px]"
-                      />
-                    </div>
-                  )
                 )}
               </div>
               <div className="space-y-3">
@@ -244,11 +268,11 @@ export function PreviewPanel({
           {/* Ready State - Success */}
           {sandboxStatus === "ready" && (
             <div className="text-center space-y-6 animate-bounce-in">
-              {/* iPhone Frame with QR Code or Web Preview */}
-              <div className="mx-auto flex justify-center">
-                {viewMode === "qr" ? (
-                  // QR Code View
-                  qrCode ? (
+              {/* iPhone Frame with QR Code or Web Preview - both rendered, CSS hidden */}
+              <div className="relative mx-auto flex justify-center">
+                {/* QR Code View */}
+                <div className={cn(viewMode !== "qr" && "invisible absolute")}>
+                  {qrCode ? (
                     <div className="qr-glow">
                       <Iphone
                         src={qrCode}
@@ -264,13 +288,17 @@ export function PreviewPanel({
                         </p>
                       </div>
                     </div>
-                  )
-                ) : (
-                  // Web Preview View
-                  webUrl ? (
+                  )}
+                </div>
+                {/* Web Preview View */}
+                <div className={cn(viewMode !== "web" && "invisible absolute")}>
+                  {webUrl ? (
                     <div className="web-preview-glow">
                       <Iphone
+                        key={refreshKey}
                         iframeSrc={webUrl}
+                        isIframeLoading={isWebLoading}
+                        onIframeLoad={() => setIsWebLoading(false)}
                         className="w-[320px]"
                       />
                     </div>
@@ -283,8 +311,8 @@ export function PreviewPanel({
                         </p>
                       </div>
                     </div>
-                  )
-                )}
+                  )}
+                </div>
               </div>
 
               {/* Instructions - different for QR vs Web */}

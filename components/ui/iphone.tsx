@@ -1,4 +1,5 @@
 import type { HTMLAttributes } from "react"
+import { Loader2 } from "lucide-react"
 
 const PHONE_WIDTH = 433
 const PHONE_HEIGHT = 882
@@ -20,12 +21,16 @@ export interface IphoneProps extends HTMLAttributes<HTMLDivElement> {
   src?: string
   videoSrc?: string
   iframeSrc?: string
+  onIframeLoad?: () => void
+  isIframeLoading?: boolean
 }
 
 export function Iphone({
   src,
   videoSrc,
   iframeSrc,
+  onIframeLoad,
+  isIframeLoading,
   className,
   style,
   ...props
@@ -82,7 +87,13 @@ export function Iphone({
             className="block size-full border-0 bg-white"
             title="Web Preview"
             allow="accelerometer; camera; microphone; geolocation"
+            onLoad={onIframeLoad}
           />
+          {isIframeLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white">
+              <Loader2 className="h-8 w-8 text-primary animate-spin" />
+            </div>
+          )}
         </div>
       )}
 
