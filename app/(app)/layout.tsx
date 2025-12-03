@@ -19,7 +19,7 @@ export default function AppLayout({
 
   return (
     <div className="fixed inset-0 overflow-hidden flex pt-safe pb-safe bg-background">
-      <SidebarProvider>
+      <SidebarProvider defaultOpen={!isIndividualProjectPage}>
         <AppSidebar />
         <SidebarInset className="flex flex-col">
           {!isIndividualProjectPage && (

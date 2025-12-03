@@ -33,7 +33,7 @@ const menuItems = [
 
 export function AppSidebar() {
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       <SidebarHeader>
         <Link href="/home" className="flex items-center gap-2 px-2 py-2 cursor-pointer hover:opacity-80 transition-opacity">
           <Image
@@ -42,7 +42,7 @@ export function AppSidebar() {
             width={24}
             height={24}
           />
-          <span className="text-xl font-bold">Appily</span>
+          <span className="text-xl font-bold group-data-[collapsible=icon]:hidden">Appily</span>
         </Link>
       </SidebarHeader>
 
@@ -53,7 +53,7 @@ export function AppSidebar() {
             <SidebarMenu>
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
+                  <SidebarMenuButton asChild tooltip={item.title}>
                     <a href={item.url}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
@@ -67,7 +67,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
-        <div className="flex items-center justify-between px-2 py-2">
+        <div className="flex items-center justify-between px-2 py-2 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-2">
           <UserButton
             appearance={{
               elements: {

@@ -6,7 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { AppBreadcrumbs } from "@/components/app-breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Pencil, Check, X, QrCode, Eye, Code2 } from "lucide-react";
+import { Loader2, Pencil, Check, X, QrCode, Eye, Code2, RefreshCw } from "lucide-react";
 import { useSupabaseClient } from "@/lib/supabase-client";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +21,10 @@ interface ProjectHeaderProps {
   // Mobile QR code button
   hasQrCode?: boolean;
   onOpenQrSheet?: () => void;
+
+  // Sandbox status controls (desktop only)
+  sandboxStatus?: "idle" | "starting" | "ready" | "error";
+  onRestart?: () => void;
 }
 
 export function ProjectHeader({
@@ -30,6 +34,8 @@ export function ProjectHeader({
   onViewModeChange,
   hasQrCode,
   onOpenQrSheet,
+  sandboxStatus,
+  onRestart,
 }: ProjectHeaderProps) {
   const supabase = useSupabaseClient();
   const [isEditing, setIsEditing] = useState(false);
@@ -203,6 +209,44 @@ export function ProjectHeader({
             <Code2 className="h-4 w-4" />
             Code
           </button>
+        </div>
+      )}
+
+      {/* Desktop: Live indicator + Restart button */}
+      {sandboxStatus && onRestart && (
+        <div className="hidden md:flex items-center gap-3">
+          {/* Live Status Indicator */}
+          {sandboxStatus === "ready" && (
+            <div className="flex items-center gap-1.5">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+              </span>
+              <span className="text-sm text-muted-foreground">Live</span>
+            </div>
+          )}
+          {sandboxStatus === "starting" && (
+            <div className="flex items-center gap-1.5">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              <span className="text-sm text-muted-foreground">Starting...</span>
+            </div>
+          )}
+
+          {/* Restart Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRestart}
+            disabled={sandboxStatus === "starting"}
+            className={cn(
+              "gap-1.5 rounded-lg",
+              "glass-morphism border-border/50",
+              "hover:border-primary/50 hover:bg-primary/5"
+            )}
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", sandboxStatus === "starting" && "animate-spin")} />
+            Restart
+          </Button>
         </div>
       )}
 

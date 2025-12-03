@@ -445,10 +445,10 @@ export default function ProjectBuildPage() {
           </div>
         </div>
 
-        {/* Desktop: Two-Panel Layout Skeleton (50/50 split to match actual layout) */}
+        {/* Desktop: Two-Panel Layout Skeleton (40/60 split to match actual layout) */}
         <div className="hidden md:flex flex-1 min-h-0">
-          {/* Left Panel - Chat Skeleton (50%) */}
-          <div className="w-[50%] border-r flex flex-col">
+          {/* Left Panel - Chat Skeleton (40%) */}
+          <div className="w-[40%] border-r flex flex-col">
             <div className="flex-1 overflow-hidden p-4 space-y-4">
               {/* Message skeletons */}
               {[...Array(5)].map((_, i) => (
@@ -469,22 +469,25 @@ export default function ProjectBuildPage() {
             </div>
           </div>
 
-          {/* Right Panel - Preview Skeleton (50%) */}
-          <div className="w-[50%] flex flex-col bg-gradient-to-br from-gray-50 via-blue-50/20 to-purple-50/20 dark:from-gray-900 dark:via-blue-950/20 dark:to-purple-950/20">
-            {/* Tabs skeleton */}
-            <div className="flex justify-center pt-4">
-              <Skeleton className="h-9 w-52 rounded-lg" />
-            </div>
-            {/* iPhone frame and instructions */}
-            <div className="flex-1 flex items-center justify-center p-6">
-              <div className="text-center space-y-6">
-                {/* iPhone frame skeleton */}
-                <div className="mx-auto">
-                  <Skeleton className="w-[320px] h-[640px] rounded-[3rem]" />
-                </div>
-                {/* Text skeleton */}
-                <Skeleton className="h-6 w-48 mx-auto" />
-                <Skeleton className="h-4 w-64 mx-auto" />
+          {/* Right Panel - Preview Skeleton (60%) - Side by side layout */}
+          <div className="w-[60%] flex bg-gradient-to-br from-gray-50 via-blue-50/20 to-purple-50/20 dark:from-gray-900 dark:via-blue-950/20 dark:to-purple-950/20">
+            <div className="flex gap-8 h-full items-center justify-center p-2 w-full">
+              {/* Left: iPhone skeleton */}
+              <div className="flex items-center justify-center h-full">
+                <Skeleton className="h-[90%] aspect-[433/882] rounded-[3rem]" />
+              </div>
+
+              {/* Right: QR + instructions skeleton */}
+              <div className="flex flex-col items-center justify-center gap-6 w-[300px] flex-shrink-0">
+                {/* QR Code skeleton */}
+                <Skeleton className="w-52 h-52 rounded-xl" />
+                {/* Scan instructions skeleton */}
+                <Skeleton className="h-5 w-40" />
+                <Skeleton className="h-4 w-32" />
+                {/* Warning box skeleton */}
+                <Skeleton className="h-24 w-full rounded-lg" />
+                {/* Steps skeleton */}
+                <Skeleton className="h-20 w-full" />
               </div>
             </div>
           </div>
@@ -514,6 +517,8 @@ export default function ProjectBuildPage() {
         onViewModeChange={(mode) => setViewMode(mode)}
         hasQrCode={!!qrCode}
         onOpenQrSheet={() => setQrSheetOpen(true)}
+        sandboxStatus={sandboxStatus}
+        onRestart={handleStartSandbox}
       />
 
       {/* Conditionally render Mobile OR Desktop - never both */}
