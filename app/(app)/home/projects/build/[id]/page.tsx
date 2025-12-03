@@ -445,10 +445,10 @@ export default function ProjectBuildPage() {
           </div>
         </div>
 
-        {/* Desktop: Two-Panel Layout Skeleton */}
+        {/* Desktop: Two-Panel Layout Skeleton (50/50 split to match actual layout) */}
         <div className="hidden md:flex flex-1 min-h-0">
-          {/* Left Panel - Chat Skeleton */}
-          <div className="w-[30%] border-r flex flex-col">
+          {/* Left Panel - Chat Skeleton (50%) */}
+          <div className="w-[50%] border-r flex flex-col">
             <div className="flex-1 overflow-hidden p-4 space-y-4">
               {/* Message skeletons */}
               {[...Array(5)].map((_, i) => (
@@ -469,16 +469,23 @@ export default function ProjectBuildPage() {
             </div>
           </div>
 
-          {/* Right Panel - Preview Skeleton */}
-          <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-gray-50 via-blue-50/20 to-purple-50/20 dark:from-gray-900 dark:via-blue-950/20 dark:to-purple-950/20 p-6">
-            <div className="text-center space-y-6">
-              {/* iPhone frame skeleton */}
-              <div className="mx-auto">
-                <Skeleton className="w-[320px] h-[640px] rounded-[3rem]" />
+          {/* Right Panel - Preview Skeleton (50%) */}
+          <div className="w-[50%] flex flex-col bg-gradient-to-br from-gray-50 via-blue-50/20 to-purple-50/20 dark:from-gray-900 dark:via-blue-950/20 dark:to-purple-950/20">
+            {/* Tabs skeleton */}
+            <div className="flex justify-center pt-4">
+              <Skeleton className="h-9 w-52 rounded-lg" />
+            </div>
+            {/* iPhone frame and instructions */}
+            <div className="flex-1 flex items-center justify-center p-6">
+              <div className="text-center space-y-6">
+                {/* iPhone frame skeleton */}
+                <div className="mx-auto">
+                  <Skeleton className="w-[320px] h-[640px] rounded-[3rem]" />
+                </div>
+                {/* Text skeleton */}
+                <Skeleton className="h-6 w-48 mx-auto" />
+                <Skeleton className="h-4 w-64 mx-auto" />
               </div>
-              {/* Text skeleton */}
-              <Skeleton className="h-6 w-48 mx-auto" />
-              <Skeleton className="h-4 w-64 mx-auto" />
             </div>
           </div>
         </div>
