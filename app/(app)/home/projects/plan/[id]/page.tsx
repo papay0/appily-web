@@ -7,6 +7,7 @@ import { useSupabaseClient } from "@/lib/supabase-client";
 import { FeatureChecklist } from "@/components/feature-checklist";
 import { AddFeatureDialog } from "@/components/add-feature-dialog";
 import { ProjectHeader } from "@/components/project-header";
+import { ClickableImageGrid } from "@/components/clickable-image-grid";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, ArrowRight, Loader2, Sparkles } from "lucide-react";
@@ -95,6 +96,7 @@ export default function PlanPage({
   const [features, setFeatures] = useState<PlanningFeature[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
 
   // Load project
   useEffect(() => {
@@ -122,6 +124,23 @@ export default function PlanPage({
 
         setProject(projectData);
         setLoading(false);
+
+        // Fetch preview URLs for images if they exist
+        if (projectData.image_keys && projectData.image_keys.length > 0) {
+          try {
+            const response = await fetch("/api/images/preview", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ imageKeys: projectData.image_keys }),
+            });
+            if (response.ok) {
+              const { previewUrls } = await response.json();
+              setImagePreviewUrls(previewUrls);
+            }
+          } catch (error) {
+            console.error("Error fetching image preview URLs:", error);
+          }
+        }
 
         // Start generating features if we have an app idea
         if (projectData.app_idea) {
@@ -282,6 +301,16 @@ export default function PlanPage({
                 Your App Idea
               </p>
               <p className="text-foreground">{project.app_idea}</p>
+            </div>
+          )}
+
+          {/* Reference Images */}
+          {imagePreviewUrls.length > 0 && (
+            <div className="rounded-lg border p-4 bg-muted/30">
+              <p className="text-sm font-medium text-muted-foreground mb-3">
+                Reference Images
+              </p>
+              <ClickableImageGrid imageUrls={imagePreviewUrls} thumbnailSize="lg" />
             </div>
           )}
 

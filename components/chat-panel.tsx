@@ -213,12 +213,17 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
           markEventProcessed(event);
           return;
         }
+        // Extract imageUrls from event_data if present
+        const imageUrls = Array.isArray(event.event_data?.imageUrls)
+          ? event.event_data.imageUrls as string[]
+          : undefined;
         setMessages((prev) => [...prev, {
           id: event.id || generateId(),
           role: "user",
           content,
           timestamp: new Date(event.created_at),
           avatarUrl: user?.imageUrl,
+          imageUrls,
         }]);
       }
       markEventProcessed(event);
@@ -431,6 +436,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
           workingDirectory: "/home/user/project",
           clientMessageId: userMessage.id,
           imageKeys, // R2 keys of attached images
+          imagePreviewUrls, // Signed URLs for displaying in chat UI
         }),
       });
 

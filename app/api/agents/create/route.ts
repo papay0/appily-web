@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     }
 
     // Parse request body
-    const { prompt, projectId, workingDirectory, sandboxId, clientMessageId, displayMessage, imageKeys } =
+    const { prompt, projectId, workingDirectory, sandboxId, clientMessageId, displayMessage, imageKeys, imagePreviewUrls } =
       await request.json();
 
     if (!prompt || !projectId) {
@@ -54,6 +54,9 @@ export async function POST(request: Request) {
 
     // Validate imageKeys if provided
     const validatedImageKeys: string[] = Array.isArray(imageKeys) ? imageKeys.filter((k: unknown) => typeof k === "string") : [];
+
+    // Validate imagePreviewUrls if provided (for displaying in chat)
+    const validatedImageUrls: string[] = Array.isArray(imagePreviewUrls) ? imagePreviewUrls.filter((u: unknown) => typeof u === "string") : [];
 
     // displayMessage is what gets stored in DB and shown in chat
     // prompt is what gets sent to Claude (may include enhanced context)
@@ -92,6 +95,8 @@ export async function POST(request: Request) {
           content: messageToStore,
           timestamp: new Date().toISOString(),
           clientMessageId,
+          // Include image URLs for display in chat UI
+          ...(validatedImageUrls.length > 0 && { imageUrls: validatedImageUrls }),
         },
       });
       console.log("[API] ✓ User message stored in database");

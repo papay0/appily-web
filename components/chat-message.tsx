@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   User,
@@ -21,6 +22,7 @@ import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { OperationalEventDetails } from "./operational-event-details";
+import { ImageLightbox } from "./image-lightbox";
 
 interface Message {
   id: string;
@@ -38,37 +40,29 @@ interface ChatMessageProps {
   message: Message;
 }
 
-export function ChatMessage({ message }: ChatMessageProps) {
-  // Helper to check if this is an operational event with details
-  const isOperationalEvent =
-    message.eventData?.subtype === "operation" &&
-    message.eventData?.details &&
-    typeof message.eventData.details === "object";
+// Separate component for user messages to handle lightbox state
+function UserMessageWithLightbox({ message, hasImages }: { message: Message; hasImages: boolean }) {
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
-  const getOperationalDetails = () => {
-    if (!isOperationalEvent) return null;
-
-    return {
-      details: message.eventData?.details as Record<string, unknown>,
-      status: (message.eventData?.status as string) || "unknown",
-      operation: (message.eventData?.operation as string) || "unknown",
-    };
+  const handleImageClick = (index: number) => {
+    setLightboxIndex(index);
+    setLightboxOpen(true);
   };
 
-  // User messages - Messenger style gradient bubble
-  if (message.role === "user") {
-    const hasImages = message.imageUrls && message.imageUrls.length > 0;
-
-    return (
+  return (
+    <>
       <div className="flex items-end gap-2 w-full justify-end animate-message-right">
         <div className="flex flex-col items-end gap-1.5 max-w-[80%]">
           {/* Image thumbnails */}
           {hasImages && (
             <div className="flex flex-wrap gap-1.5 justify-end">
               {message.imageUrls!.map((url, index) => (
-                <div
+                <button
                   key={index}
-                  className="w-16 h-16 rounded-lg overflow-hidden ring-1 ring-white/20"
+                  type="button"
+                  onClick={() => handleImageClick(index)}
+                  className="w-16 h-16 rounded-lg overflow-hidden ring-1 ring-white/20 cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   <Image
                     src={url}
@@ -78,7 +72,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                     className="w-full h-full object-cover"
                     unoptimized
                   />
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -101,6 +95,43 @@ export function ChatMessage({ message }: ChatMessageProps) {
           </div>
         )}
       </div>
+
+      {/* Lightbox for image preview */}
+      {hasImages && (
+        <ImageLightbox
+          images={message.imageUrls!}
+          open={lightboxOpen}
+          onClose={() => setLightboxOpen(false)}
+          startIndex={lightboxIndex}
+        />
+      )}
+    </>
+  );
+}
+
+export function ChatMessage({ message }: ChatMessageProps) {
+  // Helper to check if this is an operational event with details
+  const isOperationalEvent =
+    message.eventData?.subtype === "operation" &&
+    message.eventData?.details &&
+    typeof message.eventData.details === "object";
+
+  const getOperationalDetails = () => {
+    if (!isOperationalEvent) return null;
+
+    return {
+      details: message.eventData?.details as Record<string, unknown>,
+      status: (message.eventData?.status as string) || "unknown",
+      operation: (message.eventData?.operation as string) || "unknown",
+    };
+  };
+
+  // User messages - Messenger style gradient bubble
+  if (message.role === "user") {
+    const hasImages = !!(message.imageUrls && message.imageUrls.length > 0);
+
+    return (
+      <UserMessageWithLightbox message={message} hasImages={hasImages} />
     );
   }
 
