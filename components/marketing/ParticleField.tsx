@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState, useEffect } from "react";
 
 interface ParticleFieldProps {
   particleCount?: number;
@@ -17,15 +17,19 @@ interface Particle {
 }
 
 export function ParticleField({ particleCount = 30, className = "" }: ParticleFieldProps) {
-  const particles = useMemo<Particle[]>(() => {
-    return Array.from({ length: particleCount }, (_, i) => ({
-      id: i,
-      left: `${Math.random() * 100}%`,
-      size: Math.random() * 4 + 2,
-      duration: Math.random() * 20 + 15,
-      delay: Math.random() * 20,
-      opacity: Math.random() * 0.5 + 0.2,
-    }));
+  const [particles, setParticles] = useState<Particle[]>([]);
+
+  useEffect(() => {
+    setParticles(
+      Array.from({ length: particleCount }, (_, i) => ({
+        id: i,
+        left: `${Math.random() * 100}%`,
+        size: Math.random() * 4 + 2,
+        duration: Math.random() * 20 + 15,
+        delay: Math.random() * 20,
+        opacity: Math.random() * 0.5 + 0.2,
+      }))
+    );
   }, [particleCount]);
 
   return (
