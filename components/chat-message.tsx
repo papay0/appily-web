@@ -23,6 +23,7 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { OperationalEventDetails } from "./operational-event-details";
 import { ImageLightbox } from "./image-lightbox";
+import { RuntimeErrorMessage, FullError, DeviceInfo } from "./runtime-error-message";
 
 interface Message {
   id: string;
@@ -38,6 +39,7 @@ interface Message {
 
 interface ChatMessageProps {
   message: Message;
+  onFixError?: (errorMessage: string, fullError?: FullError) => void;
 }
 
 // Separate component for user messages to handle lightbox state
@@ -109,7 +111,7 @@ function UserMessageWithLightbox({ message, hasImages }: { message: Message; has
   );
 }
 
-export function ChatMessage({ message }: ChatMessageProps) {
+export function ChatMessage({ message, onFixError }: ChatMessageProps) {
   // Helper to check if this is an operational event with details
   const isOperationalEvent =
     message.eventData?.subtype === "operation" &&
@@ -246,6 +248,22 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
   // System messages (tool use, completion, errors)
   if (message.role === "system") {
+    // Runtime error from Expo Go - show special error component
+    if (message.toolUse === "RuntimeError" && message.eventData) {
+      const errorData = message.eventData;
+      const fullError = errorData.fullError as FullError | undefined;
+      const deviceInfo = errorData.deviceInfo as DeviceInfo | undefined;
+
+      return (
+        <RuntimeErrorMessage
+          message={message.content}
+          fullError={fullError}
+          deviceInfo={deviceInfo}
+          onFixError={onFixError ? () => onFixError(message.content, fullError) : undefined}
+        />
+      );
+    }
+
     // Tool use indicator with specific icons - glassmorphic style
     if (message.toolUse) {
       // Determine icon and color based on tool type

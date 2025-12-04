@@ -7,6 +7,7 @@ import { useSession, useUser } from "@clerk/nextjs";
 import { useSupabaseClient } from "@/lib/supabase-client";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 import { ChatMessage } from "./chat-message";
+import type { FullError } from "./runtime-error-message";
 import { TodoList, type Todo } from "./todo-list";
 import { ToolUseGroup } from "./tool-use-group";
 import { FeatureContextCard } from "./feature-context-card";
@@ -273,6 +274,21 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
       return;
     }
 
+    // Handle runtime errors from Expo Go
+    if (event.event_type === "runtime_error") {
+      const errorData = event.event_data;
+      setMessages((prev) => [...prev, {
+        id: event.id || generateId(),
+        role: "system",
+        content: errorData.message || "A runtime error occurred in the app",
+        timestamp: new Date(event.created_at),
+        toolUse: "RuntimeError",
+        eventData: errorData as Record<string, unknown>,
+      }]);
+      markEventProcessed(event);
+      return;
+    }
+
     if (event.event_type === "result") {
       setIsLoading(false);
       if (event.event_data.subtype === "success") {
@@ -468,6 +484,37 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
     }
   }, [isLoading, user, messages, featureContext, projectId, sandboxId]);
 
+  // Handle "Fix this error" button click from RuntimeErrorMessage
+  const handleFixError = useCallback((errorMessage: string, fullError?: FullError) => {
+    // Format the error into a prompt for the agent
+    let fixPrompt = `Please fix this runtime error that occurred in the app:\n\n${errorMessage}`;
+
+    if (fullError) {
+      const error = fullError;
+
+      if (error.filename && error.lineNumber) {
+        fixPrompt += `\n\nFile: ${error.filename}`;
+        fixPrompt += `\nLine: ${error.lineNumber}`;
+      }
+
+      if (error.stack) {
+        // Include first few lines of stack trace for context
+        const stackLines = error.stack.split('\n').slice(0, 5).join('\n');
+        fixPrompt += `\n\nStack trace:\n${stackLines}`;
+      }
+
+      if (error.componentStack) {
+        const componentLines = error.componentStack.split('\n').slice(0, 3).join('\n');
+        fixPrompt += `\n\nComponent stack:\n${componentLines}`;
+      }
+    }
+
+    fixPrompt += "\n\nPlease identify the issue and fix the code.";
+
+    // Send as a user message to trigger the agent
+    sendMessageProgrammatically(fixPrompt);
+  }, [sendMessageProgrammatically]);
+
   // Auto-start when coming from planning with feature context
   useEffect(() => {
     // Only auto-start if:
@@ -585,7 +632,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
 
                   return (
                     <div key={message.id} className="w-full max-w-full overflow-hidden">
-                      <ChatMessage message={message} />
+                      <ChatMessage message={message} onFixError={handleFixError} />
                       {/* Show feature context after first user message */}
                       {showFeatureContext && (
                         <div className="mt-1.5 ml-auto max-w-[85%]">
