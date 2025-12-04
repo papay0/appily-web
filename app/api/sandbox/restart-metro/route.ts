@@ -28,74 +28,55 @@ export async function POST(request: Request) {
       apiKey: process.env.E2B_API_KEY,
     });
 
-    // Kill any existing Expo/Metro processes
-    console.log("[restart-metro] Stopping Expo...");
+    // Kill any existing tmux session and Expo/Metro processes
+    console.log("[restart-metro] Stopping existing Metro...");
     try {
-      await sandbox.commands.run("pkill -f 'expo start'");
-      await sandbox.commands.run("pkill -f 'node.*metro'");
+      await sandbox.commands.run("tmux kill-session -t metro 2>/dev/null || true");
+      await sandbox.commands.run("pkill -f 'expo start' 2>/dev/null || true");
+      await sandbox.commands.run("pkill -f 'node.*metro' 2>/dev/null || true");
     } catch {
-      // Ignore errors if no processes found
+      // Ignore errors if no processes/sessions found
     }
 
-    // Wait a bit for processes to die
+    // Wait for processes to die
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    // Get the E2B public hostname and restart Expo
+    // Get the E2B public hostname
     const hostname = await sandbox.getHost(8081);
-    console.log(`[restart-metro] Starting Expo on ${hostname}...`);
+    console.log(`[restart-metro] Starting Expo in tmux session on ${hostname}...`);
 
-    // Create a Promise that resolves when Expo is ready
-    const expoReadyPromise = new Promise<void>(async (resolve) => {
-      let resolved = false;
+    // Start Expo in tmux session (matching setup-expo.js approach for metro-control.js compatibility)
+    // Note: tmux passes the command as a single argument, so we use single quotes to avoid escaping issues
+    await sandbox.commands.run(
+      `tmux new-session -d -s metro 'cd /home/user/project && NODE_OPTIONS="--max-old-space-size=3072" npx expo start --tunnel'`
+    );
 
-      await sandbox.commands.run(
-        `cd /home/user/project && NODE_OPTIONS="--max-old-space-size=3072" npx expo start --tunnel`,
-        {
-          background: true,
-          timeoutMs: 0,
-          onStdout: (data) => {
-            // Only log important messages
-            if (data.includes("Metro") || data.includes("Tunnel") || data.includes("error") || data.includes("Error")) {
-              console.log("[Expo]", data.trim());
-            }
+    // Wait for Expo to be ready by polling tmux pane output
+    const startTime = Date.now();
+    const maxWait = 60000; // 60 seconds
+    let expoReady = false;
 
-            if (
-              !resolved &&
-              (data.includes("Metro") ||
-                data.includes("Tunnel ready") ||
-                data.includes("exp://") ||
-                (data.includes("tunnel") && data.includes("ready")))
-            ) {
-              resolved = true;
-              console.log("[restart-metro] ✓ Expo is ready!");
-              resolve();
-            }
-          },
-          onStderr: (data) => {
-            // Only log errors
-            if (data.includes("error") || data.includes("Error") || data.includes("failed")) {
-              console.error("[Expo]", data.trim());
-            }
-          },
-        }
+    while (!expoReady && Date.now() - startTime < maxWait) {
+      const result = await sandbox.commands.run(
+        'tmux capture-pane -t metro -p 2>/dev/null || echo ""'
       );
-    });
 
-    // Wait for Expo to be ready with 60 second timeout
-    try {
-      await Promise.race([
-        expoReadyPromise,
-        new Promise<void>((_, rejectPromise) =>
-          setTimeout(() => rejectPromise(new Error("Expo startup timeout after 60 seconds")), 60000)
-        ),
-      ]);
-    } catch (error) {
-      console.error("[restart-metro] Expo failed to start:", error);
-      await sandbox.kill();
-      return NextResponse.json(
-        { error: "Failed to restart Metro server" },
-        { status: 500 }
-      );
+      const output = result.stdout || "";
+      if (
+        output.includes("Metro") ||
+        output.includes("Tunnel ready") ||
+        output.includes("exp://") ||
+        (output.includes("tunnel") && output.includes("ready"))
+      ) {
+        expoReady = true;
+        console.log("[restart-metro] ✓ Expo is ready!");
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+    }
+
+    if (!expoReady) {
+      console.warn("[restart-metro] Warning: Expo readiness not confirmed within 60s, proceeding anyway...");
     }
 
     // Generate new QR code
