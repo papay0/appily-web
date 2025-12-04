@@ -64,7 +64,7 @@ function PlanPageSkeleton() {
     <div className="flex flex-col h-full">
       <ProjectHeader />
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto p-6 space-y-6">
+        <div className="max-w-2xl mx-auto p-6 pb-4 space-y-6">
           <div className="space-y-2">
             <Skeleton className="h-8 w-64" />
             <Skeleton className="h-5 w-96" />
@@ -74,6 +74,11 @@ function PlanPageSkeleton() {
             <Skeleton className="h-16 w-full" />
           </div>
           <FeatureListSkeleton />
+        </div>
+      </div>
+      <div className="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="max-w-2xl mx-auto px-6 py-4">
+          <Skeleton className="h-11 w-full" />
         </div>
       </div>
     </div>
@@ -281,7 +286,7 @@ export default function PlanPage({
       <ProjectHeader projectId={project.id} projectName={project.name} />
 
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto p-6 space-y-6">
+        <div className="max-w-2xl mx-auto p-6 pb-4 space-y-6">
           {/* Header */}
           <div className="space-y-2">
             <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -346,33 +351,35 @@ export default function PlanPage({
               </>
             )}
           </div>
+        </div>
+      </div>
 
-          {/* Start Building Button */}
-          <div className="pt-4 border-t">
-            <Button
-              onClick={handleStartBuilding}
-              disabled={isSaving || generatingFeatures}
-              size="lg"
-              className="w-full"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  Start Building
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </>
-              )}
-            </Button>
-            {features.length > 0 && !generatingFeatures && (
-              <p className="text-center text-sm text-muted-foreground mt-2">
-                {includedCount} feature{includedCount !== 1 ? "s" : ""} selected
-              </p>
+      {/* Start Building Button - Sticky Footer */}
+      <div className="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="max-w-2xl mx-auto px-6 py-4">
+          <Button
+            onClick={handleStartBuilding}
+            disabled={isSaving || generatingFeatures}
+            size="lg"
+            className="w-full"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                Start Building
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </>
             )}
-          </div>
+          </Button>
+          {features.length > 0 && !generatingFeatures && (
+            <p className="text-center text-sm text-muted-foreground mt-2">
+              {includedCount} feature{includedCount !== 1 ? "s" : ""} selected
+            </p>
+          )}
         </div>
       </div>
 
