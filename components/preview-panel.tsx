@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { Iphone } from "@/components/ui/iphone";
 import { SandboxStatusOverlay } from "@/components/sandbox-status-overlay";
 import type { HealthStatus } from "@/app/api/sandbox/health/route";
+import { cn } from "@/lib/utils";
 
 interface PreviewPanelProps {
   sandboxStatus: "idle" | "starting" | "ready" | "error";
@@ -27,9 +28,16 @@ export function PreviewPanel({
   healthMessage,
 }: PreviewPanelProps) {
   const [isWebLoading, setIsWebLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Derive web URL from expo URL (exp:// -> https://)
   const webUrl = expoUrl ? expoUrl.replace("exp://", "https://") : undefined;
+
+  // Handle manual refresh of the iframe
+  const handleRefreshPreview = () => {
+    setIsWebLoading(true);
+    setRefreshKey((prev) => prev + 1);
+  };
 
   // Reset loading state when URL changes
   useEffect(() => {
@@ -166,9 +174,39 @@ export function PreviewPanel({
           <div className="flex gap-8 h-full items-center justify-center animate-scale-fade-in">
             {/* Left: Phone Preview (Web) */}
             <div className="flex items-center justify-center h-full">
-              <div className="web-preview-glow h-full flex items-center">
+              <div className="web-preview-glow h-full flex items-center relative">
+                {/* Floating Refresh Button */}
+                {webUrl && (
+                  <button
+                    onClick={handleRefreshPreview}
+                    disabled={isWebLoading}
+                    className={cn(
+                      "absolute -top-1 -right-1 z-20",
+                      "h-8 w-8 rounded-full",
+                      "bg-white/80 dark:bg-black/50",
+                      "backdrop-blur-sm",
+                      "border border-border/50",
+                      "flex items-center justify-center",
+                      "hover:bg-white dark:hover:bg-black/70",
+                      "hover:scale-110",
+                      "active:scale-95",
+                      "transition-all duration-200",
+                      "shadow-md hover:shadow-lg",
+                      "disabled:opacity-50 disabled:cursor-not-allowed"
+                    )}
+                    title="Refresh preview"
+                  >
+                    <RefreshCw
+                      className={cn(
+                        "h-4 w-4 text-muted-foreground",
+                        isWebLoading && "animate-spin"
+                      )}
+                    />
+                  </button>
+                )}
                 {webUrl ? (
                   <Iphone
+                    key={refreshKey}
                     iframeSrc={webUrl}
                     isIframeLoading={isWebLoading}
                     onIframeLoad={() => setIsWebLoading(false)}
