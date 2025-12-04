@@ -120,6 +120,10 @@ export async function POST(request: Request) {
         sandbox = await SandboxClass.connect(sandboxId, {
           apiKey: process.env.E2B_API_KEY,
         });
+
+        // Extend sandbox timeout by 1 hour from now on every user message
+        await sandbox.setTimeout(3600000);
+
         console.log(`[API] ✓ Reconnected to sandbox: ${sandboxId}`);
         createdSandbox = false;
 
