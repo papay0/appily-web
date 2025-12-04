@@ -360,6 +360,39 @@ export default function ProjectBuildPage() {
     }
   };
 
+  const handleRestartMetro = async () => {
+    if (!project?.e2b_sandbox_id) {
+      // No sandbox exists, fall back to full creation
+      handleStartSandbox();
+      return;
+    }
+
+    setSandboxStatus("starting");
+    setSandboxError(undefined);
+
+    try {
+      const response = await fetch("/api/sandbox/restart-metro", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sandboxId: project.e2b_sandbox_id,
+          projectId: project.id,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to restart Metro");
+      }
+
+      // Status, Expo URL, and QR code will be updated via realtime subscription
+    } catch (error) {
+      console.error("Failed to restart Metro:", error);
+      setSandboxStatus("error");
+      setSandboxError(error instanceof Error ? error.message : "Unknown error");
+    }
+  };
+
   const handleStopSandbox = async () => {
     if (!project || !project.e2b_sandbox_id) return;
 
@@ -518,7 +551,8 @@ export default function ProjectBuildPage() {
         hasQrCode={!!qrCode}
         onOpenQrSheet={() => setQrSheetOpen(true)}
         sandboxStatus={sandboxStatus}
-        onRestart={handleStartSandbox}
+        onRestartMetro={handleRestartMetro}
+        onRecreateSandbox={handleStartSandbox}
       />
 
       {/* Conditionally render Mobile OR Desktop - never both */}

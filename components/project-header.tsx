@@ -6,7 +6,13 @@ import { Separator } from "@/components/ui/separator";
 import { AppBreadcrumbs } from "@/components/app-breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Pencil, Check, X, QrCode, Eye, Code2, RefreshCw } from "lucide-react";
+import { Loader2, Pencil, Check, X, QrCode, Eye, Code2, RefreshCw, ChevronDown, RotateCcw } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useSupabaseClient } from "@/lib/supabase-client";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +30,8 @@ interface ProjectHeaderProps {
 
   // Sandbox status controls (desktop only)
   sandboxStatus?: "idle" | "starting" | "ready" | "error";
-  onRestart?: () => void;
+  onRestartMetro?: () => void;
+  onRecreateSandbox?: () => void;
 }
 
 export function ProjectHeader({
@@ -35,7 +42,8 @@ export function ProjectHeader({
   hasQrCode,
   onOpenQrSheet,
   sandboxStatus,
-  onRestart,
+  onRestartMetro,
+  onRecreateSandbox,
 }: ProjectHeaderProps) {
   const supabase = useSupabaseClient();
   const [isEditing, setIsEditing] = useState(false);
@@ -212,8 +220,8 @@ export function ProjectHeader({
         </div>
       )}
 
-      {/* Desktop: Live indicator + Restart button */}
-      {sandboxStatus && onRestart && (
+      {/* Desktop: Live indicator + Restart button with dropdown */}
+      {sandboxStatus && onRestartMetro && (
         <div className="hidden md:flex items-center gap-3">
           {/* Live Status Indicator */}
           {sandboxStatus === "ready" && (
@@ -232,21 +240,57 @@ export function ProjectHeader({
             </div>
           )}
 
-          {/* Restart Button */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onRestart}
-            disabled={sandboxStatus === "starting"}
-            className={cn(
-              "gap-1.5 rounded-lg",
-              "glass-morphism border-border/50",
-              "hover:border-primary/50 hover:bg-primary/5"
-            )}
-          >
-            <RefreshCw className={cn("h-3.5 w-3.5", sandboxStatus === "starting" && "animate-spin")} />
-            Restart
-          </Button>
+          {/* Restart Button with Dropdown */}
+          <div className="flex items-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRestartMetro}
+              disabled={sandboxStatus === "starting"}
+              className={cn(
+                "gap-1.5 rounded-lg rounded-r-none border-r-0",
+                "glass-morphism border-border/50",
+                "hover:border-primary/50 hover:bg-primary/5"
+              )}
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", sandboxStatus === "starting" && "animate-spin")} />
+              Restart
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={sandboxStatus === "starting"}
+                  className={cn(
+                    "px-1.5 rounded-lg rounded-l-none",
+                    "glass-morphism border-border/50",
+                    "hover:border-primary/50 hover:bg-primary/5"
+                  )}
+                >
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={onRestartMetro} className="gap-2">
+                  <RefreshCw className="h-4 w-4" />
+                  <div className="flex flex-col">
+                    <span>Restart Metro</span>
+                    <span className="text-xs text-muted-foreground">Fast restart (~10s)</span>
+                  </div>
+                </DropdownMenuItem>
+                {onRecreateSandbox && (
+                  <DropdownMenuItem onClick={onRecreateSandbox} className="gap-2">
+                    <RotateCcw className="h-4 w-4" />
+                    <div className="flex flex-col">
+                      <span>Recreate Sandbox</span>
+                      <span className="text-xs text-muted-foreground">Full reset (~1-2 min)</span>
+                    </div>
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       )}
 

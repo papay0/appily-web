@@ -63,6 +63,27 @@ export function PreviewPanel({
         />
       )}
 
+      {/* Restarting Overlay - shown when Metro is restarting with existing preview */}
+      {sandboxStatus === "starting" && hasPreview && !showHealthOverlay && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="text-center space-y-4 animate-fade-in-up">
+            <div className="relative">
+              <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-primary to-[var(--magic-violet)] flex items-center justify-center mx-auto shadow-lg shadow-primary/20">
+                <Loader2 className="h-10 w-10 text-white animate-spin" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <p className="text-lg font-semibold font-display text-gradient-magic">
+                Restarting...
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Refreshing your preview
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area */}
       <div className="flex-1 overflow-hidden p-2">
         {/* Idle State - No Preview Yet */}

@@ -113,8 +113,6 @@ export async function POST(request: Request) {
       })
       .eq("id", projectId);
 
-    await sandbox.kill();
-
     console.log(`[restart-metro] ✓ Restarted successfully on ${expoUrl}`);
     return NextResponse.json({
       success: true,
