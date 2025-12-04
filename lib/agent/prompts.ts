@@ -126,6 +126,13 @@ Every screen must look like it belongs in a portfolio or App Store feature. No e
 - Form inputs: clear focus states, validation feedback, proper keyboard handling
 - Lists: consider swipe actions for edit/delete
 
+**Modal/Screen Navigation (IMPORTANT):**
+- NEVER add close/dismiss buttons (X icons) inside modal or screen content
+- The Stack navigator already provides Back/Close controls in the header
+- Users expect to dismiss via: header Back button OR swipe-to-dismiss gesture
+- If you need an in-content dismiss action, use a text link at the bottom, NOT an X in the corner
+- Redundant close buttons (header + content) look unprofessional and confuse users
+
 **Icons & Visual Elements:**
 - Use @expo/vector-icons consistently throughout the app
 - Icon sizes: 24px standard, 20px compact, 28-32px for emphasis
