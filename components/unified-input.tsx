@@ -180,6 +180,18 @@ export function UnifiedInput({
     [addImages]
   );
 
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const files = e.clipboardData.files;
+      if (files.length === 0) return;
+
+      // Prevent default paste behavior when images are present
+      e.preventDefault();
+      addImages(files);
+    },
+    [addImages]
+  );
+
   const openFilePicker = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
@@ -233,6 +245,7 @@ export function UnifiedInput({
       value={text}
       onChange={(e) => setText(e.target.value)}
       onKeyDown={handleKeyDown}
+      onPaste={handlePaste}
       onFocus={() => setIsFocused(true)}
       onBlur={() => setIsFocused(false)}
       disabled={isLoading}

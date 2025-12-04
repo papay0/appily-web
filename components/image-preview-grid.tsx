@@ -67,16 +67,18 @@ export function ImagePreviewGrid({
               type="button"
               onClick={() => onRemove(image.id)}
               className={cn(
-                "absolute -top-1 -right-1 z-10",
+                "absolute top-0.5 right-0.5 z-10",
                 "w-5 h-5 rounded-full",
-                "bg-foreground/90 hover:bg-foreground text-background",
+                "bg-black/70 hover:bg-black text-white",
+                "border border-white/30",
                 "flex items-center justify-center",
-                "opacity-0 group-hover:opacity-100 transition-opacity duration-200",
-                "focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-primary"
+                "shadow-sm",
+                "transition-all duration-200 hover:scale-110",
+                "focus:outline-none focus:ring-2 focus:ring-primary"
               )}
               aria-label={`Remove ${image.file.name}`}
             >
-              <X className="h-3 w-3" />
+              <X className="h-3 w-3" strokeWidth={2.5} />
             </button>
           )}
 
