@@ -2,7 +2,6 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -193,21 +192,99 @@ export function UnifiedInput({
   // Accept attribute for file input
   const acceptedFormats = ACCEPTED_IMAGE_EXTENSIONS.map((ext) => `.${ext}`).join(",");
 
-  if (variant === "home") {
-    // Home variant: Multi-line textarea with glassmorphic styling
+  const isHome = variant === "home";
+
+  // Shared elements
+  const fileInput = (
+    <input
+      ref={fileInputRef}
+      type="file"
+      accept={acceptedFormats}
+      multiple
+      onChange={(e) => handleFileSelect(e.target.files)}
+      className="hidden"
+    />
+  );
+
+  const dropOverlay = isDragOver && (
+    <div className={cn(
+      "absolute inset-0 z-20 bg-primary/10 backdrop-blur-sm flex items-center justify-center",
+      isHome && "rounded-2xl"
+    )}>
+      <div className="flex flex-col items-center gap-2 text-primary">
+        <ImagePlus className={isHome ? "h-8 w-8" : "h-6 w-6"} />
+        <span className={cn("font-medium", isHome ? "text-sm" : "text-xs")}>Drop images here</span>
+      </div>
+    </div>
+  );
+
+  const imageGrid = hasImages && (
+    <ImagePreviewGrid
+      images={images}
+      onRemove={removeImage}
+      disabled={isLoading}
+      className={!isHome ? "mb-2 -mx-3 -mt-3 border-b border-border/50" : undefined}
+    />
+  );
+
+  const textarea = (
+    <Textarea
+      placeholder={effectivePlaceholder}
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onKeyDown={handleKeyDown}
+      onFocus={() => setIsFocused(true)}
+      onBlur={() => setIsFocused(false)}
+      disabled={isLoading}
+      rows={isHome ? 5 : 3}
+      className={cn(
+        "resize-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0",
+        "transition-colors duration-300",
+        isHome
+          ? cn(
+              "min-h-[180px] bg-transparent border-none text-foreground",
+              "placeholder:text-muted-foreground/60 text-lg p-6 pb-24",
+              hasImages && "min-h-[140px]"
+            )
+          : cn(
+              "flex-1 min-h-[80px] rounded-xl border-border/50 text-sm",
+              "bg-background/50 backdrop-blur-sm",
+              "focus:border-primary/50",
+              "placeholder:text-muted-foreground/60"
+            )
+      )}
+    />
+  );
+
+  const imageUploadButton = (
+    <button
+      type="button"
+      onClick={openFilePicker}
+      disabled={isLoading || !canAddMoreImages}
+      className={cn(
+        "flex items-center justify-center",
+        "text-muted-foreground hover:text-foreground",
+        "transition-all duration-200",
+        "disabled:opacity-50 disabled:cursor-not-allowed",
+        isHome
+          ? "w-8 h-8 rounded-lg hover:bg-muted/50"
+          : cn(
+              "h-10 w-10 rounded-xl",
+              "bg-background/50 backdrop-blur-sm border border-border/50",
+              "hover:border-primary/50 hover:bg-muted/50"
+            )
+      )}
+      title={canAddMoreImages ? "Add images" : `Maximum ${maxImages} images`}
+    >
+      <ImagePlus className={isHome ? "h-5 w-5" : "h-4 w-4"} />
+    </button>
+  );
+
+  if (isHome) {
     return (
       <div className="w-full max-w-2xl mx-auto">
-        {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={acceptedFormats}
-          multiple
-          onChange={(e) => handleFileSelect(e.target.files)}
-          className="hidden"
-        />
+        {fileInput}
 
-        {/* Glassmorphic input container */}
         <div
           ref={containerRef}
           onDragOver={handleDragOver}
@@ -238,71 +315,17 @@ export function UnifiedInput({
             )}
           />
 
-          {/* Drop overlay */}
-          {isDragOver && (
-            <div className="absolute inset-0 z-20 bg-primary/10 backdrop-blur-sm flex items-center justify-center rounded-2xl">
-              <div className="flex flex-col items-center gap-2 text-primary">
-                <ImagePlus className="h-8 w-8" />
-                <span className="text-sm font-medium">Drop images here</span>
-              </div>
-            </div>
-          )}
+          {dropOverlay}
 
-          {/* Inner content */}
           <div className="relative">
-            {/* Image preview grid */}
-            {hasImages && (
-              <ImagePreviewGrid
-                images={images}
-                onRemove={removeImage}
-                disabled={isLoading}
-              />
-            )}
-
-            {/* Textarea for app idea */}
-            <Textarea
-              placeholder={effectivePlaceholder}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              disabled={isLoading}
-              rows={5}
-              className={cn(
-                "min-h-[180px] bg-transparent border-none text-foreground",
-                "placeholder:text-muted-foreground/60 text-lg p-6 pb-24",
-                "resize-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0",
-                "transition-colors duration-300",
-                hasImages && "min-h-[140px]"
-              )}
-            />
+            {imageGrid}
+            {textarea}
 
             {/* Bottom toolbar */}
             <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between border-t border-border/50 bg-card/30 backdrop-blur-sm">
-              {/* Left side - Image button + Checkbox */}
               <div className="flex items-center gap-4">
-                {/* Image upload button */}
-                <button
-                  type="button"
-                  onClick={openFilePicker}
-                  disabled={isLoading || !canAddMoreImages}
-                  className={cn(
-                    "flex items-center justify-center w-8 h-8 rounded-lg",
-                    "text-muted-foreground hover:text-foreground hover:bg-muted/50",
-                    "transition-all duration-200",
-                    "disabled:opacity-50 disabled:cursor-not-allowed"
-                  )}
-                  title={
-                    canAddMoreImages
-                      ? "Add images"
-                      : `Maximum ${maxImages} images`
-                  }
-                >
-                  <ImagePlus className="h-5 w-5" />
-                </button>
+                {imageUploadButton}
 
-                {/* Plan checkbox */}
                 {showPlanCheckbox && (
                   <div className="flex items-center gap-3">
                     <div className="relative">
@@ -334,7 +357,6 @@ export function UnifiedInput({
                 )}
               </div>
 
-              {/* Right side - Submit button */}
               <MagicButton
                 onClick={handleSubmit}
                 className={cn(
@@ -374,7 +396,6 @@ export function UnifiedInput({
           />
         </div>
 
-        {/* Helper text - hidden on mobile */}
         <p className="hidden md:flex items-center justify-center gap-2 text-muted-foreground text-sm mt-4">
           <span>Press</span>
           <kbd className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-muted/50 border border-border/50 text-xs font-medium">
@@ -388,7 +409,7 @@ export function UnifiedInput({
     );
   }
 
-  // Build variant: Single-line input with glassmorphic styling
+  // Build variant
   return (
     <div
       ref={containerRef}
@@ -400,81 +421,20 @@ export function UnifiedInput({
         isDragOver && "ring-2 ring-primary ring-inset"
       )}
     >
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept={acceptedFormats}
-        multiple
-        onChange={(e) => handleFileSelect(e.target.files)}
-        className="hidden"
-      />
+      {fileInput}
+      {dropOverlay}
+      {imageGrid}
 
-      {/* Drop overlay */}
-      {isDragOver && (
-        <div className="absolute inset-0 z-20 bg-primary/10 backdrop-blur-sm flex items-center justify-center">
-          <div className="flex flex-col items-center gap-2 text-primary">
-            <ImagePlus className="h-6 w-6" />
-            <span className="text-xs font-medium">Drop images here</span>
-          </div>
-        </div>
-      )}
+      <div className="flex gap-2 items-end">
+        {imageUploadButton}
+        {textarea}
 
-      {/* Image preview grid */}
-      {hasImages && (
-        <ImagePreviewGrid
-          images={images}
-          onRemove={removeImage}
-          disabled={isLoading}
-          className="mb-2 -mx-3 -mt-3 border-b border-border/50"
-        />
-      )}
-
-      {/* Input row */}
-      <div className="flex gap-2 relative">
-        {/* Image upload button */}
-        <button
-          type="button"
-          onClick={openFilePicker}
-          disabled={isLoading || !canAddMoreImages}
-          className={cn(
-            "flex items-center justify-center h-10 w-10 rounded-xl",
-            "text-muted-foreground hover:text-foreground",
-            "bg-background/50 backdrop-blur-sm border border-border/50",
-            "hover:border-primary/50 hover:bg-muted/50",
-            "transition-all duration-200",
-            "disabled:opacity-50 disabled:cursor-not-allowed"
-          )}
-          title={
-            canAddMoreImages ? "Add images" : `Maximum ${maxImages} images`
-          }
-        >
-          <ImagePlus className="h-4 w-4" />
-        </button>
-
-        {/* Text input */}
-        <Input
-          placeholder={effectivePlaceholder}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={isLoading}
-          className={cn(
-            "flex-1 rounded-xl border-border/50 text-sm h-10",
-            "bg-background/50 backdrop-blur-sm",
-            "focus:border-primary/50 focus:ring-1 focus:ring-primary/20",
-            "transition-all duration-300",
-            "placeholder:text-muted-foreground/60"
-          )}
-        />
-
-        {/* Send button */}
         <Button
           onClick={handleSubmit}
           disabled={!canSubmit}
           size="icon"
           className={cn(
-            "h-10 w-10 rounded-xl",
+            "h-10 w-10 rounded-xl shrink-0",
             "bg-gradient-to-r from-primary to-[var(--magic-violet)]",
             "hover:opacity-90 hover:scale-105",
             "shadow-lg shadow-primary/20",
