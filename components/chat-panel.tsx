@@ -81,7 +81,8 @@ function groupMessages(messages: Message[]): MessageGroup[] {
     const message = messages[i];
 
     // Check if this is a tool use message (system role with toolUse property)
-    if (message.role === 'system' && message.toolUse && message.toolUse !== 'TodoWrite') {
+    // Exclude TodoWrite and RuntimeError from grouping - they need special rendering
+    if (message.role === 'system' && message.toolUse && message.toolUse !== 'TodoWrite' && message.toolUse !== 'RuntimeError') {
       // Look ahead to see if there are consecutive messages with the same toolUse
       const toolType = message.toolUse;
       const groupMessages: Message[] = [message];
@@ -408,7 +409,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
   }, [channelStatus, fetchHistoricalEvents, isLoaded]);
 
   // Send message helper - used by both auto-start and manual send
-  const sendMessageProgrammatically = useCallback(async (messageText: string, imageKeys: string[] = [], imagePreviewUrls: string[] = []) => {
+  const sendMessageProgrammatically = useCallback(async (messageText: string, imageKeys: string[] = [], imagePreviewUrls: string[] = [], displayMessage?: string) => {
     if (!messageText.trim() || isLoading || !user) return;
 
     // Check if this is the first message and we have feature context
@@ -427,10 +428,13 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
       });
     }
 
+    // Use displayMessage if provided, otherwise use messageText
+    const messageToDisplay = displayMessage || messageText;
+
     const userMessage: Message = {
       id: generateId(),
       role: "user",
-      content: messageText,
+      content: messageToDisplay,
       timestamp: new Date(),
       avatarUrl: user?.imageUrl,
       imageUrls: imagePreviewUrls.length > 0 ? imagePreviewUrls : undefined,
@@ -446,7 +450,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: promptContent, // Enhanced prompt for Claude
-          displayMessage: messageText, // Short message for database/display
+          displayMessage: messageToDisplay, // Short message for database/display
           projectId,
           sandboxId,
           workingDirectory: "/home/user/project",
@@ -486,7 +490,13 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
 
   // Handle "Fix this error" button click from RuntimeErrorMessage
   const handleFixError = useCallback((errorMessage: string, fullError?: FullError) => {
-    // Format the error into a prompt for the agent
+    // Extract just the error message without the location info for display
+    const shortErrorMessage = fullError?.message || errorMessage.split('\n')[0];
+
+    // Friendly message shown to user
+    const displayMessage = `🔧 Fix this error: ${shortErrorMessage}`;
+
+    // Full detailed prompt for Claude (hidden from user)
     let fixPrompt = `Please fix this runtime error that occurred in the app:\n\n${errorMessage}`;
 
     if (fullError) {
@@ -511,8 +521,8 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
 
     fixPrompt += "\n\nPlease identify the issue and fix the code.";
 
-    // Send as a user message to trigger the agent
-    sendMessageProgrammatically(fixPrompt);
+    // Send with friendly display message, but full error details to Claude
+    sendMessageProgrammatically(fixPrompt, [], [], displayMessage);
   }, [sendMessageProgrammatically]);
 
   // Auto-start when coming from planning with feature context
