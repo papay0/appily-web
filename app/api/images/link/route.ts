@@ -19,7 +19,12 @@
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { uploadFile, downloadFile, listFiles, deleteFile } from "@/lib/r2-client";
+import {
+  uploadImageFile,
+  downloadImageFile,
+  listImageFiles,
+  deleteImageFile,
+} from "@/lib/r2-client";
 import { parseR2ImageKey, getR2ImagePath, getContentType } from "@/lib/image-utils";
 import { createClient } from "@supabase/supabase-js";
 
@@ -44,9 +49,9 @@ export async function POST(request: Request) {
 
     console.log(`[Images Link] Linking images from temp:${tempUploadId} to project:${projectId}`);
 
-    // List all files in temp directory
+    // List all files in temp directory (from images bucket)
     const tempPrefix = `images/temp/${tempUploadId}/`;
-    const tempFiles = await listFiles(tempPrefix);
+    const tempFiles = await listImageFiles(tempPrefix);
 
     if (tempFiles.length === 0) {
       console.log(`[Images Link] No images found in temp directory`);
@@ -70,11 +75,11 @@ export async function POST(request: Request) {
         // Generate new project path
         const newKey = getR2ImagePath(imageId, extension, { projectId });
 
-        // Download from temp
-        const fileBuffer = await downloadFile(file.key);
+        // Download from temp (images bucket)
+        const fileBuffer = await downloadImageFile(file.key);
 
-        // Upload to project path
-        await uploadFile({
+        // Upload to project path (images bucket)
+        await uploadImageFile({
           key: newKey,
           body: fileBuffer,
           contentType: getContentType(extension),
@@ -86,8 +91,8 @@ export async function POST(request: Request) {
 
         newKeys.push(newKey);
 
-        // Delete temp file
-        await deleteFile(file.key);
+        // Delete temp file (images bucket)
+        await deleteImageFile(file.key);
 
         console.log(`[Images Link] ✓ Moved: ${file.key} → ${newKey}`);
       } catch (error) {

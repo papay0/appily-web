@@ -19,7 +19,7 @@
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { uploadFile } from "@/lib/r2-client";
+import { uploadImageFile } from "@/lib/r2-client";
 import {
   generateImageId,
   getImageExtension,
@@ -117,8 +117,8 @@ export async function POST(request: Request) {
         .replace(/[^\x20-\x7E]/g, "_") // Replace non-ASCII with underscore
         .substring(0, 200); // Limit length
 
-      // Upload to R2
-      await uploadFile({
+      // Upload to R2 images bucket (public)
+      await uploadImageFile({
         key: r2Key,
         body: buffer,
         contentType: getContentType(extension),

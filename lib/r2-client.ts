@@ -36,6 +36,125 @@ function getBucketName(): string {
   return process.env.R2_BUCKET_NAME;
 }
 
+// ============ Images Bucket (Public) ============
+
+function getImagesBucketName(): string {
+  if (!process.env.R2_IMAGES_BUCKET_NAME) {
+    throw new Error("R2_IMAGES_BUCKET_NAME is not configured");
+  }
+  return process.env.R2_IMAGES_BUCKET_NAME;
+}
+
+function getImagesPublicUrl(): string {
+  if (!process.env.R2_IMAGES_PUBLIC_URL) {
+    throw new Error("R2_IMAGES_PUBLIC_URL is not configured");
+  }
+  return process.env.R2_IMAGES_PUBLIC_URL.replace(/\/$/, ""); // Remove trailing slash if present
+}
+
+/**
+ * Get the public URL for an image (no expiration)
+ */
+export function getImagePublicUrl(key: string): string {
+  return `${getImagesPublicUrl()}/${key}`;
+}
+
+/**
+ * Upload an image to the public images bucket
+ */
+export async function uploadImageFile({
+  key,
+  body,
+  contentType,
+  metadata,
+}: UploadFileOptions): Promise<void> {
+  try {
+    const command = new PutObjectCommand({
+      Bucket: getImagesBucketName(),
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+      Metadata: metadata,
+    });
+
+    await getR2Client().send(command);
+  } catch (error) {
+    console.error("Error uploading image to R2:", error);
+    throw new Error(`Failed to upload image: ${key}`);
+  }
+}
+
+/**
+ * Delete an image from the public images bucket
+ */
+export async function deleteImageFile(key: string): Promise<void> {
+  try {
+    const command = new DeleteObjectCommand({
+      Bucket: getImagesBucketName(),
+      Key: key,
+    });
+
+    await getR2Client().send(command);
+  } catch (error) {
+    console.error("Error deleting image from R2:", error);
+    throw new Error(`Failed to delete image: ${key}`);
+  }
+}
+
+/**
+ * List images in the public images bucket
+ */
+export async function listImageFiles(prefix: string): Promise<FileMetadata[]> {
+  try {
+    const command = new ListObjectsV2Command({
+      Bucket: getImagesBucketName(),
+      Prefix: prefix,
+    });
+
+    const response = await getR2Client().send(command);
+
+    return (
+      response.Contents?.map((item) => ({
+        key: item.Key!,
+        size: item.Size || 0,
+        lastModified: item.LastModified || new Date(),
+        contentType: undefined,
+      })) || []
+    );
+  } catch (error) {
+    console.error("Error listing images from R2:", error);
+    throw new Error(`Failed to list images with prefix: ${prefix}`);
+  }
+}
+
+/**
+ * Download an image from the public images bucket
+ */
+export async function downloadImageFile(key: string): Promise<Buffer> {
+  try {
+    const command = new GetObjectCommand({
+      Bucket: getImagesBucketName(),
+      Key: key,
+    });
+
+    const response = await getR2Client().send(command);
+
+    if (!response.Body) {
+      throw new Error("No file body returned");
+    }
+
+    const chunks: Uint8Array[] = [];
+    for await (const chunk of response.Body as AsyncIterable<Uint8Array>) {
+      chunks.push(chunk);
+    }
+
+    return Buffer.concat(chunks);
+  } catch (error) {
+    console.error("Error downloading image from R2:", error);
+    throw new Error(`Failed to download image: ${key}`);
+  }
+}
+
 export interface UploadFileOptions {
   key: string;
   body: Buffer | string;

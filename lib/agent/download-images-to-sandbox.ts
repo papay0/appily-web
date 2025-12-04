@@ -6,7 +6,7 @@
  */
 
 import type { Sandbox } from "e2b";
-import { getFileSignedUrl } from "@/lib/r2-client";
+import { getImagePublicUrl } from "@/lib/r2-client";
 
 export interface DownloadImagesResult {
   success: boolean;
@@ -51,12 +51,12 @@ export async function downloadImagesToSandbox(
 
         const localPath = `${targetDir}/${filename}`;
 
-        // Get signed URL from R2 (valid for 1 hour)
-        const signedUrl = await getFileSignedUrl(key, 3600);
+        // Get public URL from R2 images bucket (no expiration)
+        const publicUrl = getImagePublicUrl(key);
 
         // Download using curl in E2B
         const result = await sandbox.commands.run(
-          `curl -sL -o "${localPath}" "${signedUrl}"`,
+          `curl -sL -o "${localPath}" "${publicUrl}"`,
           { timeoutMs: 30000 }
         );
 
