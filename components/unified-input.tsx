@@ -265,7 +265,7 @@ export function UnifiedInput({
         isHome
           ? cn(
               "min-h-[180px] bg-transparent border-none text-foreground",
-              "placeholder:text-muted-foreground/60 text-lg p-6 pb-24",
+              "placeholder:text-muted-foreground/60 text-lg p-6 pt-14 pb-24",
               hasImages && "min-h-[140px]"
             )
           : cn(
@@ -340,21 +340,26 @@ export function UnifiedInput({
           {dropOverlay}
 
           <div className="relative">
+            {/* Top toolbar: AI Provider selector and Image upload */}
+            {onAIProviderChange && (
+              <div className="absolute top-0 left-0 right-0 p-3 flex items-center gap-2 z-10">
+                <AIProviderSelector
+                  value={aiProvider}
+                  onChange={onAIProviderChange}
+                  disabled={isLoading}
+                />
+                {imageUploadButton}
+              </div>
+            )}
+
             {imageGrid}
             {textarea}
 
             {/* Bottom toolbar */}
             <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between border-t border-border/50 bg-card/30 backdrop-blur-sm">
               <div className="flex items-center gap-4">
-                {/* AI Provider selector */}
-                {onAIProviderChange && (
-                  <AIProviderSelector
-                    value={aiProvider}
-                    onChange={onAIProviderChange}
-                    disabled={isLoading}
-                  />
-                )}
-                {imageUploadButton}
+                {/* Image upload button shown here if no AI provider selector */}
+                {!onAIProviderChange && imageUploadButton}
 
                 {showPlanCheckbox && (
                   <div className="flex items-center gap-3">
