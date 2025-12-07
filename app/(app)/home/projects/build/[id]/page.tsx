@@ -31,6 +31,7 @@ type Project = {
   app_idea: string | null;
   planning_completed_at: string | null;
   image_keys: string[] | null;
+  ai_provider: "claude" | "gemini" | null;
 }
 
 export default function ProjectBuildPage() {
@@ -573,6 +574,7 @@ export default function ProjectBuildPage() {
           onQrSheetOpenChange={setQrSheetOpen}
           healthStatus={healthStatus}
           healthMessage={healthMessage}
+          initialAiProvider={project.ai_provider || "claude"}
         />
       ) : (
         <BuildPageDesktop
@@ -591,6 +593,7 @@ export default function ProjectBuildPage() {
           onViewModeChange={setViewMode}
           healthStatus={healthStatus}
           healthMessage={healthMessage}
+          initialAiProvider={project.ai_provider || "claude"}
         />
       )}
 

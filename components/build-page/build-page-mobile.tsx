@@ -21,6 +21,7 @@ export function BuildPageMobile({
   onQrSheetOpenChange,
   healthStatus,
   healthMessage,
+  initialAiProvider,
 }: BuildPageMobileProps) {
   return (
     <>
@@ -30,6 +31,7 @@ export function BuildPageMobile({
           projectId={projectId}
           sandboxId={sandboxId}
           featureContext={featureContext}
+          initialAiProvider={initialAiProvider}
         />
       </div>
 

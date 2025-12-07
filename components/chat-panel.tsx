@@ -15,6 +15,7 @@ import { UnifiedInput } from "./unified-input";
 import type { Feature } from "@/lib/types/features";
 import { buildEnhancedPrompt } from "@/lib/types/features";
 import { generateId } from "@/lib/uuid";
+import type { AIProvider } from "@/lib/agent/flows";
 
 // Module-level Set to track projects that have auto-started
 // This persists across React Strict Mode's mount/unmount/remount cycle
@@ -65,6 +66,8 @@ interface ChatPanelProps {
   projectId: string;
   sandboxId?: string;
   featureContext?: FeatureContext;
+  /** Initial AI provider loaded from the project */
+  initialAiProvider?: AIProvider;
 }
 
 // Helper type for grouped rendering
@@ -112,12 +115,13 @@ function groupMessages(messages: Message[]): MessageGroup[] {
   return groups;
 }
 
-export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelProps) {
+export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvider }: ChatPanelProps) {
   const { isLoaded } = useSession();
   const { user } = useUser();
   const supabase = useSupabaseClient();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [aiProvider, setAIProvider] = useState<AIProvider>(initialAiProvider || "claude");
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [openTodoIndex, setOpenTodoIndex] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -449,7 +453,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: promptContent, // Enhanced prompt for Claude
+          prompt: promptContent, // Enhanced prompt for the AI agent
           displayMessage: messageToDisplay, // Short message for database/display
           projectId,
           sandboxId,
@@ -457,6 +461,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
           clientMessageId: userMessage.id,
           imageKeys, // R2 keys of attached images
           imagePreviewUrls, // Signed URLs for displaying in chat UI
+          aiProvider, // Selected AI provider (claude or gemini)
         }),
       });
 
@@ -486,7 +491,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
       }]);
       setIsLoading(false);
     }
-  }, [isLoading, user, messages, featureContext, projectId, sandboxId]);
+  }, [isLoading, user, messages, featureContext, projectId, sandboxId, aiProvider]);
 
   // Handle "Fix this error" button click from RuntimeErrorMessage
   const handleFixError = useCallback((errorMessage: string, fullError?: FullError) => {
@@ -682,6 +687,8 @@ export function ChatPanel({ projectId, sandboxId, featureContext }: ChatPanelPro
         onSubmit={handleSendMessage}
         isLoading={isLoading}
         projectId={projectId}
+        aiProvider={aiProvider}
+        onAIProviderChange={setAIProvider}
       />
     </div>
   );

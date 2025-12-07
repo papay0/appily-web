@@ -1,17 +1,30 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import { UnifiedInput } from "@/components/unified-input";
+import type { AIProvider } from "@/components/ai-provider-selector";
 
 interface AppIdeaInputProps {
   onSubmit: (idea: string, planFeatures: boolean, imageKeys: string[], tempUploadId: string) => void;
   isLoading: boolean;
+  planFeatures: boolean;
+  onPlanFeaturesChange: (checked: boolean) => void;
+  tempUploadId: string;
+  onTempUploadIdReady: (id: string) => void;
+  aiProvider: AIProvider;
+  onAIProviderChange: (provider: AIProvider) => void;
 }
 
-export function AppIdeaInput({ onSubmit, isLoading }: AppIdeaInputProps) {
-  const [planFeatures, setPlanFeatures] = useState(true);
-  const [tempUploadId, setTempUploadId] = useState<string>("");
-
+export function AppIdeaInput({
+  onSubmit,
+  isLoading,
+  planFeatures,
+  onPlanFeaturesChange,
+  tempUploadId,
+  onTempUploadIdReady,
+  aiProvider,
+  onAIProviderChange,
+}: AppIdeaInputProps) {
   const handleSubmit = useCallback(
     (text: string, imageKeys: string[]) => {
       onSubmit(text, planFeatures, imageKeys, tempUploadId);
@@ -26,8 +39,10 @@ export function AppIdeaInput({ onSubmit, isLoading }: AppIdeaInputProps) {
       isLoading={isLoading}
       showPlanCheckbox
       planFeatures={planFeatures}
-      onPlanFeaturesChange={setPlanFeatures}
-      onTempUploadIdReady={setTempUploadId}
+      onPlanFeaturesChange={onPlanFeaturesChange}
+      onTempUploadIdReady={onTempUploadIdReady}
+      aiProvider={aiProvider}
+      onAIProviderChange={onAIProviderChange}
     />
   );
 }

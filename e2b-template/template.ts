@@ -21,6 +21,9 @@ export const template = Template()
   // Install Claude Code CLI globally (as root)
   .runCmd("npm install -g @anthropic-ai/claude-code")
 
+  // Install Gemini CLI globally (as root)
+  .runCmd("npm install -g @google/gemini-cli")
+
   // Configure git globally
   .runCmd(`git config --global user.name "Appily Bot" && git config --global user.email "bot@appily.dev"`)
 

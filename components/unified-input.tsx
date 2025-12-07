@@ -17,6 +17,7 @@ import { ImagePreviewGrid } from "@/components/image-preview-grid";
 import { useImageUpload, type UploadedImage } from "@/hooks/use-image-upload";
 import { cn } from "@/lib/utils";
 import { ACCEPTED_IMAGE_EXTENSIONS } from "@/lib/image-utils";
+import { AIProviderSelector, type AIProvider } from "@/components/ai-provider-selector";
 
 export interface UnifiedInputProps {
   /** Callback when user submits. Receives text, R2 keys, and preview URLs of uploaded images */
@@ -52,6 +53,12 @@ export interface UnifiedInputProps {
   onTempUploadIdReady?: (tempUploadId: string) => void;
   /** Callback when images change */
   onImagesChange?: (images: UploadedImage[]) => void;
+
+  // AI Provider selection (build variant only)
+  /** Current AI provider */
+  aiProvider?: AIProvider;
+  /** Callback when AI provider changes */
+  onAIProviderChange?: (provider: AIProvider) => void;
 }
 
 export function UnifiedInput({
@@ -68,6 +75,8 @@ export function UnifiedInput({
   minTextLength,
   onTempUploadIdReady,
   onImagesChange,
+  aiProvider = "claude",
+  onAIProviderChange,
 }: UnifiedInputProps) {
   const [text, setText] = useState("");
   const [isFocused, setIsFocused] = useState(false);
@@ -337,6 +346,14 @@ export function UnifiedInput({
             {/* Bottom toolbar */}
             <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between border-t border-border/50 bg-card/30 backdrop-blur-sm">
               <div className="flex items-center gap-4">
+                {/* AI Provider selector */}
+                {onAIProviderChange && (
+                  <AIProviderSelector
+                    value={aiProvider}
+                    onChange={onAIProviderChange}
+                    disabled={isLoading}
+                  />
+                )}
                 {imageUploadButton}
 
                 {showPlanCheckbox && (
@@ -439,6 +456,14 @@ export function UnifiedInput({
       {imageGrid}
 
       <div className="flex gap-2 items-end">
+        {/* AI Provider selector - build variant only */}
+        {onAIProviderChange && (
+          <AIProviderSelector
+            value={aiProvider}
+            onChange={onAIProviderChange}
+            disabled={isLoading}
+          />
+        )}
         {imageUploadButton}
         {textarea}
 

@@ -315,7 +315,13 @@ BEFORE installing ANY package, verify it's compatible with Expo Go:
 **Remember:** Your users are non-technical. Never mention "native modules", "development builds",
 "bare workflow", or other jargon. Focus on what the app will DO, not how it's built.
 
-Focus ONLY on implementing the user's request. Expo is already set up.`;
+Focus ONLY on implementing the user's request. Expo is already set up.
+
+**CRITICAL: DO NOT ASK FOR CONFIRMATION**
+You are in autonomous mode. Do NOT ask "Does this plan sound good?" or wait for user approval.
+Just start implementing immediately. Read files, write code, make changes.
+The user expects you to build the app, not describe what you would build.
+START CODING NOW - do not explain what you will do, just do it.`;
 }
 
 /**

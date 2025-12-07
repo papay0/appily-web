@@ -30,6 +30,7 @@ import type { Sandbox } from "e2b";
 import {
   handleNewProjectFlow,
   handleExistingProjectFlow,
+  type AIProvider,
 } from "@/lib/agent/flows";
 
 export async function POST(request: Request) {
@@ -42,8 +43,11 @@ export async function POST(request: Request) {
     }
 
     // Parse request body
-    const { prompt, projectId, workingDirectory, sandboxId, clientMessageId, displayMessage, imageKeys, imagePreviewUrls } =
+    const { prompt, projectId, workingDirectory, sandboxId, clientMessageId, displayMessage, imageKeys, imagePreviewUrls, aiProvider } =
       await request.json();
+
+    // Validate and default AI provider
+    const validatedAiProvider: AIProvider = aiProvider === 'gemini' ? 'gemini' : 'claude';
 
     if (!prompt || !projectId) {
       return NextResponse.json(
@@ -77,6 +81,7 @@ export async function POST(request: Request) {
     const cwd = workingDirectory || "/home/user/project";
 
     console.log(`[API] Creating CLI agent session for project: ${projectId}`);
+    console.log(`[API] AI Provider: ${validatedAiProvider}`);
     console.log(`[API] User: ${userId}`);
     console.log(`[API] Working directory: ${cwd}`);
     console.log(`[API] User prompt length: ${prompt.length} chars`);
@@ -195,6 +200,7 @@ export async function POST(request: Request) {
         userPrompt: prompt,
         workingDir: cwd,
         imageKeys: validatedImageKeys,
+        aiProvider: validatedAiProvider,
       });
     }
 
@@ -211,6 +217,7 @@ export async function POST(request: Request) {
       qrCode,
       workingDir: cwd,
       imageKeys: validatedImageKeys,
+      aiProvider: validatedAiProvider,
     });
   } catch (error) {
     console.error("[API] Error creating CLI agent session:", error);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useSupabaseClient } from "@/lib/supabase-client";
@@ -9,6 +9,7 @@ import { RecentProjectsSection } from "@/components/recent-projects-section";
 import { ParticleField } from "@/components/marketing/ParticleField";
 import Image from "next/image";
 import { Sparkles } from "lucide-react";
+import type { AIProvider } from "@/components/ai-provider-selector";
 
 interface Project {
   id: string;
@@ -31,21 +32,32 @@ export default function HomePage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const [planFeatures, setPlanFeatures] = useState(true);
+  const [tempUploadId, setTempUploadId] = useState<string>("");
+  const [aiProvider, setAIProvider] = useState<AIProvider>("claude");
+  const [supabaseUserId, setSupabaseUserId] = useState<string | null>(null);
   const greeting = getGreeting();
 
   useEffect(() => {
-    async function loadProjects() {
+    async function loadUserDataAndProjects() {
       if (!user) return;
 
       try {
-        // Get user ID from Supabase
+        // Get user data from Supabase (including AI provider preference)
         const { data: userData } = await supabase
           .from("users")
-          .select("id")
+          .select("id, ai_provider")
           .eq("clerk_id", user.id)
           .single();
 
         if (!userData) return;
+
+        setSupabaseUserId(userData.id);
+
+        // Set AI provider from user preference
+        if (userData.ai_provider && (userData.ai_provider === "claude" || userData.ai_provider === "gemini")) {
+          setAIProvider(userData.ai_provider as AIProvider);
+        }
 
         // Fetch user's projects
         const { data: projectsData } = await supabase
@@ -56,14 +68,34 @@ export default function HomePage() {
 
         setProjects(projectsData || []);
       } catch (error) {
-        console.error("Error loading projects:", error);
+        console.error("Error loading user data and projects:", error);
       } finally {
         setLoading(false);
       }
     }
 
-    loadProjects();
+    loadUserDataAndProjects();
   }, [user, supabase]);
+
+  // Save AI provider preference to Supabase when it changes
+  const handleAIProviderChange = useCallback(
+    async (provider: AIProvider) => {
+      setAIProvider(provider);
+
+      // Save to Supabase if user is logged in
+      if (supabaseUserId) {
+        try {
+          await supabase
+            .from("users")
+            .update({ ai_provider: provider })
+            .eq("id", supabaseUserId);
+        } catch (error) {
+          console.error("Error saving AI provider preference:", error);
+        }
+      }
+    },
+    [supabase, supabaseUserId]
+  );
 
   const handleCreateProject = async (
     appIdea: string,
@@ -91,6 +123,7 @@ export default function HomePage() {
           name: "New Project", // Placeholder - will be generated async on build page
           user_id: userData.id,
           app_idea: appIdea,
+          ai_provider: aiProvider, // Save selected AI provider
           // planning_completed_at is NOT set if planFeatures is true
           ...(planFeatures ? {} : { planning_completed_at: new Date().toISOString() }),
         })
@@ -203,7 +236,16 @@ export default function HomePage() {
 
         {/* App Idea Input */}
         <div className="w-full max-w-2xl animate-scale-fade-in opacity-0 animation-delay-800">
-          <AppIdeaInput onSubmit={handleCreateProject} isLoading={isCreating} />
+          <AppIdeaInput
+            onSubmit={handleCreateProject}
+            isLoading={isCreating}
+            planFeatures={planFeatures}
+            onPlanFeaturesChange={setPlanFeatures}
+            tempUploadId={tempUploadId}
+            onTempUploadIdReady={setTempUploadId}
+            aiProvider={aiProvider}
+            onAIProviderChange={handleAIProviderChange}
+          />
         </div>
 
         {/* Recent Projects */}

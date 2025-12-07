@@ -112,6 +112,13 @@ function UserMessageWithLightbox({ message, hasImages }: { message: Message; has
 }
 
 export function ChatMessage({ message, onFixError }: ChatMessageProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Helper to check if this is an expandable message (e.g., stderr with full content)
+  const isExpandableMessage =
+    message.eventData?.isExpandable === true &&
+    typeof message.eventData?.fullMessage === "string";
+
   // Helper to check if this is an operational event with details
   const isOperationalEvent =
     message.eventData?.subtype === "operation" &&
@@ -367,6 +374,27 @@ export function ChatMessage({ message, onFixError }: ChatMessageProps) {
     // Generic system message (thinking, etc.) - with typing dots for "thinking"
     const operationalDetails = getOperationalDetails();
     const isThinking = message.content.toLowerCase().includes("thinking");
+
+    // Check if this is an expandable message (stderr with full content)
+    if (isExpandableMessage) {
+      const fullMessage = message.eventData?.fullMessage as string;
+      return (
+        <div className="flex flex-col items-start gap-0 my-1.5 w-full animate-fade-in-up">
+          <div className="inline-flex flex-col gap-1.5 px-3 py-2 rounded-xl glass-morphism text-xs max-w-[90%]">
+            <span className="font-medium text-muted-foreground break-words whitespace-pre-wrap font-mono">
+              {isExpanded ? `[Gemini] stderr: ${fullMessage}` : message.content}
+            </span>
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="self-start text-primary hover:text-primary/80 text-[10px] font-medium transition-colors"
+            >
+              {isExpanded ? "Show less" : "Show more"}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="flex flex-col items-start gap-0 my-1.5 w-full animate-fade-in-up">
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl glass-morphism text-xs">

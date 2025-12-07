@@ -21,6 +21,7 @@ export function BuildPageDesktop({
   viewMode,
   healthStatus,
   healthMessage,
+  initialAiProvider,
 }: BuildPageLayoutProps) {
   return (
     <div className="flex-1 min-h-0 hidden md:block">
@@ -31,6 +32,7 @@ export function BuildPageDesktop({
             projectId={projectId}
             sandboxId={sandboxId}
             featureContext={featureContext}
+            initialAiProvider={initialAiProvider}
           />
         </ResizablePanel>
 

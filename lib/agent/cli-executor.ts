@@ -225,6 +225,192 @@ export async function executeClaudeInE2B(
 }
 
 /**
+ * Execute Gemini CLI in E2B with direct Supabase streaming
+ *
+ * **GEMINI ALTERNATIVE:** This function is identical to executeClaudeInE2B but uses
+ * Gemini CLI instead of Claude CLI for AI agent execution.
+ *
+ * Architecture:
+ * 1. Read stream-to-supabase-gemini.js from filesystem
+ * 2. Upload script to E2B sandbox
+ * 3. Install @supabase/supabase-js (if not in template)
+ * 4. Run script with background: true
+ * 5. Return immediately with PID
+ * 6. Script continues running on E2B for up to 1 hour
+ * 7. Events posted directly to Supabase
+ * 8. Frontend receives updates via realtime subscriptions
+ *
+ * @param prompt - The user's prompt to Gemini
+ * @param workingDirectory - Directory where Gemini runs
+ * @param sessionId - Optional session ID to resume conversation
+ * @param sandbox - Existing E2B sandbox
+ * @param projectId - Project ID for linking events
+ * @param userId - User ID for session tracking
+ * @returns Execution result with PID and sandbox ID
+ */
+export async function executeGeminiInE2B(
+  prompt: string,
+  workingDirectory: string,
+  sessionId: string | undefined,
+  sandbox: Sandbox,
+  projectId: string,
+  userId: string
+): Promise<E2BExecutionResult> {
+  const { readFileSync } = await import('fs');
+  const { join } = await import('path');
+
+  console.log("[E2B] Starting Gemini execution with direct Supabase streaming");
+  console.log(`[E2B] Project: ${projectId}, User: ${userId}`);
+  console.log(`[E2B] Session: ${sessionId || '(new)'}`);
+  console.log(`[E2B] Sandbox: ${sandbox.sandboxId}`);
+
+  try {
+    // Step 1: Read the Gemini script file from filesystem
+    const scriptPath = join(process.cwd(), 'lib/agent/e2b-scripts/stream-to-supabase-gemini.js');
+    console.log(`[E2B] Reading Gemini script from: ${scriptPath}`);
+    const scriptContent = readFileSync(scriptPath, 'utf-8');
+    console.log(`[E2B] Gemini script loaded (${scriptContent.length} bytes)`);
+
+    // Step 2: Upload script to E2B
+    const e2bScriptPath = '/home/user/stream-to-supabase-gemini.js';
+    console.log(`[E2B] Uploading Gemini script to E2B: ${e2bScriptPath}`);
+    await sandbox.files.write(e2bScriptPath, scriptContent);
+    console.log(`[E2B] Gemini script uploaded`);
+
+    // Step 2.1: Upload save-to-r2.js module (for direct E2B saves)
+    const saveScriptPath = join(process.cwd(), 'lib/agent/e2b-scripts/save-to-r2.js');
+    console.log(`[E2B] Reading save-to-r2 module from: ${saveScriptPath}`);
+    const saveScriptContent = readFileSync(saveScriptPath, 'utf-8');
+    await sandbox.files.write('/home/user/save-to-r2.js', saveScriptContent);
+    console.log(`[E2B] Save-to-R2 module uploaded`);
+
+    // Step 2.2: Upload e2b-logger.js module (for operational logging to Supabase)
+    const loggerScriptPath = join(process.cwd(), 'lib/agent/e2b-scripts/e2b-logger.js');
+    console.log(`[E2B] Reading e2b-logger module from: ${loggerScriptPath}`);
+    const loggerScriptContent = readFileSync(loggerScriptPath, 'utf-8');
+    await sandbox.files.write('/home/user/e2b-logger.js', loggerScriptContent);
+    console.log(`[E2B] E2B-Logger module uploaded`);
+
+    // Step 2.3: Upload metro-control.js module (for hot reload)
+    const metroControlPath = join(process.cwd(), 'lib/agent/e2b-scripts/metro-control.js');
+    console.log(`[E2B] Reading metro-control module from: ${metroControlPath}`);
+    const metroControlContent = readFileSync(metroControlPath, 'utf-8');
+    await sandbox.files.write('/home/user/metro-control.js', metroControlContent);
+    console.log(`[E2B] Metro-control module uploaded`);
+
+    // Step 3: Install dependencies if not already installed
+    console.log(`[E2B] Installing dependencies (@supabase/supabase-js, @aws-sdk/client-s3)...`);
+    const installResult = await sandbox.commands.run(
+      'npm list @supabase/supabase-js @aws-sdk/client-s3 || npm install @supabase/supabase-js @aws-sdk/client-s3',
+      {
+        cwd: '/home/user',
+        timeoutMs: 120000, // 2 minute timeout for npm install
+      }
+    );
+
+    if (installResult.exitCode !== 0) {
+      console.warn(`[E2B] npm install warning: ${installResult.stderr}`);
+      // Continue anyway - might already be installed
+    } else {
+      console.log(`[E2B] Dependencies ready`);
+    }
+
+    // Step 4: Prepare environment variables
+    // Note: Gemini CLI prefers GOOGLE_API_KEY when both are set
+    const envVars: Record<string, string> = {
+      SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      GOOGLE_API_KEY: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY!,
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY!,
+      PROJECT_ID: projectId,
+      USER_ID: userId,
+      USER_PROMPT: prompt,
+      WORKING_DIRECTORY: workingDirectory,
+      // R2 credentials for direct E2B saves
+      R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID!,
+      R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID!,
+      R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY!,
+      R2_BUCKET_NAME: process.env.R2_BUCKET_NAME!,
+    };
+
+    // Add SESSION_ID only if resuming
+    if (sessionId) {
+      envVars.SESSION_ID = sessionId;
+    }
+
+    console.log(`[E2B] Environment variables prepared`);
+
+    // Step 5: Run script in background with output redirection for debugging
+    const logFile = '/home/user/gemini-agent.log';
+    console.log(`[E2B] Starting Gemini script in background mode...`);
+    console.log(`[E2B] Output will be logged to: ${logFile}`);
+
+    // Start script with nohup for proper backgrounding and output capture
+    const startResult = await sandbox.commands.run(
+      `nohup node ${e2bScriptPath} > ${logFile} 2>&1 & echo $!`,
+      {
+        cwd: workingDirectory,
+        envs: envVars,
+        timeoutMs: 5000,
+      }
+    );
+
+    const pid = parseInt(startResult.stdout.trim());
+    if (!pid || isNaN(pid)) {
+      throw new Error('Failed to start Gemini background process (no PID returned)');
+    }
+
+    console.log(`[E2B] Gemini script started in background (PID: ${pid})`);
+    console.log(`[E2B] Logs: ${logFile}`);
+    console.log(`[E2B] Script will run independently on E2B and stream to Supabase`);
+
+    // Show initial output for debugging (non-blocking)
+    setTimeout(async () => {
+      try {
+        const logs = await sandbox.commands.run(`head -n 50 ${logFile}`, { timeoutMs: 3000 });
+        if (logs.stdout) {
+          console.log('[E2B] Gemini initial output (first 50 lines):');
+          console.log(logs.stdout);
+        }
+      } catch (err) {
+        console.error('[E2B] Failed to read Gemini initial logs:', err);
+      }
+    }, 2000);
+
+    // Show more output after 10 seconds to see if Gemini is producing events
+    setTimeout(async () => {
+      try {
+        const logs = await sandbox.commands.run(`tail -n 30 ${logFile}`, { timeoutMs: 3000 });
+        if (logs.stdout) {
+          console.log('[E2B] Gemini latest output (after 10s):');
+          console.log(logs.stdout);
+        }
+
+        // Also check if process is still running
+        const psResult = await sandbox.commands.run(`ps -p ${pid} -o pid,etime,cmd || echo "Process ${pid} not found"`, { timeoutMs: 3000 });
+        console.log('[E2B] Gemini process status:', psResult.stdout.trim());
+      } catch (err) {
+        console.error('[E2B] Failed to read Gemini latest logs:', err);
+      }
+    }, 10000);
+
+    console.log(`[E2B] Vercel can now return immediately`);
+
+    return {
+      pid,
+      sandboxId: sandbox.sandboxId,
+      scriptPath: e2bScriptPath,
+      logFile,
+    };
+  } catch (error) {
+    console.error('[E2B] Failed to start Gemini execution:', error);
+    throw new Error(
+      `Failed to execute Gemini in E2B: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+/**
  * Execute Expo setup script in E2B
  *
  * **NEW APPROACH:** This function uploads and runs the setup-expo.js script
@@ -254,13 +440,15 @@ export async function executeSetupInE2B(
   sandbox: Sandbox,
   projectId: string,
   userId: string,
-  userPrompt?: string
+  userPrompt?: string,
+  aiProvider: 'claude' | 'gemini' = 'claude'
 ): Promise<E2BExecutionResult> {
   const { readFileSync } = await import('fs');
   const { join } = await import('path');
 
   console.log("[E2B] Starting Expo setup with E2B background script");
   console.log(`[E2B] Project: ${projectId}, User: ${userId}`);
+  console.log(`[E2B] AI Provider: ${aiProvider}`);
   console.log(`[E2B] Sandbox: ${sandbox.sandboxId}`);
 
   try {
@@ -283,13 +471,17 @@ export async function executeSetupInE2B(
     await sandbox.files.write('/home/user/r2-restore.js', r2RestoreContent);
     console.log(`[E2B] ✓ R2 restore module uploaded`);
 
-    // Step 2.5: Also upload stream-to-supabase.js (needed for Claude agent)
+    // Step 2.5: Also upload stream-to-supabase.js (needed for AI agent)
     if (userPrompt) {
-      const agentScriptPath = join(process.cwd(), 'lib/agent/e2b-scripts/stream-to-supabase.js');
-      console.log(`[E2B] Reading agent script from: ${agentScriptPath}`);
+      // Upload the correct agent script based on AI provider
+      const agentScriptName = aiProvider === 'gemini'
+        ? 'stream-to-supabase-gemini.js'
+        : 'stream-to-supabase.js';
+      const agentScriptPath = join(process.cwd(), `lib/agent/e2b-scripts/${agentScriptName}`);
+      console.log(`[E2B] Reading ${aiProvider} agent script from: ${agentScriptPath}`);
       const agentScriptContent = readFileSync(agentScriptPath, 'utf-8');
       await sandbox.files.write('/home/user/stream-to-supabase.js', agentScriptContent);
-      console.log(`[E2B] ✓ Agent script uploaded`);
+      console.log(`[E2B] ✓ ${aiProvider === 'gemini' ? 'Gemini' : 'Claude'} agent script uploaded`);
 
       // Also upload save-to-r2.js (needed for auto-save)
       const saveScriptPath = join(process.cwd(), 'lib/agent/e2b-scripts/save-to-r2.js');
@@ -350,10 +542,21 @@ export async function executeSetupInE2B(
       R2_BUCKET_NAME: process.env.R2_BUCKET_NAME!,
     };
 
-    // Add Claude agent env vars if prompt provided
-    if (userPrompt && process.env.CLAUDE_CODE_OAUTH_TOKEN) {
-      envVars.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+    // Add AI agent env vars if prompt provided
+    if (userPrompt) {
+      envVars.AI_PROVIDER = aiProvider;
       envVars.USER_PROMPT = userPrompt;
+
+      if (aiProvider === 'gemini') {
+        // Pass both API key variants - Gemini CLI prefers GOOGLE_API_KEY
+        const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+        if (apiKey) {
+          envVars.GOOGLE_API_KEY = apiKey;
+          envVars.GEMINI_API_KEY = apiKey;
+        }
+      } else if (aiProvider === 'claude' && process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+        envVars.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+      }
     }
 
     console.log(`[E2B] Environment variables prepared`);

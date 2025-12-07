@@ -15,8 +15,13 @@
 import type { Sandbox } from "e2b";
 import { NextResponse } from "next/server";
 import { buildExpoAgentPrompt } from "./prompts";
-import { executeSetupInE2B, executeClaudeInE2B } from "./cli-executor";
+import { executeSetupInE2B, executeClaudeInE2B, executeGeminiInE2B } from "./cli-executor";
 import { downloadImagesToSandbox, buildImageContext } from "./download-images-to-sandbox";
+
+/**
+ * Supported AI providers for agent execution
+ */
+export type AIProvider = 'claude' | 'gemini';
 
 /**
  * Options for new project flow
@@ -28,6 +33,7 @@ export interface NewProjectFlowOptions {
   userPrompt: string;
   workingDir?: string;
   imageKeys?: string[];
+  aiProvider?: AIProvider;
 }
 
 /**
@@ -43,6 +49,7 @@ export interface ExistingProjectFlowOptions {
   qrCode?: string | null;
   workingDir?: string;
   imageKeys?: string[];
+  aiProvider?: AIProvider;
 }
 
 /**
@@ -69,9 +76,10 @@ export interface ExistingProjectFlowOptions {
 export async function handleNewProjectFlow(
   options: NewProjectFlowOptions
 ): Promise<NextResponse> {
-  const { sandbox, projectId, userId, userPrompt, workingDir, imageKeys } = options;
+  const { sandbox, projectId, userId, userPrompt, workingDir, imageKeys, aiProvider = 'claude' } = options;
 
   console.log(`[FLOW] Starting NEW PROJECT flow for ${projectId}`);
+  console.log(`[FLOW] AI Provider: ${aiProvider}`);
   console.log(`[FLOW] Sandbox: ${sandbox.sandboxId}`);
   console.log(`[FLOW] Images to download: ${imageKeys?.length || 0}`);
 
@@ -98,12 +106,13 @@ export async function handleNewProjectFlow(
   console.log(`[FLOW] System prompt built (${systemPrompt.length} chars)`);
 
   // Start Expo setup in E2B background
-  // This will clone template, install deps, start Expo, then run Claude
+  // This will clone template, install deps, start Expo, then run the appropriate agent
   const { pid, logFile } = await executeSetupInE2B(
     sandbox,
     projectId,
     userId,
-    systemPrompt // Agent will start after setup completes
+    systemPrompt, // Agent will start after setup completes
+    aiProvider // Pass AI provider so setup knows which agent to start
   );
 
   console.log(`[FLOW] ✓ Setup started in E2B (PID: ${pid})`);
@@ -150,9 +159,11 @@ export async function handleExistingProjectFlow(
     qrCode,
     workingDir,
     imageKeys,
+    aiProvider = 'claude',
   } = options;
 
   console.log(`[FLOW] Starting EXISTING PROJECT flow for ${projectId}`);
+  console.log(`[FLOW] AI Provider: ${aiProvider}`);
   console.log(`[FLOW] Sandbox: ${sandbox.sandboxId}`);
   console.log(`[FLOW] Session: ${sessionId || "(new)"}`);
   console.log(`[FLOW] Expo URL: ${expoUrl || "(not available)"}`);
@@ -180,18 +191,38 @@ export async function handleExistingProjectFlow(
 
   console.log(`[FLOW] System prompt built (${systemPrompt.length} chars)`);
 
-  // Start Claude agent in E2B background
+  // Start agent in E2B background based on AI provider
   // Expo is already running, so agent can start immediately
-  const { pid, logFile } = await executeClaudeInE2B(
-    systemPrompt,
-    workingDir || "/home/user/project",
-    sessionId || undefined, // Use existing session_id for conversation continuity
-    sandbox,
-    projectId,
-    userId
-  );
+  let pid: number;
+  let logFile: string;
 
-  console.log(`[FLOW] ✓ Agent started in E2B (PID: ${pid})`);
+  if (aiProvider === 'gemini') {
+    console.log(`[FLOW] Using Gemini CLI for agent execution`);
+    const result = await executeGeminiInE2B(
+      systemPrompt,
+      workingDir || "/home/user/project",
+      sessionId || undefined, // Use existing session_id for conversation continuity
+      sandbox,
+      projectId,
+      userId
+    );
+    pid = result.pid;
+    logFile = result.logFile;
+  } else {
+    console.log(`[FLOW] Using Claude Code CLI for agent execution`);
+    const result = await executeClaudeInE2B(
+      systemPrompt,
+      workingDir || "/home/user/project",
+      sessionId || undefined, // Use existing session_id for conversation continuity
+      sandbox,
+      projectId,
+      userId
+    );
+    pid = result.pid;
+    logFile = result.logFile;
+  }
+
+  console.log(`[FLOW] ✓ ${aiProvider === 'gemini' ? 'Gemini' : 'Claude'} agent started in E2B (PID: ${pid})`);
   console.log(`[FLOW] ✓ Logs: ${logFile}`);
   console.log(`[FLOW] Agent will continue in background, updates via Supabase`);
 
