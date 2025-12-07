@@ -455,16 +455,22 @@ export function UnifiedInput({
       {dropOverlay}
       {imageGrid}
 
-      <div className="flex gap-2 items-end">
-        {/* AI Provider selector - build variant only */}
-        {onAIProviderChange && (
+      {/* Top row: AI Provider selector and Image upload button */}
+      {onAIProviderChange && (
+        <div className="flex items-center gap-2 mb-2">
           <AIProviderSelector
             value={aiProvider}
             onChange={onAIProviderChange}
             disabled={isLoading}
           />
-        )}
-        {imageUploadButton}
+          {imageUploadButton}
+        </div>
+      )}
+
+      {/* Bottom row: Full-width textarea with send button */}
+      <div className="flex gap-2 items-end">
+        {/* Show image upload button inline if no AI provider selector */}
+        {!onAIProviderChange && imageUploadButton}
         {textarea}
 
         <Button
