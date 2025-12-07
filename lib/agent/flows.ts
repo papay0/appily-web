@@ -100,6 +100,7 @@ export async function handleNewProjectFlow(
   const systemPrompt = buildExpoAgentPrompt({
     userTask: userPrompt + imageContext,
     workingDir: workingDir || "/home/user/project",
+    aiProvider,
     // expoUrl: undefined - not available yet
   });
 
@@ -187,6 +188,7 @@ export async function handleExistingProjectFlow(
     userTask: userPrompt + imageContext,
     expoUrl: expoUrl || undefined,
     workingDir: workingDir || "/home/user/project",
+    aiProvider,
   });
 
   console.log(`[FLOW] System prompt built (${systemPrompt.length} chars)`);

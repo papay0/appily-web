@@ -33,6 +33,12 @@ export interface ExpoAgentPromptOptions {
    * Default: /home/user/project
    */
   workingDir?: string;
+
+  /**
+   * The AI provider being used
+   * Different providers may need different prompting styles
+   */
+  aiProvider?: 'claude' | 'gemini';
 }
 
 /**
@@ -69,7 +75,29 @@ export function buildExpoAgentPrompt(
     ? `The Expo URL is: ${options.expoUrl}\n\n`
     : "";
 
+  // User-friendly communication instructions for all providers
+  const communicationInstructions = `
+**COMMUNICATION STYLE (VERY IMPORTANT):**
+Your users are NON-TECHNICAL. They don't understand code or technical jargon.
+
+As you work, ALWAYS explain what you're doing in SIMPLE, FRIENDLY terms by outputting text messages:
+- Before writing code: "I'm creating the main screen for your app..."
+- After completing a feature: "Done! I've added a beautiful photo gallery where you can see all your pictures."
+- When installing packages: "I'm adding some tools to make the camera work..."
+- When fixing errors: "Oops, found a small issue. Fixing it now..."
+
+NEVER say things like:
+- "Writing to app/index.tsx" → Instead say: "I'm building your home screen"
+- "Installing expo-camera" → Instead say: "I'm setting up the camera feature"
+- "Fixing TypeScript error" → Instead say: "Making a quick fix"
+
+Think of yourself as a friendly assistant explaining to a non-technical friend.
+After each major step, output a brief, encouraging text message about your progress.
+Use emojis occasionally to make it feel friendly! 🎨📱✨
+`;
+
   return `You are building a native mobile app using Expo.
+${communicationInstructions}
 
 The Expo template is already cloned and running at: ${workingDir}
 Metro bundler is already running on port 8081.
