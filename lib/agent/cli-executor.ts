@@ -316,12 +316,10 @@ export async function executeGeminiInE2B(
     }
 
     // Step 4: Prepare environment variables
-    // Note: Gemini CLI prefers GOOGLE_API_KEY when both are set
+    // Vertex AI is preferred (more stable, higher quotas) - falls back to consumer API key
     const envVars: Record<string, string> = {
       SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL!,
       SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      GOOGLE_API_KEY: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY!,
-      GEMINI_API_KEY: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY!,
       PROJECT_ID: projectId,
       USER_ID: userId,
       USER_PROMPT: prompt,
@@ -332,6 +330,16 @@ export async function executeGeminiInE2B(
       R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY!,
       R2_BUCKET_NAME: process.env.R2_BUCKET_NAME!,
     };
+
+    // Vertex AI credentials (required for Gemini)
+    if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON && process.env.GOOGLE_CLOUD_PROJECT) {
+      console.log(`[E2B] Using Vertex AI authentication (project: ${process.env.GOOGLE_CLOUD_PROJECT})`);
+      envVars.GOOGLE_APPLICATION_CREDENTIALS_JSON = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+      envVars.GOOGLE_CLOUD_PROJECT = process.env.GOOGLE_CLOUD_PROJECT;
+      envVars.GOOGLE_CLOUD_LOCATION = process.env.GOOGLE_CLOUD_LOCATION || 'global';
+    } else {
+      throw new Error('Missing Vertex AI credentials: Set GOOGLE_APPLICATION_CREDENTIALS_JSON and GOOGLE_CLOUD_PROJECT');
+    }
 
     // Add SESSION_ID only if resuming
     if (sessionId) {
@@ -548,11 +556,14 @@ export async function executeSetupInE2B(
       envVars.USER_PROMPT = userPrompt;
 
       if (aiProvider === 'gemini') {
-        // Pass both API key variants - Gemini CLI prefers GOOGLE_API_KEY
-        const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
-        if (apiKey) {
-          envVars.GOOGLE_API_KEY = apiKey;
-          envVars.GEMINI_API_KEY = apiKey;
+        // Vertex AI credentials (required for Gemini)
+        if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON && process.env.GOOGLE_CLOUD_PROJECT) {
+          console.log(`[E2B] Gemini will use Vertex AI authentication (project: ${process.env.GOOGLE_CLOUD_PROJECT})`);
+          envVars.GOOGLE_APPLICATION_CREDENTIALS_JSON = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+          envVars.GOOGLE_CLOUD_PROJECT = process.env.GOOGLE_CLOUD_PROJECT;
+          envVars.GOOGLE_CLOUD_LOCATION = process.env.GOOGLE_CLOUD_LOCATION || 'global';
+        } else {
+          console.error(`[E2B] Missing Vertex AI credentials for Gemini`);
         }
       } else if (aiProvider === 'claude' && process.env.CLAUDE_CODE_OAUTH_TOKEN) {
         envVars.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
