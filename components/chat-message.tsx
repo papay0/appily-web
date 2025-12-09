@@ -151,7 +151,7 @@ export function ChatMessage({ message, onFixError }: ChatMessageProps) {
         {/* AI Avatar */}
         <div className="h-7 w-7 rounded-full glass-morphism flex items-center justify-center flex-shrink-0 p-1">
           <Image
-            src="/appily-logo.svg"
+            src="/logo test3.png"
             alt="AI"
             width={16}
             height={16}
