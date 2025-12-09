@@ -211,7 +211,7 @@ export default function HomePage() {
               What will you
               <span className="inline-flex items-center gap-2">
                 <Image
-                  src="/appily-logo.svg"
+                  src="/logo test3.png"
                   alt="Appily"
                   width={48}
                   height={48}

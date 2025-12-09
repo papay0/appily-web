@@ -37,7 +37,7 @@ export function AppSidebar() {
       <SidebarHeader>
         <Link href="/home" className="flex items-center gap-2 px-2 py-2 cursor-pointer hover:opacity-80 transition-opacity">
           <Image
-            src="/appily-logo.svg"
+            src="/logo test3.png"
             alt="Appily Logo"
             width={24}
             height={24}

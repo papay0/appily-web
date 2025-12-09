@@ -1,12 +1,28 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Bricolage_Grotesque } from "next/font/google";
+import { Inter, Inter_Tight, Geist_Mono, Playfair_Display } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+import "@fortawesome/fontawesome-svg-core/styles.css";
+import { config } from "@fortawesome/fontawesome-svg-core";
+config.autoAddCss = false;
+
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+});
+
+const interDisplay = Inter_Tight({
+  variable: "--font-inter-display",
+  subsets: ["latin"],
+  weight: "variable",
+});
+
+const playfair = Playfair_Display({
+  variable: "--font-playfair",
+  subsets: ["latin"],
+  style: "italic",
 });
 
 const geistMono = Geist_Mono({
@@ -14,16 +30,11 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const bricolage = Bricolage_Grotesque({
-  variable: "--font-bricolage",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
   title: "Appily - Build native mobile apps with AI",
   description: "Turn your ideas into real iOS and Android apps in minutes. No coding required, no technical knowledge needed.",
   icons: {
-    icon: "/appily-logo.svg",
+    icon: "/favicon white-32x32.png",
   },
 };
 
@@ -43,7 +54,7 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
         <body
-          className={`${geistSans.variable} ${geistMono.variable} ${bricolage.variable} antialiased`}
+          className={`${inter.variable} ${geistMono.variable} ${interDisplay.variable} ${playfair.variable} antialiased`}
         >
           <ThemeProvider
             attribute="class"
