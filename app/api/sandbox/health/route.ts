@@ -4,8 +4,7 @@ import { Sandbox } from "@e2b/code-interpreter";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createSandbox, startExpo } from "@/lib/e2b";
 import { generateQRCode } from "@/lib/qrcode";
-import { restoreProjectFromR2, installDependencies } from "@/lib/agent/restore-from-r2";
-import type { Sandbox as E2BSandbox } from "e2b";
+import { executeSetupInE2B } from "@/lib/agent/cli-executor";
 
 export type HealthStatus = "sleeping" | "starting" | "metro_starting" | "ready" | "error";
 
@@ -59,23 +58,103 @@ export async function POST(request: Request) {
 
     const currentSandboxId = sandboxId || project.e2b_sandbox_id;
 
-    // If sandbox is already in "starting" status, return that status
-    if (project.e2b_sandbox_status === "starting") {
-      const response: HealthResponse = {
-        healthy: false,
-        status: "starting",
-        sandboxAlive: false,
-        metroRunning: false,
-        message: STATUS_MESSAGES.starting,
-      };
-      return NextResponse.json(response);
+    // If sandbox is in "starting" status, verify actual state instead of blindly returning
+    // This fixes a bug where status could be stuck at "starting" if background setup failed
+    if (project.e2b_sandbox_status === "starting" && currentSandboxId) {
+      try {
+        const sandbox = await Sandbox.connect(currentSandboxId, {
+          apiKey: process.env.E2B_API_KEY,
+        });
+
+        // Sandbox is alive - check if Metro is running
+        const metroRunning = await checkMetroRunning(sandbox);
+
+        if (metroRunning) {
+          // Verify expo_url matches current sandbox (prevent stale data from old sandboxes)
+          const expoUrlMatchesSandbox = project.expo_url?.includes(currentSandboxId);
+
+          if (!expoUrlMatchesSandbox) {
+            // expo_url is stale (from a different sandbox) - setup is still completing
+            console.log("[HealthCheck] Metro running but expo_url doesn't match current sandbox - waiting for setup to complete");
+            const response: HealthResponse = {
+              healthy: false,
+              status: "metro_starting",
+              sandboxAlive: true,
+              metroRunning: true,
+              message: STATUS_MESSAGES.metro_starting,
+            };
+            return NextResponse.json(response);
+          }
+
+          // Setup completed! Update DB and return ready
+          console.log("[HealthCheck] Status was 'starting' but Metro is running - updating to 'ready'");
+          await supabaseAdmin
+            .from("projects")
+            .update({
+              e2b_sandbox_status: "ready",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", projectId);
+
+          const response: HealthResponse = {
+            healthy: true,
+            status: "ready",
+            sandboxAlive: true,
+            metroRunning: true,
+            expoUrl: project.expo_url || undefined,
+            qrCode: project.qr_code || undefined,
+            message: STATUS_MESSAGES.ready,
+          };
+          return NextResponse.json(response);
+        }
+
+        // Sandbox alive but Metro not ready yet
+        // Check if setup completed (expo_url is set) - if so, Metro crashed and needs restart
+        if (project.expo_url && project.expo_url.includes(currentSandboxId)) {
+          // Setup completed but Metro crashed - restart it!
+          console.log("[HealthCheck] Setup completed but Metro not running - restarting Metro...");
+          restartMetroInBackground(sandbox, projectId);
+
+          const response: HealthResponse = {
+            healthy: false,
+            status: "metro_starting",
+            sandboxAlive: true,
+            metroRunning: false,
+            message: "Restarting Metro...",
+          };
+          return NextResponse.json(response);
+        }
+
+        // Setup still in progress - just wait
+        console.log("[HealthCheck] Status is 'starting', setup still in progress...");
+        const response: HealthResponse = {
+          healthy: false,
+          status: "metro_starting",
+          sandboxAlive: true,
+          metroRunning: false,
+          message: STATUS_MESSAGES.metro_starting,
+        };
+        return NextResponse.json(response);
+
+      } catch {
+        // Sandbox connection failed - truly still starting or dead
+        console.log("[HealthCheck] Status is 'starting' and sandbox connection failed");
+        const response: HealthResponse = {
+          healthy: false,
+          status: "starting",
+          sandboxAlive: false,
+          metroRunning: false,
+          message: STATUS_MESSAGES.starting,
+        };
+        return NextResponse.json(response);
+      }
     }
 
     // No sandbox ID - sandbox is sleeping
     if (!currentSandboxId) {
       // Auto-restart if requested
       if (autoRestart) {
-        return await handleAutoRestart(projectId);
+        return await handleAutoRestart(projectId, userId);
       }
 
       const response: HealthResponse = {
@@ -112,7 +191,7 @@ export async function POST(request: Request) {
 
       // Auto-restart if requested
       if (autoRestart) {
-        return await handleAutoRestart(projectId);
+        return await handleAutoRestart(projectId, userId);
       }
 
       const response: HealthResponse = {
@@ -269,9 +348,12 @@ async function checkMetroRunning(sandbox: Sandbox): Promise<boolean> {
 }
 
 /**
- * Handle auto-restart: Create a new sandbox and restore from R2
+ * Handle auto-restart: Create a new sandbox and run setup on E2B
+ *
+ * This now uses executeSetupInE2B which runs the setup script entirely on E2B,
+ * avoiding Vercel timeout issues that caused "starting" status to get stuck.
  */
-async function handleAutoRestart(projectId: string): Promise<NextResponse> {
+async function handleAutoRestart(projectId: string, userId: string): Promise<NextResponse> {
   try {
     console.log("[HealthCheck] Auto-restarting sandbox for project:", projectId);
 
@@ -289,8 +371,18 @@ async function handleAutoRestart(projectId: string): Promise<NextResponse> {
       })
       .eq("id", projectId);
 
-    // Continue setup in background
-    setupExpoInBackground(sandbox, projectId);
+    // Run setup entirely on E2B (no Vercel timeout issues)
+    // The setup-expo.js script will handle R2 restore, npm install, Expo start, and DB updates
+    // Pass undefined for userPrompt since we're just waking up, not starting an agent
+    const { pid, logFile } = await executeSetupInE2B(
+      sandbox,
+      projectId,
+      userId,
+      undefined, // No user prompt - just restoring environment
+      'claude'   // Default provider (irrelevant without prompt)
+    );
+
+    console.log(`[HealthCheck] Setup script started on E2B (PID: ${pid}, logs: ${logFile})`);
 
     const response: HealthResponse = {
       healthy: false,
@@ -361,98 +453,6 @@ async function restartMetroInBackground(sandbox: Sandbox, projectId: string): Pr
   } catch (error) {
     console.error("[HealthCheck] Metro restart failed:", error);
 
-    await supabaseAdmin
-      .from("projects")
-      .update({
-        e2b_sandbox_status: "error",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", projectId);
-  }
-}
-
-/**
- * Setup Expo in the background (reused from /api/sandbox/create)
- */
-async function setupExpoInBackground(sandbox: E2BSandbox, projectId: string): Promise<void> {
-  try {
-    let expoUrl: string;
-
-    // Check if project has existing snapshots in R2
-    console.log("[HealthCheck] Checking for existing R2 snapshots...");
-    const { data: snapshots } = await supabaseAdmin
-      .from("project_snapshots")
-      .select("r2_path, version, created_at")
-      .eq("project_id", projectId)
-      .order("version", { ascending: false })
-      .limit(1);
-
-    if (snapshots && snapshots.length > 0) {
-      // Restore from R2
-      const latestSnapshot = snapshots[0];
-      console.log(
-        `[HealthCheck] Found existing snapshot (v${latestSnapshot.version}), restoring from R2...`
-      );
-
-      const restoreResult = await restoreProjectFromR2(
-        sandbox,
-        latestSnapshot.r2_path,
-        "/home/user/project"
-      );
-
-      if (!restoreResult.success) {
-        console.error("[HealthCheck] Restore failed:", restoreResult.error);
-        throw new Error(`Failed to restore from R2: ${restoreResult.error}`);
-      }
-
-      console.log(`[HealthCheck] Restored ${restoreResult.fileCount} files from R2`);
-
-      // Install dependencies
-      console.log("[HealthCheck] Installing dependencies...");
-      const installResult = await installDependencies(sandbox, "/home/user/project");
-
-      if (!installResult.success) {
-        console.error("[HealthCheck] Install failed:", installResult.error);
-        throw new Error(`Failed to install dependencies: ${installResult.error}`);
-      }
-
-      // Start Expo
-      console.log("[HealthCheck] Starting Expo...");
-      expoUrl = await startExpo(sandbox, "/home/user/project");
-    } else {
-      // No snapshots found, clone template
-      console.log("[HealthCheck] No R2 snapshots found, setting up from template...");
-      const { setupExpoProject } = await import("@/lib/e2b");
-      expoUrl = await setupExpoProject(sandbox);
-    }
-
-    // Generate QR code
-    console.log("[HealthCheck] Generating QR code for Expo URL:", expoUrl);
-    const qrCodeDataUrl = await generateQRCode(expoUrl);
-
-    // Update project in database
-    const { error: updateError } = await supabaseAdmin
-      .from("projects")
-      .update({
-        e2b_sandbox_status: "ready",
-        expo_url: expoUrl,
-        qr_code: qrCodeDataUrl,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", projectId);
-
-    if (updateError) {
-      console.error("[HealthCheck] Failed to update project:", updateError);
-      await supabaseAdmin
-        .from("projects")
-        .update({
-          e2b_sandbox_status: "error",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", projectId);
-    }
-  } catch (error) {
-    console.error("[HealthCheck] Expo setup failed:", error);
     await supabaseAdmin
       .from("projects")
       .update({
