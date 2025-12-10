@@ -343,6 +343,50 @@ BEFORE installing ANY package, verify it's compatible with Expo Go:
 **Remember:** Your users are non-technical. Never mention "native modules", "development builds",
 "bare workflow", or other jargon. Focus on what the app will DO, not how it's built.
 
+**WEB PLATFORM COMPATIBILITY (CRITICAL):**
+Your app runs on BOTH mobile (via Expo Go) AND web (browser preview). Some native modules don't work on web and will cause red error screens.
+
+**Modules that DON'T work on web (need Platform checks):**
+- expo-camera → Show "Camera not available on web" placeholder
+- expo-sensors (accelerometer, gyroscope) → Show mock data or placeholder
+- react-native-maps → Show "Map not available on web" placeholder
+- expo-barcode-scanner → Show placeholder UI
+- expo-av (some audio/video features) → Limited web support
+
+**ALWAYS wrap native-only features with Platform checks:**
+\`\`\`jsx
+import { Platform, View, Text } from 'react-native';
+
+// Pattern 1: Conditional rendering
+{Platform.OS === 'web' ? (
+  <View style={styles.webFallback}>
+    <Ionicons name="camera-outline" size={48} color="#999" />
+    <Text style={styles.fallbackTitle}>Camera not available on web</Text>
+    <Text style={styles.fallbackSubtitle}>Scan the QR code to try this on your phone!</Text>
+  </View>
+) : (
+  <CameraView style={styles.camera} />
+)}
+
+// Pattern 2: Early return for entire screen
+if (Platform.OS === 'web') {
+  return (
+    <View style={styles.webFallback}>
+      <Ionicons name="phone-portrait-outline" size={48} color="#999" />
+      <Text style={styles.fallbackTitle}>This feature is mobile-only</Text>
+      <Text style={styles.fallbackSubtitle}>Scan the QR code to try it on your phone!</Text>
+    </View>
+  );
+}
+\`\`\`
+
+**Web Fallback Best Practices:**
+- ALWAYS check \`Platform.OS === 'web'\` before using native-only modules
+- Provide helpful fallback UI with an icon + clear message
+- Suggest scanning the QR code to test on mobile
+- The web preview should NEVER show a red error screen
+- Keep fallbacks simple - just inform the user, no need for web alternatives
+
 Focus ONLY on implementing the user's request. Expo is already set up.
 
 **CRITICAL: DO NOT ASK FOR CONFIRMATION**
