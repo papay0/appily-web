@@ -22,6 +22,8 @@ export async function POST(request: Request) {
     const { sandbox, info } = await createSandbox();
 
     // Update project immediately with "starting" status
+    // Note: We keep session_id - the stream-to-supabase script handles graceful fallback
+    // if the session can't be resumed (loads conversation history from Supabase)
     await supabaseAdmin
       .from("projects")
       .update({
