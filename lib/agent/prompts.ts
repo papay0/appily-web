@@ -349,7 +349,7 @@ Your app runs on BOTH mobile (via Expo Go) AND web (browser preview). Some nativ
 **Modules that DON'T work on web (need Platform checks):**
 - expo-camera → Show "Camera not available on web" placeholder
 - expo-sensors (accelerometer, gyroscope) → Show mock data or placeholder
-- react-native-maps → Show "Map not available on web" placeholder
+- react-native-maps → SPECIAL HANDLING REQUIRED (see MapView section below)
 - expo-barcode-scanner → Show placeholder UI
 - expo-av (some audio/video features) → Limited web support
 
@@ -380,8 +380,77 @@ if (Platform.OS === 'web') {
 }
 \`\`\`
 
+**CRITICAL: react-native-maps REQUIRES SPECIAL HANDLING:**
+DO NOT use regular imports for react-native-maps - they fail at bundle time on web!
+The Metro bundler resolves imports at bundle time, not runtime. So even with Platform checks, a top-level import will crash.
+
+\`\`\`jsx
+// ❌ WRONG - This will crash on web (import resolved at bundle time):
+import MapView from 'react-native-maps';
+// Even with Platform.OS === 'web' check, the import above fails!
+
+// ✅ CORRECT - Use conditional require (resolved at runtime):
+import { Platform, View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+
+export default function MapScreen() {
+  // Early return for web BEFORE any react-native-maps code
+  if (Platform.OS === 'web') {
+    return (
+      <View style={styles.webFallback}>
+        <Ionicons name="map-outline" size={64} color="#999" />
+        <Text style={styles.fallbackTitle}>Map not available on web</Text>
+        <Text style={styles.fallbackSubtitle}>Scan the QR code to try this on your phone!</Text>
+      </View>
+    );
+  }
+
+  // Only require when NOT on web - this delays resolution to runtime
+  const MapView = require('react-native-maps').default;
+
+  return (
+    <MapView
+      style={styles.map}
+      initialRegion={{
+        latitude: 37.78825,
+        longitude: -122.4324,
+        latitudeDelta: 0.0922,
+        longitudeDelta: 0.0421,
+      }}
+    />
+  );
+}
+
+const styles = StyleSheet.create({
+  map: {
+    flex: 1,
+  },
+  webFallback: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    gap: 12,
+  },
+  fallbackTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  fallbackSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    paddingHorizontal: 40,
+  },
+});
+\`\`\`
+
+ALWAYS use this conditional require pattern when user requests maps. NEVER use top-level imports for react-native-maps.
+
 **Web Fallback Best Practices:**
 - ALWAYS check \`Platform.OS === 'web'\` before using native-only modules
+- For react-native-maps: ALWAYS use conditional require(), NEVER top-level import
 - Provide helpful fallback UI with an icon + clear message
 - Suggest scanning the QR code to test on mobile
 - The web preview should NEVER show a red error screen
