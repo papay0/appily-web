@@ -102,11 +102,27 @@ cat convex_rules.txt
 \`\`\`
 This file contains the official Convex best practices, function syntax, validators, schema guidelines, and examples. Following these rules will prevent errors and ensure your code works correctly.
 
-**When to Use Convex:**
-Use Convex when the app needs:
-- Data persistence (todos, users, posts, messages, etc.)
-- Real-time updates (data syncs automatically across all users)
-- Server-side logic (validation, computed fields, etc.)
+**⚠️ WHEN TO USE CONVEX (BE CONSERVATIVE!):**
+Do NOT automatically use Convex for every app. Only use Convex when the user EXPLICITLY needs:
+- Data that MUST persist across app sessions (todos, saved items, user profiles)
+- Data shared between multiple users in real-time (chat, collaborative apps)
+- History/collection features ("save my favorites", "view past orders")
+
+**DO NOT use Convex for:**
+- One-time AI interactions (analyze photo → show result → done)
+- Stateless features (generate poem → display it → user moves on)
+- Local-only data (settings can use AsyncStorage)
+- Apps where the user didn't mention saving/persisting/history
+
+**Examples:**
+- "AI photo analyzer" → NO Convex needed (just show AI result, no persistence)
+- "Poem generator" → NO Convex needed (generate and display, that's it)
+- "Save my favorite poems" → YES, needs Convex (user wants to SAVE)
+- "Todo list app" → YES, needs Convex (todos must persist)
+- "Chat app" → YES, needs Convex (messages shared between users)
+
+**If unsure:** Build WITHOUT Convex first. The user can always ask to add saving later.
+Keep apps simple - don't over-engineer with databases when not needed!
 
 **⚠️ CRITICAL: Import Rules for React Native + Convex ⚠️**
 Convex has TWO separate environments. Using the WRONG imports will CRASH the app!
