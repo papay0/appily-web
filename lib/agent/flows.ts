@@ -36,6 +36,16 @@ export interface ConvexConfig {
 }
 
 /**
+ * AI API configuration for agent flows
+ */
+export interface AIConfig {
+  /** The project UUID for rate limiting */
+  projectId: string;
+  /** The API base URL for AI endpoints (e.g., https://appily.dev) */
+  apiBaseUrl: string;
+}
+
+/**
  * Options for new project flow
  */
 export interface NewProjectFlowOptions {
@@ -48,6 +58,8 @@ export interface NewProjectFlowOptions {
   aiProvider?: AIProvider;
   /** Convex backend config (if enabled) */
   convex?: ConvexConfig;
+  /** AI API config (for generated apps to use AI features) */
+  ai?: AIConfig;
 }
 
 /**
@@ -66,6 +78,8 @@ export interface ExistingProjectFlowOptions {
   aiProvider?: AIProvider;
   /** Convex backend config (if enabled) */
   convex?: ConvexConfig;
+  /** AI API config (for generated apps to use AI features) */
+  ai?: AIConfig;
 }
 
 /**
@@ -92,13 +106,14 @@ export interface ExistingProjectFlowOptions {
 export async function handleNewProjectFlow(
   options: NewProjectFlowOptions
 ): Promise<NextResponse> {
-  const { sandbox, projectId, userId, userPrompt, workingDir, imageKeys, aiProvider = 'claude', convex } = options;
+  const { sandbox, projectId, userId, userPrompt, workingDir, imageKeys, aiProvider = 'claude', convex, ai } = options;
 
   console.log(`[FLOW] Starting NEW PROJECT flow for ${projectId}`);
   console.log(`[FLOW] AI Provider: ${aiProvider}`);
   console.log(`[FLOW] Sandbox: ${sandbox.sandboxId}`);
   console.log(`[FLOW] Images to download: ${imageKeys?.length || 0}`);
   console.log(`[FLOW] Convex enabled: ${!!convex}`);
+  console.log(`[FLOW] AI API enabled: ${!!ai}`);
 
   // Download images to sandbox if provided
   let imageContext = "";
@@ -123,6 +138,11 @@ export async function handleNewProjectFlow(
     convex: convex ? {
       deploymentUrl: convex.deploymentUrl,
       isInitialized: convex.isInitialized,
+    } : undefined,
+    // Include AI API config if enabled
+    ai: ai ? {
+      projectId: ai.projectId,
+      apiBaseUrl: ai.apiBaseUrl,
     } : undefined,
   });
 
@@ -185,6 +205,7 @@ export async function handleExistingProjectFlow(
     imageKeys,
     aiProvider = 'claude',
     convex,
+    ai,
   } = options;
 
   console.log(`[FLOW] Starting EXISTING PROJECT flow for ${projectId}`);
@@ -194,6 +215,7 @@ export async function handleExistingProjectFlow(
   console.log(`[FLOW] Expo URL: ${expoUrl || "(not available)"}`);
   console.log(`[FLOW] Images to download: ${imageKeys?.length || 0}`);
   console.log(`[FLOW] Convex enabled: ${!!convex}`);
+  console.log(`[FLOW] AI API enabled: ${!!ai}`);
 
   // Download images to sandbox if provided
   let imageContext = "";
@@ -218,6 +240,11 @@ export async function handleExistingProjectFlow(
     convex: convex ? {
       deploymentUrl: convex.deploymentUrl,
       isInitialized: convex.isInitialized,
+    } : undefined,
+    // Include AI API config if enabled
+    ai: ai ? {
+      projectId: ai.projectId,
+      apiBaseUrl: ai.apiBaseUrl,
     } : undefined,
   });
 
