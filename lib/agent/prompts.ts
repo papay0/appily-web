@@ -100,19 +100,36 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 \`\`\`
 
-**REACT NATIVE COMPONENTS** (app/, components/, etc.):
+**REACT NATIVE COMPONENTS** (app/, components/, etc.) - THIS IS FOR REACT NATIVE, NOT WEB!:
 \`\`\`typescript
-// ✅ CORRECT for React Native components:
-import { useQuery, useMutation } from "convex/react";
+// ✅ CORRECT for React Native - use "convex/react-native" for EVERYTHING:
+import { ConvexProvider, ConvexReactClient, useQuery, useMutation } from "convex/react-native";
 import { api } from "../convex/_generated/api";
 
-// ❌ NEVER DO THIS IN REACT NATIVE COMPONENTS - WILL CRASH:
-// import { query, mutation } from "convex/server";  // ← CRASHES!
-// import { v } from "convex/values";                 // ← CRASHES!
-// import anything from "./_generated/server";       // ← CRASHES!
+// ❌ NEVER DO THIS IN REACT NATIVE - WILL CRASH WITH "Unable to resolve module ./local_state.js":
+// import { ConvexProvider } from "convex/react";     // ← CRASHES! (browser code)
+// import { useQuery } from "convex/react";           // ← CRASHES! (browser code)
+// import { query, mutation } from "convex/server";   // ← CRASHES! (server code)
+// import { v } from "convex/values";                 // ← CRASHES! (server code)
 \`\`\`
 
-The error "Unable to resolve module ./impl/registration_impl.js" means you imported server code in a React Native component. FIX: Remove the bad import.
+**Setting up ConvexProvider in _layout.tsx:**
+\`\`\`typescript
+// app/_layout.tsx - MUST use convex/react-native, NOT convex/react!
+import { ConvexProvider, ConvexReactClient } from "convex/react-native";
+
+const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!);
+
+export default function RootLayout() {
+  return (
+    <ConvexProvider client={convex}>
+      <Stack />
+    </ConvexProvider>
+  );
+}
+\`\`\`
+
+The error "Unable to resolve module ./local_state.js" or "./impl/registration_impl.js" means you imported from "convex/react" instead of "convex/react-native". FIX: Change ALL convex/react imports to convex/react-native.
 
 **How to Create Convex Functions:**
 
@@ -175,11 +192,11 @@ export const remove = mutation({
 });
 \`\`\`
 
-3. **Use in React Native components** (ONLY use convex/react and api):
+3. **Use in React Native components** (ONLY use convex/react-native and api):
 \`\`\`typescript
 // app/index.tsx - THIS IS A REACT NATIVE FILE
-import { useQuery, useMutation } from "convex/react";  // ✅ Client hooks
-import { api } from "../convex/_generated/api";        // ✅ API object
+import { useQuery, useMutation } from "convex/react-native";  // ✅ MUST be react-native, NOT react!
+import { api } from "../convex/_generated/api";               // ✅ API object
 import { View, Text, FlatList, Pressable, ActivityIndicator } from "react-native";
 
 function TodoList() {
@@ -233,6 +250,7 @@ Review the output for errors. If there are errors, fix them and deploy again.
 - Mutations are transactional - if anything fails, nothing is saved
 
 **DO NOT:**
+- Import from \`convex/react\` in React Native - use \`convex/react-native\` instead (CRASHES with "Unable to resolve module ./local_state.js")
 - Import from \`convex/server\` or \`convex/values\` in React Native components (CRASHES!)
 - Use AsyncStorage for data that should persist across devices (use Convex instead)
 - Forget to deploy after making Convex changes
