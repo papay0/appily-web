@@ -442,332 +442,135 @@ function buildAIAPIPromptSection(aiConfig: {
   projectId: string;
   apiBaseUrl: string;
 }): string {
-  return `**APPILY AI API (AVAILABLE FOR THIS PROJECT):**
-This app can use Appily's AI capabilities for text generation and image analysis.
-The AI features are powered by GPT-4o and ready to use.
+  return `**🤖 AI FEATURES - APPILY AI API (MANDATORY):**
 
-**Project ID:** ${aiConfig.projectId}
-**API Base URL:** ${aiConfig.apiBaseUrl}
+⚠️ **CRITICAL: When the user asks for ANY AI feature, you MUST use the Appily AI API.
+DO NOT create placeholder responses, mock data, fake AI implementations, or Convex functions that return hardcoded strings.**
 
-**Rate Limits:**
-- 30 AI requests per project per 30-day period
-- Always handle rate limit errors gracefully
-- Show users their remaining quota when appropriate
+This project has REAL AI capabilities powered by GPT-4o. The helper is ALREADY in the template.
 
-**STEP 1: Create the AI Helper File**
-Create a \`utils/ai.ts\` file with these helper functions:
+**Trigger words that REQUIRE using Appily AI API:**
+- "AI", "smart", "intelligent", "machine learning"
+- "analyze", "detect", "recognize", "identify", "describe"
+- "generate", "create text", "write", "poem", "story", "content"
+- "what's in this photo", "what do you see", "image analysis"
 
+**DO NOT (THESE ARE FORBIDDEN):**
+- ❌ Return hardcoded strings pretending to be AI analysis
+- ❌ Create Convex mutations that return fake/placeholder AI results
+- ❌ Use setTimeout or delays to simulate "AI thinking"
+- ❌ Mock any AI functionality with static responses
+- ❌ Say "AI analysis would go here" or similar placeholders
+
+**Rate Limits:** 30 AI requests per project per 30-day period
+
+**THE AI HELPER IS ALREADY IN THE TEMPLATE - JUST IMPORT IT:**
 \`\`\`typescript
-// utils/ai.ts
-const APPILY_API_URL = '${aiConfig.apiBaseUrl}';
-const PROJECT_ID = '${aiConfig.projectId}';
-
-/**
- * Generate text using AI
- * @param prompt - What you want the AI to generate
- * @param systemPrompt - Optional context/instructions for the AI
- */
-export async function generateText(prompt: string, systemPrompt?: string): Promise<{
-  text: string;
-  remainingRequests: number;
-}> {
-  const response = await fetch(\`\${APPILY_API_URL}/api/ai/generate\`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      projectId: PROJECT_ID,
-      prompt,
-      systemPrompt,
-      maxTokens: 1024,
-      temperature: 0.7,
-    }),
-  });
-
-  const data = await response.json();
-  if (!data.success) {
-    throw new Error(data.error?.message || 'AI generation failed');
-  }
-  return {
-    text: data.data.text,
-    remainingRequests: data.data.remainingRequests,
-  };
-}
-
-/**
- * Analyze an image using AI vision
- * @param imageBase64 - Base64 encoded image (without data: prefix)
- * @param prompt - What to analyze about the image
- */
-export async function analyzeImage(imageBase64: string, prompt: string): Promise<{
-  analysis: string;
-  remainingRequests: number;
-}> {
-  const response = await fetch(\`\${APPILY_API_URL}/api/ai/vision\`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      projectId: PROJECT_ID,
-      imageBase64,
-      prompt,
-      maxTokens: 1024,
-    }),
-  });
-
-  const data = await response.json();
-  if (!data.success) {
-    throw new Error(data.error?.message || 'Image analysis failed');
-  }
-  return {
-    analysis: data.data.analysis,
-    remainingRequests: data.data.remainingRequests,
-  };
-}
-
-/**
- * Analyze an image from URL using AI vision
- * @param imageUrl - URL of the image to analyze
- * @param prompt - What to analyze about the image
- */
-export async function analyzeImageUrl(imageUrl: string, prompt: string): Promise<{
-  analysis: string;
-  remainingRequests: number;
-}> {
-  const response = await fetch(\`\${APPILY_API_URL}/api/ai/vision\`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      projectId: PROJECT_ID,
-      imageUrl,
-      prompt,
-    }),
-  });
-
-  const data = await response.json();
-  if (!data.success) {
-    throw new Error(data.error?.message || 'Image analysis failed');
-  }
-  return {
-    analysis: data.data.analysis,
-    remainingRequests: data.data.remainingRequests,
-  };
-}
-
-/**
- * Check remaining AI quota for this project
- */
-export async function checkAIQuota(): Promise<{
-  remaining: number;
-  max: number;
-  periodEnd: string;
-}> {
-  const response = await fetch(
-    \`\${APPILY_API_URL}/api/ai/usage?projectId=\${PROJECT_ID}\`
-  );
-  const data = await response.json();
-  if (!data.success) {
-    throw new Error(data.error?.message || 'Failed to check quota');
-  }
-  return {
-    remaining: data.data.remainingRequests,
-    max: data.data.maxRequests,
-    periodEnd: data.data.periodEnd,
-  };
-}
+import { generateText, analyzeImage, checkAIQuota } from '@/lib/ai';
 \`\`\`
 
-**STEP 2: Use AI in Your Components**
-Here's a complete example of using AI features:
+**Available Functions:**
+- \`generateText(prompt, systemPrompt?)\` → Returns \`{ text, remainingRequests }\`
+- \`analyzeImage(base64, prompt)\` → Returns \`{ analysis, remainingRequests }\`
+- \`analyzeImageUrl(url, prompt)\` → Returns \`{ analysis, remainingRequests }\`
+- \`checkAIQuota()\` → Returns \`{ remaining, max, periodEnd }\`
 
+**Example: Image Analysis**
 \`\`\`typescript
-// Example: Dog Breed Identifier Screen
 import { useState } from 'react';
-import { View, Text, Pressable, Image, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Image, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Ionicons } from '@expo/vector-icons';
-import { analyzeImage, checkAIQuota } from '../utils/ai';
+import { analyzeImage } from '@/lib/ai';
 
-export default function DogBreedScreen() {
+export default function PhotoAnalyzer() {
   const [image, setImage] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [quota, setQuota] = useState({ remaining: 30, max: 30 });
-  const [error, setError] = useState<string | null>(null);
 
-  const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
+  const pickAndAnalyze = async () => {
+    const picked = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       base64: true,
       quality: 0.7,
     });
 
-    if (!result.canceled && result.assets[0]) {
-      setImage(result.assets[0].uri);
-      setResult(null);
-      setError(null);
-
-      // Analyze the image
-      if (result.assets[0].base64) {
-        await identifyBreed(result.assets[0].base64);
+    if (!picked.canceled && picked.assets[0]?.base64) {
+      setImage(picked.assets[0].uri);
+      setLoading(true);
+      try {
+        const response = await analyzeImage(
+          picked.assets[0].base64,
+          'Describe what you see in this image in detail.'
+        );
+        setResult(response.analysis);
+      } catch (err) {
+        setResult('Error: ' + (err instanceof Error ? err.message : 'Failed'));
       }
-    }
-  };
-
-  const identifyBreed = async (base64: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await analyzeImage(
-        base64,
-        'Identify the dog breed in this image. Provide the breed name and 2-3 interesting facts about this breed. If this is not a dog, politely explain what you see instead.'
-      );
-      setResult(response.analysis);
-      setQuota(prev => ({ ...prev, remaining: response.remainingRequests }));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Something went wrong';
-      if (message.includes('Rate limit')) {
-        setError('You\\'ve used all your AI requests for this month. Try again later!');
-      } else {
-        setError(message);
-      }
-    } finally {
       setLoading(false);
     }
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.quota}>AI Credits: {quota.remaining}/{quota.max}</Text>
-
-      <Pressable style={styles.pickButton} onPress={pickImage}>
-        <Ionicons name="camera" size={24} color="#fff" />
-        <Text style={styles.pickButtonText}>
-          {image ? 'Choose Another Photo' : 'Pick a Dog Photo'}
-        </Text>
+    <View style={{ flex: 1, padding: 20 }}>
+      <Pressable onPress={pickAndAnalyze} style={{ padding: 16, backgroundColor: '#007AFF', borderRadius: 12 }}>
+        <Text style={{ color: '#fff', textAlign: 'center' }}>Pick & Analyze Photo</Text>
       </Pressable>
-
-      {image && (
-        <Image source={{ uri: image }} style={styles.image} />
-      )}
-
-      {loading && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Analyzing image...</Text>
-        </View>
-      )}
-
-      {error && (
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={24} color="#FF3B30" />
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      )}
-
-      {result && !loading && (
-        <View style={styles.resultContainer}>
-          <Text style={styles.resultTitle}>Analysis Result</Text>
-          <Text style={styles.resultText}>{result}</Text>
-        </View>
-      )}
+      {image && <Image source={{ uri: image }} style={{ width: '100%', height: 200, marginTop: 20, borderRadius: 12 }} />}
+      {loading && <ActivityIndicator style={{ marginTop: 20 }} />}
+      {result && <Text style={{ marginTop: 20 }}>{result}</Text>}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    backgroundColor: '#FAFAFA',
-  },
-  quota: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'right',
-    marginBottom: 16,
-  },
-  pickButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#007AFF',
-    padding: 16,
-    borderRadius: 12,
-    gap: 8,
-  },
-  pickButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  image: {
-    width: '100%',
-    height: 250,
-    borderRadius: 12,
-    marginTop: 20,
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    marginTop: 24,
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#666',
-  },
-  errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF0F0',
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 20,
-    gap: 12,
-  },
-  errorText: {
-    flex: 1,
-    color: '#FF3B30',
-    fontSize: 14,
-  },
-  resultContainer: {
-    backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 12,
-    marginTop: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  resultTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1A1A1A',
-    marginBottom: 12,
-  },
-  resultText: {
-    fontSize: 16,
-    color: '#333',
-    lineHeight: 24,
-  },
-});
 \`\`\`
 
-**AI Use Cases:**
-- **Text Generation:** Chat assistants, content creation, summaries, translations
-- **Image Analysis:** Object identification, scene description, text extraction (OCR), accessibility descriptions
+**Example: Text Generation (Poem Generator)**
+\`\`\`typescript
+import { useState } from 'react';
+import { View, Text, TextInput, Pressable, ActivityIndicator } from 'react-native';
+import { generateText } from '@/lib/ai';
 
-**Error Handling Best Practices:**
-- \`RATE_LIMIT_EXCEEDED\` → Show friendly message: "You've used all AI credits this month"
+export default function PoemGenerator() {
+  const [topic, setTopic] = useState('');
+  const [poem, setPoem] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const generate = async () => {
+    if (!topic.trim()) return;
+    setLoading(true);
+    try {
+      const response = await generateText(
+        \`Write a short, beautiful poem about: \${topic}\`,
+        'You are a creative poet. Write poems that are emotional and evocative.'
+      );
+      setPoem(response.text);
+    } catch (err) {
+      setPoem('Error: ' + (err instanceof Error ? err.message : 'Failed'));
+    }
+    setLoading(false);
+  };
+
+  return (
+    <View style={{ flex: 1, padding: 20 }}>
+      <TextInput
+        value={topic}
+        onChangeText={setTopic}
+        placeholder="Enter a topic (e.g., sunset, love, ocean)"
+        style={{ borderWidth: 1, borderColor: '#ddd', padding: 12, borderRadius: 8 }}
+      />
+      <Pressable onPress={generate} style={{ marginTop: 12, padding: 16, backgroundColor: '#007AFF', borderRadius: 12 }}>
+        <Text style={{ color: '#fff', textAlign: 'center' }}>Generate Poem</Text>
+      </Pressable>
+      {loading && <ActivityIndicator style={{ marginTop: 20 }} />}
+      {poem && <Text style={{ marginTop: 20, fontStyle: 'italic' }}>{poem}</Text>}
+    </View>
+  );
+}
+\`\`\`
+
+**Error Handling:**
+- \`RATE_LIMIT_EXCEEDED\` → Show: "You've used all AI credits this month"
 - \`INVALID_IMAGE\` → Ask user to try a different image
-- \`API_ERROR\` → Show generic error with retry option
-
-**Important Notes:**
-- Create the \`utils/ai.ts\` helper file FIRST before using AI features
-- Always show loading states during AI calls (they can take 2-5 seconds)
-- Display remaining quota to help users understand their usage
-- Handle errors gracefully - never show raw error messages to users
-- The AI features work on both mobile and web platforms
+- Always show loading states (AI calls take 2-5 seconds)
 
 `;
 }

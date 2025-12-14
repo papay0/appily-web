@@ -32,6 +32,7 @@ import {
   handleExistingProjectFlow,
   type AIProvider,
   type ConvexConfig,
+  type AIConfig,
 } from "@/lib/agent/flows";
 import { createConvexProject, type ConvexProjectCredentials } from "@/lib/convex-api";
 
@@ -260,6 +261,13 @@ export async function POST(request: Request) {
         console.log(`[API] ℹ️ Convex credentials not configured, skipping auto-creation`);
       }
 
+      // Create AI config - always enabled for all projects
+      const apiBaseUrl = process.env.API_URL || 'https://www.appily.dev';
+      const aiConfig: AIConfig = {
+        projectId: projectId,
+        apiBaseUrl: apiBaseUrl,
+      };
+
       return handleNewProjectFlow({
         sandbox,
         projectId,
@@ -269,6 +277,7 @@ export async function POST(request: Request) {
         imageKeys: validatedImageKeys,
         aiProvider: validatedAiProvider,
         convex: convexConfig,
+        ai: aiConfig,
       });
     }
 
@@ -293,6 +302,13 @@ export async function POST(request: Request) {
       console.log(`[API] ✓ Using existing Convex backend: ${convexProject.deploymentUrl}`);
     }
 
+    // Create AI config - always enabled for all projects
+    const apiBaseUrl = process.env.API_URL || 'https://www.appily.dev';
+    const aiConfig: AIConfig = {
+      projectId: projectId,
+      apiBaseUrl: apiBaseUrl,
+    };
+
     return handleExistingProjectFlow({
       sandbox,
       projectId,
@@ -305,6 +321,7 @@ export async function POST(request: Request) {
       imageKeys: validatedImageKeys,
       aiProvider: validatedAiProvider,
       convex: convexConfig,
+      ai: aiConfig,
     });
   } catch (error) {
     console.error("[API] Error creating CLI agent session:", error);
