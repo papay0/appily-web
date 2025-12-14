@@ -3,7 +3,7 @@
  *
  * POST /api/ai/generate
  *
- * Generates text using OpenAI GPT-4o via Vercel AI SDK.
+ * Generates text using OpenAI GPT-5 mini via Vercel AI SDK.
  * Rate limited per project (30 requests per 30-day period).
  */
 
@@ -107,7 +107,7 @@ export async function POST(request: Request): Promise<NextResponse<AIResponse<AI
 
     // Generate text using Vercel AI SDK
     const result = await generateText({
-      model: openai("gpt-4o"),
+      model: openai("gpt-5-mini"),
       prompt,
       system: systemPrompt,
       maxOutputTokens: maxTokens,

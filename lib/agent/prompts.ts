@@ -447,7 +447,7 @@ function buildAIAPIPromptSection(aiConfig: {
 ⚠️ **CRITICAL: When the user asks for ANY AI feature, you MUST use the Appily AI API.
 DO NOT create placeholder responses, mock data, fake AI implementations, or Convex functions that return hardcoded strings.**
 
-This project has REAL AI capabilities powered by GPT-4o. The helper is ALREADY in the template.
+This project has REAL AI capabilities powered by GPT-5 mini. The helper is ALREADY in the template.
 
 **Trigger words that REQUIRE using Appily AI API:**
 - "AI", "smart", "intelligent", "machine learning"

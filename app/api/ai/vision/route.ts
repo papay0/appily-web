@@ -3,7 +3,7 @@
  *
  * POST /api/ai/vision
  *
- * Analyzes images using OpenAI GPT-4o vision capabilities.
+ * Analyzes images using OpenAI GPT-5 mini vision capabilities.
  * Rate limited per project (30 requests per 30-day period).
  */
 
@@ -152,7 +152,7 @@ export async function POST(request: Request): Promise<NextResponse<AIResponse<AI
 
     // Generate analysis using Vercel AI SDK with vision
     const result = await generateText({
-      model: openai("gpt-4o"),
+      model: openai("gpt-5-mini"),
       messages: [
         {
           role: "user",
