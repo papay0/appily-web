@@ -48,7 +48,8 @@ export function BuildPageDesktop({
               deploymentUrl={convexProject.deploymentUrl}
               deploymentName={convexProject.deploymentName}
               adminKey={convexProject.deployKey}
-              visiblePages={["data", "functions", "logs"]}
+              // Show all Convex features except history
+              visiblePages={["health", "data", "functions", "files", "schedules", "logs", "settings"]}
             />
           );
         }

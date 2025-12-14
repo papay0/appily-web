@@ -50,10 +50,12 @@ interface ConvexDashboardProps {
  * Available dashboard pages
  */
 const DASHBOARD_PAGES = [
+  { id: "health", label: "Health", icon: Database },
   { id: "data", label: "Data", icon: Database },
   { id: "functions", label: "Functions", icon: Database },
-  { id: "logs", label: "Logs", icon: Database },
   { id: "files", label: "Files", icon: Database },
+  { id: "schedules", label: "Schedules", icon: Database },
+  { id: "logs", label: "Logs", icon: Database },
   { id: "settings", label: "Settings", icon: Database },
 ] as const;
 
