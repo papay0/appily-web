@@ -51,7 +51,7 @@ function Navbar() {
         <Link href="/" className="flex items-center gap-2 group pl-2">
           <div className="relative w-5 h-5 group-hover:scale-105 transition-transform duration-200">
             <Image 
-              src="/logo test3.png" 
+              src="/appily-logo.svg" 
               alt="Appily Logo" 
               fill
               className="object-contain"
@@ -782,7 +782,7 @@ function Footer() {
           <div className="flex items-center gap-2">
             <div className="relative w-6 h-6">
               <Image 
-                src="/logo test3.png" 
+                src="/appily-logo.svg" 
                 alt="Appily Logo" 
                 fill
                 className="object-contain"

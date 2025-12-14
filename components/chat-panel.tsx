@@ -601,7 +601,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
             <div className="relative">
               <div className="h-16 w-16 rounded-2xl glass-morphism flex items-center justify-center p-3 glow-primary">
                 <Image
-                  src="/logo test3.png"
+                  src="/appily-logo.svg"
                   alt="Appily AI"
                   width={32}
                   height={32}

@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   title: "Appily - Build native mobile apps with AI",
   description: "Turn your ideas into real iOS and Android apps in minutes. No coding required, no technical knowledge needed.",
   icons: {
-    icon: "/favicon white-32x32.png",
+    icon: "/appily-logo.svg",
   },
 };
 
