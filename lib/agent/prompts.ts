@@ -57,6 +57,24 @@ export interface ExpoAgentPromptOptions {
      */
     isInitialized?: boolean;
   };
+
+  /**
+   * Appily AI API configuration (if AI features are enabled)
+   * When provided, the agent can teach generated apps to use AI capabilities
+   */
+  ai?: {
+    /**
+     * The project UUID for rate limiting
+     * Example: "123e4567-e89b-12d3-a456-426614174000"
+     */
+    projectId: string;
+
+    /**
+     * The API base URL for AI endpoints
+     * Example: "https://appily.dev"
+     */
+    apiBaseUrl: string;
+  };
 }
 
 /**
@@ -254,6 +272,486 @@ Review the output for errors. If there are errors, fix them and deploy again.
 - Import from \`convex/server\` or \`convex/values\` in React Native components (CRASHES!)
 - Use AsyncStorage for data that should persist across devices (use Convex instead)
 - Forget to deploy after making Convex changes
+- **NEVER store images/files as base64 strings in the database** - use Convex File Storage instead!
+
+**📁 FILE STORAGE (CRITICAL - USE THIS FOR IMAGES/FILES):**
+When the app needs to upload or store images/files, ALWAYS use Convex File Storage. NEVER store base64 strings in documents - it bloats the database and is inefficient.
+
+**Step 1: Create upload mutation** in \`convex/files.ts\`:
+\`\`\`typescript
+// convex/files.ts - THIS IS A SERVER FILE
+import { mutation, query } from "./_generated/server";
+import { v } from "convex/values";
+
+// Generate upload URL for client
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+// Save the file reference after upload
+export const saveFile = mutation({
+  args: {
+    storageId: v.id("_storage"),
+    fileName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Save reference to the file in your table
+    await ctx.db.insert("files", {
+      storageId: args.storageId,
+      fileName: args.fileName,
+      uploadedAt: Date.now(),
+    });
+  },
+});
+
+// Get file URL for display
+export const getFileUrl = query({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, args) => {
+    return await ctx.storage.getUrl(args.storageId);
+  },
+});
+
+// List files with URLs
+export const listFiles = query({
+  args: {},
+  handler: async (ctx) => {
+    const files = await ctx.db.query("files").order("desc").collect();
+    return Promise.all(
+      files.map(async (file) => ({
+        ...file,
+        url: await ctx.storage.getUrl(file.storageId),
+      }))
+    );
+  },
+});
+\`\`\`
+
+**Step 2: Add schema** in \`convex/schema.ts\`:
+\`\`\`typescript
+// convex/schema.ts
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
+
+export default defineSchema({
+  files: defineTable({
+    storageId: v.id("_storage"),  // Reference to file in storage
+    fileName: v.optional(v.string()),
+    uploadedAt: v.number(),
+  }),
+});
+\`\`\`
+
+**Step 3: Upload from React Native** (use convex/react-native!):
+\`\`\`typescript
+// In your React Native component
+import { useMutation, useQuery } from "convex/react-native";
+import { api } from "../convex/_generated/api";
+import * as ImagePicker from 'expo-image-picker';
+
+function ImageUploader() {
+  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+  const saveFile = useMutation(api.files.saveFile);
+  const files = useQuery(api.files.listFiles);
+
+  const pickAndUploadImage = async () => {
+    // Pick image
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets[0]) return;
+
+    const image = result.assets[0];
+
+    // Step 1: Get upload URL from Convex
+    const uploadUrl = await generateUploadUrl();
+
+    // Step 2: Upload file to Convex storage
+    const response = await fetch(uploadUrl, {
+      method: "POST",
+      headers: { "Content-Type": image.mimeType || "image/jpeg" },
+      body: await fetch(image.uri).then(r => r.blob()),
+    });
+    const { storageId } = await response.json();
+
+    // Step 3: Save reference in database
+    await saveFile({ storageId, fileName: image.fileName });
+  };
+
+  return (
+    <View>
+      <Pressable onPress={pickAndUploadImage}>
+        <Text>Upload Image</Text>
+      </Pressable>
+
+      {/* Display uploaded images */}
+      <FlatList
+        data={files || []}
+        keyExtractor={(item) => item._id}
+        renderItem={({ item }) => (
+          item.url ? <Image source={{ uri: item.url }} style={styles.image} /> : null
+        )}
+      />
+    </View>
+  );
+}
+\`\`\`
+
+**Why File Storage instead of base64:**
+- ✅ Files stored efficiently in cloud storage (not bloating database)
+- ✅ Automatic CDN URLs for fast loading
+- ✅ No size limits on file storage (base64 has document size limits)
+- ✅ Proper caching and content-type handling
+- ❌ base64 bloats database documents (10x larger than original)
+- ❌ base64 slow to encode/decode, bad for performance
+
+`;
+}
+
+/**
+ * Build the AI API section of the prompt
+ *
+ * This section instructs the agent on how to use Appily's AI APIs
+ * for text generation and image analysis in generated apps.
+ *
+ * @param aiConfig - AI configuration with projectId and apiBaseUrl
+ * @returns Prompt section string for AI API usage
+ */
+function buildAIAPIPromptSection(aiConfig: {
+  projectId: string;
+  apiBaseUrl: string;
+}): string {
+  return `**APPILY AI API (AVAILABLE FOR THIS PROJECT):**
+This app can use Appily's AI capabilities for text generation and image analysis.
+The AI features are powered by GPT-4o and ready to use.
+
+**Project ID:** ${aiConfig.projectId}
+**API Base URL:** ${aiConfig.apiBaseUrl}
+
+**Rate Limits:**
+- 30 AI requests per project per 30-day period
+- Always handle rate limit errors gracefully
+- Show users their remaining quota when appropriate
+
+**STEP 1: Create the AI Helper File**
+Create a \`utils/ai.ts\` file with these helper functions:
+
+\`\`\`typescript
+// utils/ai.ts
+const APPILY_API_URL = '${aiConfig.apiBaseUrl}';
+const PROJECT_ID = '${aiConfig.projectId}';
+
+/**
+ * Generate text using AI
+ * @param prompt - What you want the AI to generate
+ * @param systemPrompt - Optional context/instructions for the AI
+ */
+export async function generateText(prompt: string, systemPrompt?: string): Promise<{
+  text: string;
+  remainingRequests: number;
+}> {
+  const response = await fetch(\`\${APPILY_API_URL}/api/ai/generate\`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      projectId: PROJECT_ID,
+      prompt,
+      systemPrompt,
+      maxTokens: 1024,
+      temperature: 0.7,
+    }),
+  });
+
+  const data = await response.json();
+  if (!data.success) {
+    throw new Error(data.error?.message || 'AI generation failed');
+  }
+  return {
+    text: data.data.text,
+    remainingRequests: data.data.remainingRequests,
+  };
+}
+
+/**
+ * Analyze an image using AI vision
+ * @param imageBase64 - Base64 encoded image (without data: prefix)
+ * @param prompt - What to analyze about the image
+ */
+export async function analyzeImage(imageBase64: string, prompt: string): Promise<{
+  analysis: string;
+  remainingRequests: number;
+}> {
+  const response = await fetch(\`\${APPILY_API_URL}/api/ai/vision\`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      projectId: PROJECT_ID,
+      imageBase64,
+      prompt,
+      maxTokens: 1024,
+    }),
+  });
+
+  const data = await response.json();
+  if (!data.success) {
+    throw new Error(data.error?.message || 'Image analysis failed');
+  }
+  return {
+    analysis: data.data.analysis,
+    remainingRequests: data.data.remainingRequests,
+  };
+}
+
+/**
+ * Analyze an image from URL using AI vision
+ * @param imageUrl - URL of the image to analyze
+ * @param prompt - What to analyze about the image
+ */
+export async function analyzeImageUrl(imageUrl: string, prompt: string): Promise<{
+  analysis: string;
+  remainingRequests: number;
+}> {
+  const response = await fetch(\`\${APPILY_API_URL}/api/ai/vision\`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      projectId: PROJECT_ID,
+      imageUrl,
+      prompt,
+    }),
+  });
+
+  const data = await response.json();
+  if (!data.success) {
+    throw new Error(data.error?.message || 'Image analysis failed');
+  }
+  return {
+    analysis: data.data.analysis,
+    remainingRequests: data.data.remainingRequests,
+  };
+}
+
+/**
+ * Check remaining AI quota for this project
+ */
+export async function checkAIQuota(): Promise<{
+  remaining: number;
+  max: number;
+  periodEnd: string;
+}> {
+  const response = await fetch(
+    \`\${APPILY_API_URL}/api/ai/usage?projectId=\${PROJECT_ID}\`
+  );
+  const data = await response.json();
+  if (!data.success) {
+    throw new Error(data.error?.message || 'Failed to check quota');
+  }
+  return {
+    remaining: data.data.remainingRequests,
+    max: data.data.maxRequests,
+    periodEnd: data.data.periodEnd,
+  };
+}
+\`\`\`
+
+**STEP 2: Use AI in Your Components**
+Here's a complete example of using AI features:
+
+\`\`\`typescript
+// Example: Dog Breed Identifier Screen
+import { useState } from 'react';
+import { View, Text, Pressable, Image, ActivityIndicator, StyleSheet } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
+import { analyzeImage, checkAIQuota } from '../utils/ai';
+
+export default function DogBreedScreen() {
+  const [image, setImage] = useState<string | null>(null);
+  const [result, setResult] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [quota, setQuota] = useState({ remaining: 30, max: 30 });
+  const [error, setError] = useState<string | null>(null);
+
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      base64: true,
+      quality: 0.7,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setImage(result.assets[0].uri);
+      setResult(null);
+      setError(null);
+
+      // Analyze the image
+      if (result.assets[0].base64) {
+        await identifyBreed(result.assets[0].base64);
+      }
+    }
+  };
+
+  const identifyBreed = async (base64: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await analyzeImage(
+        base64,
+        'Identify the dog breed in this image. Provide the breed name and 2-3 interesting facts about this breed. If this is not a dog, politely explain what you see instead.'
+      );
+      setResult(response.analysis);
+      setQuota(prev => ({ ...prev, remaining: response.remainingRequests }));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Something went wrong';
+      if (message.includes('Rate limit')) {
+        setError('You\\'ve used all your AI requests for this month. Try again later!');
+      } else {
+        setError(message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.quota}>AI Credits: {quota.remaining}/{quota.max}</Text>
+
+      <Pressable style={styles.pickButton} onPress={pickImage}>
+        <Ionicons name="camera" size={24} color="#fff" />
+        <Text style={styles.pickButtonText}>
+          {image ? 'Choose Another Photo' : 'Pick a Dog Photo'}
+        </Text>
+      </Pressable>
+
+      {image && (
+        <Image source={{ uri: image }} style={styles.image} />
+      )}
+
+      {loading && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Analyzing image...</Text>
+        </View>
+      )}
+
+      {error && (
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={24} color="#FF3B30" />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
+
+      {result && !loading && (
+        <View style={styles.resultContainer}>
+          <Text style={styles.resultTitle}>Analysis Result</Text>
+          <Text style={styles.resultText}>{result}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: '#FAFAFA',
+  },
+  quota: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'right',
+    marginBottom: 16,
+  },
+  pickButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#007AFF',
+    padding: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  pickButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  image: {
+    width: '100%',
+    height: 250,
+    borderRadius: 12,
+    marginTop: 20,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    marginTop: 24,
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF0F0',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 20,
+    gap: 12,
+  },
+  errorText: {
+    flex: 1,
+    color: '#FF3B30',
+    fontSize: 14,
+  },
+  resultContainer: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 12,
+    marginTop: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  resultTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1A1A1A',
+    marginBottom: 12,
+  },
+  resultText: {
+    fontSize: 16,
+    color: '#333',
+    lineHeight: 24,
+  },
+});
+\`\`\`
+
+**AI Use Cases:**
+- **Text Generation:** Chat assistants, content creation, summaries, translations
+- **Image Analysis:** Object identification, scene description, text extraction (OCR), accessibility descriptions
+
+**Error Handling Best Practices:**
+- \`RATE_LIMIT_EXCEEDED\` → Show friendly message: "You've used all AI credits this month"
+- \`INVALID_IMAGE\` → Ask user to try a different image
+- \`API_ERROR\` → Show generic error with retry option
+
+**Important Notes:**
+- Create the \`utils/ai.ts\` helper file FIRST before using AI features
+- Always show loading states during AI calls (they can take 2-5 seconds)
+- Display remaining quota to help users understand their usage
+- Handle errors gracefully - never show raw error messages to users
+- The AI features work on both mobile and web platforms
 
 `;
 }
@@ -560,7 +1058,7 @@ BEFORE installing ANY package, verify it's compatible with Expo Go:
 **Remember:** Your users are non-technical. Never mention "native modules", "development builds",
 "bare workflow", or other jargon. Focus on what the app will DO, not how it's built.
 
-${options.convex ? buildConvexPromptSection(options.convex) : ''}**WEB PLATFORM COMPATIBILITY (CRITICAL):**
+${options.convex ? buildConvexPromptSection(options.convex) : ''}${options.ai ? buildAIAPIPromptSection(options.ai) : ''}**WEB PLATFORM COMPATIBILITY (CRITICAL):**
 Your app runs on BOTH mobile (via Expo Go) AND web (browser preview). Some native modules don't work on web and will cause red error screens.
 
 **Modules that DON'T work on web (need Platform checks):**
