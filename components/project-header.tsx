@@ -6,7 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { AppBreadcrumbs } from "@/components/app-breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Pencil, Check, X, QrCode, Eye, Code2, RefreshCw, ChevronDown, RotateCcw } from "lucide-react";
+import { Loader2, Pencil, Check, X, QrCode, Eye, Code2, RefreshCw, ChevronDown, RotateCcw, Database } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,13 +16,15 @@ import {
 import { useSupabaseClient } from "@/lib/supabase-client";
 import { cn } from "@/lib/utils";
 
+type ViewMode = "preview" | "code" | "database";
+
 interface ProjectHeaderProps {
   projectId?: string;
   projectName?: string;
 
   // Optional view controls (for project pages, desktop only)
-  viewMode?: "preview" | "code";
-  onViewModeChange?: (mode: "preview" | "code") => void;
+  viewMode?: ViewMode;
+  onViewModeChange?: (mode: ViewMode) => void;
 
   // Mobile QR code button
   hasQrCode?: boolean;
@@ -32,6 +34,9 @@ interface ProjectHeaderProps {
   sandboxStatus?: "idle" | "starting" | "ready" | "error";
   onRestartMetro?: () => void;
   onRecreateSandbox?: () => void;
+
+  // Convex backend (shows Database tab if connected)
+  hasConvex?: boolean;
 }
 
 export function ProjectHeader({
@@ -44,6 +49,7 @@ export function ProjectHeader({
   sandboxStatus,
   onRestartMetro,
   onRecreateSandbox,
+  hasConvex,
 }: ProjectHeaderProps) {
   const supabase = useSupabaseClient();
   const [isEditing, setIsEditing] = useState(false);
@@ -53,8 +59,8 @@ export function ProjectHeader({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const showControls = viewMode && onViewModeChange;
-  // TODO: Enable when Code view is implemented
-  const showViewModeTabs = false;
+  // Show view mode tabs when Convex is connected (Database tab available)
+  const showViewModeTabs = hasConvex;
 
   // Update display name when projectName prop changes
   useEffect(() => {
@@ -189,8 +195,7 @@ export function ProjectHeader({
         )}
       </div>
 
-      {/* Center: View mode tabs (only on project pages, hidden on mobile) */}
-      {/* Hidden until Code view is implemented - set showViewModeTabs to true to enable */}
+      {/* Center: View mode tabs (only on project pages with Convex, hidden on mobile) */}
       {showViewModeTabs && showControls && (
         <div className="hidden md:flex items-center gap-1 p-1 rounded-xl glass-morphism border border-border/50">
           <button
@@ -206,16 +211,16 @@ export function ProjectHeader({
             Preview
           </button>
           <button
-            onClick={() => onViewModeChange("code")}
+            onClick={() => onViewModeChange("database")}
             className={cn(
               "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200",
-              viewMode === "code"
+              viewMode === "database"
                 ? "bg-gradient-to-r from-primary to-[var(--magic-violet)] text-white shadow-md shadow-primary/20"
                 : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
             )}
           >
-            <Code2 className="h-4 w-4" />
-            Code
+            <Database className="h-4 w-4" />
+            Database
           </button>
         </div>
       )}

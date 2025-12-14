@@ -24,6 +24,18 @@ import { downloadImagesToSandbox, buildImageContext } from "./download-images-to
 export type AIProvider = 'claude' | 'gemini';
 
 /**
+ * Convex backend configuration for agent flows
+ */
+export interface ConvexConfig {
+  /** The Convex deployment URL */
+  deploymentUrl: string;
+  /** The deploy key for `npx convex dev --once` */
+  deployKey: string;
+  /** Whether Convex is already initialized in the project */
+  isInitialized?: boolean;
+}
+
+/**
  * Options for new project flow
  */
 export interface NewProjectFlowOptions {
@@ -34,6 +46,8 @@ export interface NewProjectFlowOptions {
   workingDir?: string;
   imageKeys?: string[];
   aiProvider?: AIProvider;
+  /** Convex backend config (if enabled) */
+  convex?: ConvexConfig;
 }
 
 /**
@@ -50,6 +64,8 @@ export interface ExistingProjectFlowOptions {
   workingDir?: string;
   imageKeys?: string[];
   aiProvider?: AIProvider;
+  /** Convex backend config (if enabled) */
+  convex?: ConvexConfig;
 }
 
 /**
@@ -76,12 +92,13 @@ export interface ExistingProjectFlowOptions {
 export async function handleNewProjectFlow(
   options: NewProjectFlowOptions
 ): Promise<NextResponse> {
-  const { sandbox, projectId, userId, userPrompt, workingDir, imageKeys, aiProvider = 'claude' } = options;
+  const { sandbox, projectId, userId, userPrompt, workingDir, imageKeys, aiProvider = 'claude', convex } = options;
 
   console.log(`[FLOW] Starting NEW PROJECT flow for ${projectId}`);
   console.log(`[FLOW] AI Provider: ${aiProvider}`);
   console.log(`[FLOW] Sandbox: ${sandbox.sandboxId}`);
   console.log(`[FLOW] Images to download: ${imageKeys?.length || 0}`);
+  console.log(`[FLOW] Convex enabled: ${!!convex}`);
 
   // Download images to sandbox if provided
   let imageContext = "";
@@ -102,6 +119,11 @@ export async function handleNewProjectFlow(
     workingDir: workingDir || "/home/user/project",
     aiProvider,
     // expoUrl: undefined - not available yet
+    // Include Convex config if enabled
+    convex: convex ? {
+      deploymentUrl: convex.deploymentUrl,
+      isInitialized: convex.isInitialized,
+    } : undefined,
   });
 
   console.log(`[FLOW] System prompt built (${systemPrompt.length} chars)`);
@@ -113,7 +135,8 @@ export async function handleNewProjectFlow(
     projectId,
     userId,
     systemPrompt, // Agent will start after setup completes
-    aiProvider // Pass AI provider so setup knows which agent to start
+    aiProvider, // Pass AI provider so setup knows which agent to start
+    convex ? { deploymentUrl: convex.deploymentUrl, deployKey: convex.deployKey } : undefined
   );
 
   console.log(`[FLOW] ✓ Setup started in E2B (PID: ${pid})`);
@@ -161,6 +184,7 @@ export async function handleExistingProjectFlow(
     workingDir,
     imageKeys,
     aiProvider = 'claude',
+    convex,
   } = options;
 
   console.log(`[FLOW] Starting EXISTING PROJECT flow for ${projectId}`);
@@ -169,6 +193,7 @@ export async function handleExistingProjectFlow(
   console.log(`[FLOW] Session: ${sessionId || "(new)"}`);
   console.log(`[FLOW] Expo URL: ${expoUrl || "(not available)"}`);
   console.log(`[FLOW] Images to download: ${imageKeys?.length || 0}`);
+  console.log(`[FLOW] Convex enabled: ${!!convex}`);
 
   // Download images to sandbox if provided
   let imageContext = "";
@@ -189,6 +214,11 @@ export async function handleExistingProjectFlow(
     expoUrl: expoUrl || undefined,
     workingDir: workingDir || "/home/user/project",
     aiProvider,
+    // Include Convex config if enabled
+    convex: convex ? {
+      deploymentUrl: convex.deploymentUrl,
+      isInitialized: convex.isInitialized,
+    } : undefined,
   });
 
   console.log(`[FLOW] System prompt built (${systemPrompt.length} chars)`);
@@ -198,6 +228,9 @@ export async function handleExistingProjectFlow(
   let pid: number;
   let logFile: string;
 
+  // Prepare Convex credentials for CLI executor
+  const convexCredentials = convex ? { deploymentUrl: convex.deploymentUrl, deployKey: convex.deployKey } : undefined;
+
   if (aiProvider === 'gemini') {
     console.log(`[FLOW] Using Gemini CLI for agent execution`);
     const result = await executeGeminiInE2B(
@@ -206,7 +239,8 @@ export async function handleExistingProjectFlow(
       sessionId || undefined, // Use existing session_id for conversation continuity
       sandbox,
       projectId,
-      userId
+      userId,
+      convexCredentials
     );
     pid = result.pid;
     logFile = result.logFile;
@@ -218,7 +252,8 @@ export async function handleExistingProjectFlow(
       sessionId || undefined, // Use existing session_id for conversation continuity
       sandbox,
       projectId,
-      userId
+      userId,
+      convexCredentials
     );
     pid = result.pid;
     logFile = result.logFile;

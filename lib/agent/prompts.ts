@@ -39,6 +39,205 @@ export interface ExpoAgentPromptOptions {
    * Different providers may need different prompting styles
    */
   aiProvider?: 'claude' | 'gemini';
+
+  /**
+   * Convex backend configuration (if enabled for this project)
+   * When provided, the agent will use Convex for data persistence
+   */
+  convex?: {
+    /**
+     * The Convex deployment URL
+     * Example: "https://cheerful-elephant-123.convex.cloud"
+     */
+    deploymentUrl: string;
+
+    /**
+     * Whether Convex is already initialized in the project
+     * If false, agent should run `npx convex dev --once` to initialize
+     */
+    isInitialized?: boolean;
+  };
+}
+
+/**
+ * Build the Convex backend section of the prompt
+ *
+ * This section instructs the agent on how to use Convex for data persistence.
+ * Only included when the project has Convex enabled.
+ *
+ * @param convexConfig - Convex configuration
+ * @returns Prompt section string for Convex
+ */
+function buildConvexPromptSection(convexConfig: {
+  deploymentUrl: string;
+  isInitialized?: boolean;
+}): string {
+  return `**CONVEX BACKEND (ENABLED FOR THIS PROJECT):**
+This app uses Convex as its real-time backend. Convex is already configured and the environment variables are set.
+
+**Convex Deployment URL:** ${convexConfig.deploymentUrl}
+
+**📖 IMPORTANT: Read the Convex Rules File First!**
+Before writing ANY Convex code, you MUST read the official Convex guidelines file:
+\`\`\`
+cat convex_rules.txt
+\`\`\`
+This file contains the official Convex best practices, function syntax, validators, schema guidelines, and examples. Following these rules will prevent errors and ensure your code works correctly.
+
+**When to Use Convex:**
+Use Convex when the app needs:
+- Data persistence (todos, users, posts, messages, etc.)
+- Real-time updates (data syncs automatically across all users)
+- Server-side logic (validation, computed fields, etc.)
+
+**⚠️ CRITICAL: Import Rules for React Native + Convex ⚠️**
+Convex has TWO separate environments. Using the WRONG imports will CRASH the app!
+
+**FILES IN \`convex/\` FOLDER** (server-side, runs on Convex cloud):
+\`\`\`typescript
+// ✅ CORRECT for convex/*.ts files:
+import { query, mutation } from "./_generated/server";
+import { v } from "convex/values";
+\`\`\`
+
+**REACT NATIVE COMPONENTS** (app/, components/, etc.):
+\`\`\`typescript
+// ✅ CORRECT for React Native components:
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../convex/_generated/api";
+
+// ❌ NEVER DO THIS IN REACT NATIVE COMPONENTS - WILL CRASH:
+// import { query, mutation } from "convex/server";  // ← CRASHES!
+// import { v } from "convex/values";                 // ← CRASHES!
+// import anything from "./_generated/server";       // ← CRASHES!
+\`\`\`
+
+The error "Unable to resolve module ./impl/registration_impl.js" means you imported server code in a React Native component. FIX: Remove the bad import.
+
+**How to Create Convex Functions:**
+
+1. **Define your schema** in \`convex/schema.ts\`:
+\`\`\`typescript
+// convex/schema.ts - THIS IS A SERVER FILE
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
+
+export default defineSchema({
+  todos: defineTable({
+    text: v.string(),
+    completed: v.boolean(),
+    createdAt: v.number(),
+  }),
+  // Add more tables as needed
+});
+\`\`\`
+
+2. **Create server functions** in \`convex/\` directory (e.g., \`convex/todos.ts\`):
+\`\`\`typescript
+// convex/todos.ts - THIS IS A SERVER FILE
+import { query, mutation } from "./_generated/server";
+import { v } from "convex/values";
+
+// Query: Read data (automatically cached and real-time)
+export const list = query({
+  handler: async (ctx) => {
+    return await ctx.db.query("todos").order("desc").collect();
+  },
+});
+
+// Mutation: Write data (transactional, ACID compliant)
+export const create = mutation({
+  args: { text: v.string() },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("todos", {
+      text: args.text,
+      completed: false,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+export const toggle = mutation({
+  args: { id: v.id("todos") },
+  handler: async (ctx, args) => {
+    const todo = await ctx.db.get(args.id);
+    if (todo) {
+      await ctx.db.patch(args.id, { completed: !todo.completed });
+    }
+  },
+});
+
+export const remove = mutation({
+  args: { id: v.id("todos") },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.id);
+  },
+});
+\`\`\`
+
+3. **Use in React Native components** (ONLY use convex/react and api):
+\`\`\`typescript
+// app/index.tsx - THIS IS A REACT NATIVE FILE
+import { useQuery, useMutation } from "convex/react";  // ✅ Client hooks
+import { api } from "../convex/_generated/api";        // ✅ API object
+import { View, Text, FlatList, Pressable, ActivityIndicator } from "react-native";
+
+function TodoList() {
+  // Data automatically updates in real-time!
+  const todos = useQuery(api.todos.list);
+  const createTodo = useMutation(api.todos.create);
+  const toggleTodo = useMutation(api.todos.toggle);
+
+  const handleAdd = () => {
+    createTodo({ text: "New todo" });
+  };
+
+  if (todos === undefined) {
+    return <ActivityIndicator />;
+  }
+
+  return (
+    <FlatList
+      data={todos}
+      keyExtractor={(item) => item._id}
+      renderItem={({ item }) => (
+        <Pressable onPress={() => toggleTodo({ id: item._id })}>
+          <Text>{item.text}</Text>
+        </Pressable>
+      )}
+    />
+  );
+}
+\`\`\`
+
+**Deploying Convex Functions (IMPORTANT):**
+After you finish writing or editing files in the \`convex/\` directory, you MUST deploy by running:
+
+\`\`\`bash
+npx convex dev --once --typecheck=disable
+\`\`\`
+
+Review the output for errors. If there are errors, fix them and deploy again.
+
+**Deploy Strategy:**
+- Deploy when you're READY TO TEST, not after every single file edit
+- Batch your Convex changes (schema + functions), then deploy once
+- If deploy fails, read the error, fix the issue, and deploy again
+- The app won't see your changes until you deploy!
+
+**Convex Best Practices:**
+- Use \`v.id("tableName")\` for document ID arguments
+- Use \`ctx.db.query("table")\` with \`.filter()\`, \`.order()\`, \`.collect()\`
+- Always handle the loading state (\`todos === undefined\`)
+- Use \`_id\` (not \`id\`) for document IDs in Convex
+- Mutations are transactional - if anything fails, nothing is saved
+
+**DO NOT:**
+- Import from \`convex/server\` or \`convex/values\` in React Native components (CRASHES!)
+- Use AsyncStorage for data that should persist across devices (use Convex instead)
+- Forget to deploy after making Convex changes
+
+`;
 }
 
 /**
@@ -343,7 +542,7 @@ BEFORE installing ANY package, verify it's compatible with Expo Go:
 **Remember:** Your users are non-technical. Never mention "native modules", "development builds",
 "bare workflow", or other jargon. Focus on what the app will DO, not how it's built.
 
-**WEB PLATFORM COMPATIBILITY (CRITICAL):**
+${options.convex ? buildConvexPromptSection(options.convex) : ''}**WEB PLATFORM COMPATIBILITY (CRITICAL):**
 Your app runs on BOTH mobile (via Expo Go) AND web (browser preview). Some native modules don't work on web and will cause red error screens.
 
 **Modules that DON'T work on web (need Platform checks):**

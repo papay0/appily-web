@@ -2,8 +2,19 @@ import type { Feature } from "@/lib/types/features";
 import type { HealthStatus } from "@/app/api/sandbox/health/route";
 import type { AIProvider } from "@/lib/agent/flows";
 
-export type ViewMode = "preview" | "code";
+export type ViewMode = "preview" | "code" | "database";
 export type SandboxStatus = "idle" | "starting" | "ready" | "error";
+
+/**
+ * Convex project credentials for the embedded dashboard
+ */
+export interface ConvexProject {
+  status: "connected" | "disconnected";
+  projectId?: string;
+  deploymentUrl?: string;
+  deploymentName?: string;
+  deployKey?: string;
+}
 
 export interface BuildPageLayoutProps {
   projectId: string;
@@ -26,8 +37,11 @@ export interface BuildPageLayoutProps {
 
   // View mode (desktop only)
   viewMode: ViewMode;
-  onViewModeChange: (mode: ViewMode) => void;
+  onViewModeChange?: (mode: ViewMode) => void;
 
   // AI Provider (for ChatPanel initialization)
   initialAiProvider?: AIProvider;
+
+  // Convex backend (optional - for database view)
+  convexProject?: ConvexProject | null;
 }

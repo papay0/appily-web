@@ -24,6 +24,16 @@ import type { Sandbox } from "e2b";
 import type { AgentStreamEvent } from "./types";
 
 /**
+ * Convex credentials for E2B sandbox
+ */
+export interface ConvexCredentials {
+  /** The Convex deployment URL (e.g., "https://cheerful-elephant-123.convex.cloud") */
+  deploymentUrl: string;
+  /** The deploy key for deploying functions via `npx convex dev --once` */
+  deployKey: string;
+}
+
+/**
  * Result from executing Claude CLI
  */
 export interface CLIExecutionResult {
@@ -69,6 +79,7 @@ export interface E2BExecutionResult {
  * @param sandbox - Existing E2B sandbox
  * @param projectId - Project ID for linking events
  * @param userId - User ID for session tracking
+ * @param convex - Optional Convex credentials for backend
  * @returns Execution result with PID and sandbox ID
  */
 export async function executeClaudeInE2B(
@@ -77,7 +88,8 @@ export async function executeClaudeInE2B(
   sessionId: string | undefined,
   sandbox: Sandbox,
   projectId: string,
-  userId: string
+  userId: string,
+  convex?: ConvexCredentials
 ): Promise<E2BExecutionResult> {
   const { readFileSync } = await import('fs');
   const { join } = await import('path');
@@ -157,6 +169,20 @@ export async function executeClaudeInE2B(
     // Add SESSION_ID only if resuming
     if (sessionId) {
       envVars.SESSION_ID = sessionId;
+    }
+
+    // Add Convex credentials if provided
+    if (convex) {
+      console.log(`[E2B] Adding Convex credentials for ${convex.deploymentUrl}`);
+      envVars.CONVEX_DEPLOY_KEY = convex.deployKey;
+      envVars.EXPO_PUBLIC_CONVEX_URL = convex.deploymentUrl;
+
+      // Upload Convex rules file for Claude to read
+      const convexRulesPath = join(process.cwd(), 'lib/agent/e2b-scripts/convex_rules.txt');
+      console.log(`[E2B] Reading Convex rules from: ${convexRulesPath}`);
+      const convexRulesContent = readFileSync(convexRulesPath, 'utf-8');
+      await sandbox.files.write(`${workingDirectory}/convex_rules.txt`, convexRulesContent);
+      console.log(`[E2B] ✓ Convex rules uploaded to ${workingDirectory}/convex_rules.txt`);
     }
 
     console.log(`[E2B] Environment variables prepared`);
@@ -253,6 +279,7 @@ export async function executeClaudeInE2B(
  * @param sandbox - Existing E2B sandbox
  * @param projectId - Project ID for linking events
  * @param userId - User ID for session tracking
+ * @param convex - Optional Convex credentials for backend
  * @returns Execution result with PID and sandbox ID
  */
 export async function executeGeminiInE2B(
@@ -261,7 +288,8 @@ export async function executeGeminiInE2B(
   sessionId: string | undefined,
   sandbox: Sandbox,
   projectId: string,
-  userId: string
+  userId: string,
+  convex?: ConvexCredentials
 ): Promise<E2BExecutionResult> {
   const { readFileSync } = await import('fs');
   const { join } = await import('path');
@@ -351,6 +379,20 @@ export async function executeGeminiInE2B(
     // Add SESSION_ID only if resuming
     if (sessionId) {
       envVars.SESSION_ID = sessionId;
+    }
+
+    // Add Convex credentials if provided
+    if (convex) {
+      console.log(`[E2B] Adding Convex credentials for ${convex.deploymentUrl}`);
+      envVars.CONVEX_DEPLOY_KEY = convex.deployKey;
+      envVars.EXPO_PUBLIC_CONVEX_URL = convex.deploymentUrl;
+
+      // Upload Convex rules file for Gemini to read
+      const convexRulesPath = join(process.cwd(), 'lib/agent/e2b-scripts/convex_rules.txt');
+      console.log(`[E2B] Reading Convex rules from: ${convexRulesPath}`);
+      const convexRulesContent = readFileSync(convexRulesPath, 'utf-8');
+      await sandbox.files.write(`${workingDirectory}/convex_rules.txt`, convexRulesContent);
+      console.log(`[E2B] ✓ Convex rules uploaded to ${workingDirectory}/convex_rules.txt`);
     }
 
     console.log(`[E2B] Environment variables prepared`);
@@ -449,6 +491,8 @@ export async function executeGeminiInE2B(
  * @param projectId - Project ID for linking to database
  * @param userId - User ID for session tracking
  * @param userPrompt - Initial prompt for Claude agent (optional)
+ * @param aiProvider - AI provider for agent execution
+ * @param convex - Optional Convex credentials for backend
  * @returns Execution result with PID and log file path
  */
 export async function executeSetupInE2B(
@@ -456,7 +500,8 @@ export async function executeSetupInE2B(
   projectId: string,
   userId: string,
   userPrompt?: string,
-  aiProvider: 'claude' | 'gemini' = 'claude'
+  aiProvider: 'claude' | 'gemini' = 'claude',
+  convex?: ConvexCredentials
 ): Promise<E2BExecutionResult> {
   const { readFileSync } = await import('fs');
   const { join } = await import('path');
@@ -575,6 +620,21 @@ export async function executeSetupInE2B(
       } else if (aiProvider === 'claude' && process.env.CLAUDE_CODE_OAUTH_TOKEN) {
         envVars.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
       }
+    }
+
+    // Add Convex credentials if provided
+    if (convex) {
+      console.log(`[E2B] Adding Convex credentials for ${convex.deploymentUrl}`);
+      envVars.CONVEX_DEPLOY_KEY = convex.deployKey;
+      envVars.EXPO_PUBLIC_CONVEX_URL = convex.deploymentUrl;
+
+      // Upload Convex rules file for agent to read (will be in PROJECT_DIR after setup)
+      const convexRulesPath = join(process.cwd(), 'lib/agent/e2b-scripts/convex_rules.txt');
+      console.log(`[E2B] Reading Convex rules from: ${convexRulesPath}`);
+      const convexRulesContent = readFileSync(convexRulesPath, 'utf-8');
+      // Upload to both /home/user and /home/user/project (setup creates project dir)
+      await sandbox.files.write('/home/user/convex_rules.txt', convexRulesContent);
+      console.log(`[E2B] ✓ Convex rules uploaded to /home/user/convex_rules.txt`);
     }
 
     console.log(`[E2B] Environment variables prepared`);

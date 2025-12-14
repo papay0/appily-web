@@ -31,7 +31,9 @@ import {
   handleNewProjectFlow,
   handleExistingProjectFlow,
   type AIProvider,
+  type ConvexConfig,
 } from "@/lib/agent/flows";
+import { createConvexProject, type ConvexProjectCredentials } from "@/lib/convex-api";
 
 export async function POST(request: Request) {
   try {
@@ -133,10 +135,10 @@ export async function POST(request: Request) {
         createdSandbox = false;
 
         // Sandbox already exists, so Expo is already running
-        // Get the E2B URL and session_id from existing project data
+        // Get the E2B URL, session_id, and Convex config from existing project data
         const { data: projectData } = await supabaseAdmin
           .from("projects")
-          .select("expo_url, qr_code, session_id")
+          .select("expo_url, qr_code, session_id, convex_project")
           .eq("id", projectId)
           .single();
 
@@ -193,6 +195,71 @@ export async function POST(request: Request) {
         })
         .eq("id", projectId);
 
+      // Auto-create Convex project for new projects
+      let convexConfig: ConvexConfig | undefined;
+
+      // Check if Convex credentials are configured
+      const hasConvexCredentials = process.env.CONVEX_TEAM_ACCESS_TOKEN && process.env.CONVEX_TEAM_ID;
+
+      if (hasConvexCredentials) {
+        try {
+          // Fetch project name and existing Convex config
+          const { data: newProjectData } = await supabaseAdmin
+            .from("projects")
+            .select("name, convex_project")
+            .eq("id", projectId)
+            .single();
+
+          const existingConvex = newProjectData?.convex_project as ConvexProjectCredentials | null;
+
+          // Check if Convex project already exists
+          if (existingConvex?.status === "connected" && existingConvex.deploymentUrl && existingConvex.deployKey) {
+            console.log(`[API] ✓ Using existing Convex backend: ${existingConvex.deploymentUrl}`);
+            convexConfig = {
+              deploymentUrl: existingConvex.deploymentUrl,
+              deployKey: existingConvex.deployKey,
+              isInitialized: false,
+            };
+          } else {
+            // Auto-create new Convex project
+            console.log(`[API] 🔧 Auto-creating Convex backend for project...`);
+            const projectName = newProjectData?.name || "Appily App";
+
+            const convexResult = await createConvexProject(projectName);
+            console.log(`[API] ✓ Convex project created: ${convexResult.deploymentName}`);
+
+            // Store Convex credentials in database
+            const credentials: ConvexProjectCredentials = {
+              status: "connected",
+              projectId: convexResult.projectId,
+              deploymentUrl: convexResult.deploymentUrl,
+              deploymentName: convexResult.deploymentName,
+              deployKey: convexResult.deployKey,
+            };
+
+            await supabaseAdmin
+              .from("projects")
+              .update({
+                convex_project: credentials,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", projectId);
+
+            convexConfig = {
+              deploymentUrl: convexResult.deploymentUrl,
+              deployKey: convexResult.deployKey,
+              isInitialized: false,
+            };
+            console.log(`[API] ✓ Convex credentials stored in database`);
+          }
+        } catch (convexError) {
+          console.error(`[API] ⚠️ Failed to create Convex project:`, convexError);
+          // Continue without Convex - don't fail the whole request
+        }
+      } else {
+        console.log(`[API] ℹ️ Convex credentials not configured, skipping auto-creation`);
+      }
+
       return handleNewProjectFlow({
         sandbox,
         projectId,
@@ -201,11 +268,30 @@ export async function POST(request: Request) {
         workingDir: cwd,
         imageKeys: validatedImageKeys,
         aiProvider: validatedAiProvider,
+        convex: convexConfig,
       });
     }
 
     // EXISTING PROJECT FLOW: Start agent immediately
     console.log(`[API] Routing to EXISTING PROJECT flow`);
+
+    // Extract Convex config from project data if available
+    let convexConfig: ConvexConfig | undefined;
+    const { data: existingProjectData } = await supabaseAdmin
+      .from("projects")
+      .select("convex_project")
+      .eq("id", projectId)
+      .single();
+
+    const convexProject = existingProjectData?.convex_project as ConvexProjectCredentials | null;
+    if (convexProject?.status === "connected" && convexProject.deploymentUrl && convexProject.deployKey) {
+      convexConfig = {
+        deploymentUrl: convexProject.deploymentUrl,
+        deployKey: convexProject.deployKey,
+        isInitialized: true, // Existing project, likely already deployed
+      };
+      console.log(`[API] ✓ Using existing Convex backend: ${convexProject.deploymentUrl}`);
+    }
 
     return handleExistingProjectFlow({
       sandbox,
@@ -218,6 +304,7 @@ export async function POST(request: Request) {
       workingDir: cwd,
       imageKeys: validatedImageKeys,
       aiProvider: validatedAiProvider,
+      convex: convexConfig,
     });
   } catch (error) {
     console.error("[API] Error creating CLI agent session:", error);

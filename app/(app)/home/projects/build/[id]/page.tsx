@@ -15,8 +15,16 @@ import { BuildPageDesktop, BuildPageMobile } from "@/components/build-page";
 import type { Feature } from "@/lib/types/features";
 import type { HealthStatus } from "@/app/api/sandbox/health/route";
 
-type ViewMode = "preview" | "code";
+type ViewMode = "preview" | "code" | "database";
 type SandboxStatus = "idle" | "starting" | "ready" | "error";
+
+type ConvexProject = {
+  status: "connected" | "disconnected";
+  projectId?: string;
+  deploymentUrl?: string;
+  deploymentName?: string;
+  deployKey?: string;
+};
 
 type Project = {
   id: string;
@@ -32,6 +40,7 @@ type Project = {
   planning_completed_at: string | null;
   image_keys: string[] | null;
   ai_provider: "claude" | "gemini" | null;
+  convex_project: ConvexProject | null;
 }
 
 export default function ProjectBuildPage() {
@@ -554,6 +563,7 @@ export default function ProjectBuildPage() {
         sandboxStatus={sandboxStatus}
         onRestartMetro={handleRestartMetro}
         onRecreateSandbox={handleStartSandbox}
+        hasConvex={project.convex_project?.status === "connected"}
       />
 
       {/* Conditionally render Mobile OR Desktop - never both */}
@@ -594,6 +604,7 @@ export default function ProjectBuildPage() {
           healthStatus={healthStatus}
           healthMessage={healthMessage}
           initialAiProvider={project.ai_provider || "claude"}
+          convexProject={project.convex_project}
         />
       )}
 
