@@ -495,6 +495,219 @@ export async function executeGeminiInE2B(
 }
 
 /**
+ * Execute Claude SDK in E2B with direct Supabase streaming
+ *
+ * **SDK APPROACH:** This function uses the Claude Agent SDK's query() function
+ * instead of spawning the CLI directly. Benefits:
+ * - Typed message responses (no NDJSON parsing)
+ * - Built-in session resumption via `resume` option
+ * - Built-in permission bypass via `permissionMode: 'bypassPermissions'`
+ *
+ * Architecture:
+ * 1. Read stream-to-supabase-sdk.js from filesystem
+ * 2. Upload script to E2B sandbox
+ * 3. Install @anthropic-ai/claude-agent-sdk (if not in template)
+ * 4. Run script with background: true
+ * 5. Return immediately with PID
+ * 6. Script uses SDK query() to execute agent
+ * 7. Events posted directly to Supabase
+ *
+ * @param prompt - The user's prompt to Claude
+ * @param workingDirectory - Directory where Claude runs
+ * @param sessionId - Optional session ID to resume conversation
+ * @param sandbox - Existing E2B sandbox
+ * @param projectId - Project ID for linking events
+ * @param userId - User ID for session tracking
+ * @param convex - Optional Convex credentials for backend
+ * @returns Execution result with PID and sandbox ID
+ */
+export async function executeClaudeSdkInE2B(
+  prompt: string,
+  workingDirectory: string,
+  sessionId: string | undefined,
+  sandbox: Sandbox,
+  projectId: string,
+  userId: string,
+  convex?: ConvexCredentials
+): Promise<E2BExecutionResult> {
+  const { readFileSync } = await import('fs');
+  const { join } = await import('path');
+
+  console.log("[E2B] Starting Claude SDK execution with direct Supabase streaming");
+  console.log(`[E2B] Project: ${projectId}, User: ${userId}`);
+  console.log(`[E2B] Session: ${sessionId || '(new)'}`);
+  console.log(`[E2B] Sandbox: ${sandbox.sandboxId}`);
+
+  try {
+    // Step 1: Read the SDK script file from filesystem
+    const scriptPath = join(process.cwd(), 'lib/agent/e2b-scripts/stream-to-supabase-sdk.js');
+    console.log(`[E2B] Reading SDK script from: ${scriptPath}`);
+    const scriptContent = readFileSync(scriptPath, 'utf-8');
+    console.log(`[E2B] ✓ SDK script loaded (${scriptContent.length} bytes)`);
+
+    // Step 2: Upload script to E2B
+    const e2bScriptPath = '/home/user/stream-to-supabase-sdk.js';
+    console.log(`[E2B] Uploading SDK script to E2B: ${e2bScriptPath}`);
+    await sandbox.files.write(e2bScriptPath, scriptContent);
+    console.log(`[E2B] ✓ SDK script uploaded`);
+
+    // Step 2.1: Upload supporting modules (same as CLI version)
+    const saveScriptPath = join(process.cwd(), 'lib/agent/e2b-scripts/save-to-r2.js');
+    console.log(`[E2B] Reading save-to-r2 module from: ${saveScriptPath}`);
+    const saveScriptContent = readFileSync(saveScriptPath, 'utf-8');
+    await sandbox.files.write('/home/user/save-to-r2.js', saveScriptContent);
+    console.log(`[E2B] ✓ Save-to-R2 module uploaded`);
+
+    const loggerScriptPath = join(process.cwd(), 'lib/agent/e2b-scripts/e2b-logger.js');
+    console.log(`[E2B] Reading e2b-logger module from: ${loggerScriptPath}`);
+    const loggerScriptContent = readFileSync(loggerScriptPath, 'utf-8');
+    await sandbox.files.write('/home/user/e2b-logger.js', loggerScriptContent);
+    console.log(`[E2B] ✓ E2B-Logger module uploaded`);
+
+    const metroControlPath = join(process.cwd(), 'lib/agent/e2b-scripts/metro-control.js');
+    console.log(`[E2B] Reading metro-control module from: ${metroControlPath}`);
+    const metroControlContent = readFileSync(metroControlPath, 'utf-8');
+    await sandbox.files.write('/home/user/metro-control.js', metroControlContent);
+    console.log(`[E2B] ✓ Metro-control module uploaded`);
+
+    // Step 3: Install dependencies (SDK should ideally be pre-installed in template)
+    console.log(`[E2B] Installing dependencies (@supabase/supabase-js, @aws-sdk/client-s3, @anthropic-ai/claude-agent-sdk)...`);
+    const installResult = await sandbox.commands.run(
+      'npm list @supabase/supabase-js @aws-sdk/client-s3 @anthropic-ai/claude-agent-sdk 2>/dev/null || npm install @supabase/supabase-js @aws-sdk/client-s3 @anthropic-ai/claude-agent-sdk',
+      {
+        cwd: '/home/user',
+        timeoutMs: 180000, // 3 minute timeout (SDK package is larger)
+      }
+    );
+
+    if (installResult.exitCode !== 0) {
+      console.warn(`[E2B] ⚠️ npm install warning: ${installResult.stderr}`);
+      // Continue anyway - might already be installed
+    } else {
+      console.log(`[E2B] ✓ Dependencies ready`);
+    }
+
+    // Step 4: Prepare environment variables
+    const envVars: Record<string, string> = {
+      SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY!, // SDK requires API key
+      PROJECT_ID: projectId,
+      USER_ID: userId,
+      USER_PROMPT: prompt,
+      WORKING_DIRECTORY: workingDirectory,
+      // R2 credentials for direct E2B saves
+      R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID!,
+      R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID!,
+      R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY!,
+      R2_BUCKET_NAME: process.env.R2_BUCKET_NAME!,
+    };
+
+    // Add SESSION_ID only if resuming
+    if (sessionId) {
+      envVars.SESSION_ID = sessionId;
+    }
+
+    // Add Convex credentials if provided
+    if (convex) {
+      console.log(`[E2B] Adding Convex credentials for ${convex.deploymentUrl}`);
+      envVars.CONVEX_DEPLOY_KEY = convex.deployKey;
+      envVars.EXPO_PUBLIC_CONVEX_URL = convex.deploymentUrl;
+
+      // Upload Convex rules file for Claude to read
+      const convexRulesPath = join(process.cwd(), 'lib/agent/e2b-scripts/convex_rules.txt');
+      console.log(`[E2B] Reading Convex rules from: ${convexRulesPath}`);
+      const convexRulesContent = readFileSync(convexRulesPath, 'utf-8');
+      await sandbox.files.write(`${workingDirectory}/convex_rules.txt`, convexRulesContent);
+      console.log(`[E2B] ✓ Convex rules uploaded to ${workingDirectory}/convex_rules.txt`);
+    }
+
+    console.log(`[E2B] Environment variables prepared`);
+
+    // Step 5: Run script in background with output redirection for debugging
+    const logFile = '/home/user/claude-sdk-agent.log';
+    console.log(`[E2B] Starting SDK script in background mode...`);
+    console.log(`[E2B] Output will be logged to: ${logFile}`);
+
+    // Start script with nohup for proper backgrounding and output capture
+    const startResult = await sandbox.commands.run(
+      `nohup node ${e2bScriptPath} > ${logFile} 2>&1 & echo $!`,
+      {
+        cwd: workingDirectory,
+        envs: envVars,
+        timeoutMs: 5000,
+      }
+    );
+
+    const pid = parseInt(startResult.stdout.trim());
+    if (!pid || isNaN(pid)) {
+      throw new Error('Failed to start SDK background process (no PID returned)');
+    }
+
+    console.log(`[E2B] ✓ SDK script started in background (PID: ${pid})`);
+    console.log(`[E2B] ✓ Logs: ${logFile}`);
+    console.log(`[E2B] Script will run independently on E2B and stream to Supabase`);
+
+    // Store agent PID in database for stop functionality
+    const { error: pidError } = await supabaseAdmin
+      .from('projects')
+      .update({ agent_pid: pid })
+      .eq('id', projectId);
+
+    if (pidError) {
+      console.error('[E2B] Failed to store agent PID:', pidError.message);
+      // Don't fail the execution, just log the error
+    } else {
+      console.log(`[E2B] ✓ Agent PID ${pid} stored in database`);
+    }
+
+    // Show initial output for debugging (non-blocking)
+    setTimeout(async () => {
+      try {
+        const logs = await sandbox.commands.run(`head -n 50 ${logFile}`, { timeoutMs: 3000 });
+        if (logs.stdout) {
+          console.log('[E2B] SDK initial output (first 50 lines):');
+          console.log(logs.stdout);
+        }
+      } catch (err) {
+        console.error('[E2B] Failed to read SDK initial logs:', err);
+      }
+    }, 2000);
+
+    // Show more output after 10 seconds to see if SDK is producing events
+    setTimeout(async () => {
+      try {
+        const logs = await sandbox.commands.run(`tail -n 30 ${logFile}`, { timeoutMs: 3000 });
+        if (logs.stdout) {
+          console.log('[E2B] SDK latest output (after 10s):');
+          console.log(logs.stdout);
+        }
+
+        // Also check if process is still running
+        const psResult = await sandbox.commands.run(`ps -p ${pid} -o pid,etime,cmd || echo "Process ${pid} not found"`, { timeoutMs: 3000 });
+        console.log('[E2B] SDK process status:', psResult.stdout.trim());
+      } catch (err) {
+        console.error('[E2B] Failed to read SDK latest logs:', err);
+      }
+    }, 10000);
+
+    console.log(`[E2B] Vercel can now return immediately`);
+
+    return {
+      pid,
+      sandboxId: sandbox.sandboxId,
+      scriptPath: e2bScriptPath,
+      logFile,
+    };
+  } catch (error) {
+    console.error('[E2B] ✗ Failed to start Claude SDK execution:', error);
+    throw new Error(
+      `Failed to execute Claude SDK in E2B: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+/**
  * Execute Expo setup script in E2B
  *
  * **NEW APPROACH:** This function uploads and runs the setup-expo.js script
@@ -527,7 +740,7 @@ export async function executeSetupInE2B(
   projectId: string,
   userId: string,
   userPrompt?: string,
-  aiProvider: 'claude' | 'gemini' = 'claude',
+  aiProvider: 'claude' | 'claude-sdk' | 'gemini' = 'claude',
   convex?: ConvexCredentials
 ): Promise<E2BExecutionResult> {
   const { readFileSync } = await import('fs');
@@ -568,14 +781,27 @@ export async function executeSetupInE2B(
     // Step 2.5: Also upload stream-to-supabase.js (needed for AI agent)
     if (userPrompt) {
       // Upload the correct agent script based on AI provider
-      const agentScriptName = aiProvider === 'gemini'
-        ? 'stream-to-supabase-gemini.js'
-        : 'stream-to-supabase.js';
+      let agentScriptName: string;
+      let e2bScriptPath: string;
+      let providerName: string;
+      if (aiProvider === 'gemini') {
+        agentScriptName = 'stream-to-supabase-gemini.js';
+        e2bScriptPath = '/home/user/stream-to-supabase.js';
+        providerName = 'Gemini';
+      } else if (aiProvider === 'claude-sdk') {
+        agentScriptName = 'stream-to-supabase-sdk.js';
+        e2bScriptPath = '/home/user/stream-to-supabase-sdk.js';
+        providerName = 'Claude SDK';
+      } else {
+        agentScriptName = 'stream-to-supabase.js';
+        e2bScriptPath = '/home/user/stream-to-supabase.js';
+        providerName = 'Claude CLI';
+      }
       const agentScriptPath = join(process.cwd(), `lib/agent/e2b-scripts/${agentScriptName}`);
-      console.log(`[E2B] Reading ${aiProvider} agent script from: ${agentScriptPath}`);
+      console.log(`[E2B] Reading ${providerName} agent script from: ${agentScriptPath}`);
       const agentScriptContent = readFileSync(agentScriptPath, 'utf-8');
-      await sandbox.files.write('/home/user/stream-to-supabase.js', agentScriptContent);
-      console.log(`[E2B] ✓ ${aiProvider === 'gemini' ? 'Gemini' : 'Claude'} agent script uploaded`);
+      await sandbox.files.write(e2bScriptPath, agentScriptContent);
+      console.log(`[E2B] ✓ ${providerName} agent script uploaded to ${e2bScriptPath}`);
 
       // Also upload save-to-r2.js (needed for auto-save)
       const saveScriptPath = join(process.cwd(), 'lib/agent/e2b-scripts/save-to-r2.js');
@@ -593,12 +819,17 @@ export async function executeSetupInE2B(
     }
 
     // Step 3: Install required dependencies if not already installed
-    console.log(`[E2B] Installing dependencies (@supabase/supabase-js, @aws-sdk/client-s3)...`);
+    // For claude-sdk provider, also install the SDK package at runtime (always get latest version)
+    const basePackages = '@supabase/supabase-js @aws-sdk/client-s3';
+    const packages = aiProvider === 'claude-sdk'
+      ? `${basePackages} @anthropic-ai/claude-agent-sdk`
+      : basePackages;
+    console.log(`[E2B] Installing dependencies (${packages})...`);
     const installResult = await sandbox.commands.run(
-      'npm list @supabase/supabase-js @aws-sdk/client-s3 || npm install @supabase/supabase-js @aws-sdk/client-s3',
+      `npm list ${packages} 2>/dev/null || npm install ${packages}`,
       {
         cwd: '/home/user',
-        timeoutMs: 120000, // 2 minutes timeout for npm install (AWS SDK is larger)
+        timeoutMs: aiProvider === 'claude-sdk' ? 180000 : 120000, // 3 min for SDK, 2 min otherwise
       }
     );
 
@@ -644,7 +875,12 @@ export async function executeSetupInE2B(
         } else {
           console.error(`[E2B] Missing Vertex AI credentials for Gemini`);
         }
+      } else if (aiProvider === 'claude-sdk' && process.env.ANTHROPIC_API_KEY) {
+        // SDK requires API key (not OAuth token)
+        envVars.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+        console.log(`[E2B] Claude SDK will use ANTHROPIC_API_KEY`);
       } else if (aiProvider === 'claude' && process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+        // CLI uses OAuth token
         envVars.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
       }
     }

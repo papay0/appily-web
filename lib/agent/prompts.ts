@@ -37,8 +37,11 @@ export interface ExpoAgentPromptOptions {
   /**
    * The AI provider being used
    * Different providers may need different prompting styles
+   * - 'claude': Claude Code CLI
+   * - 'claude-sdk': Claude Agent SDK
+   * - 'gemini': Google Gemini
    */
-  aiProvider?: 'claude' | 'gemini';
+  aiProvider?: 'claude' | 'claude-sdk' | 'gemini';
 
   /**
    * Convex backend configuration (if enabled for this project)

@@ -15,13 +15,16 @@
 import type { Sandbox } from "e2b";
 import { NextResponse } from "next/server";
 import { buildExpoAgentPrompt } from "./prompts";
-import { executeSetupInE2B, executeClaudeInE2B, executeGeminiInE2B } from "./cli-executor";
+import { executeSetupInE2B, executeClaudeInE2B, executeGeminiInE2B, executeClaudeSdkInE2B } from "./cli-executor";
 import { downloadImagesToSandbox, buildImageContext } from "./download-images-to-sandbox";
 
 /**
  * Supported AI providers for agent execution
+ * - 'claude': Claude Code CLI (uses CLAUDE_CODE_OAUTH_TOKEN - free with subscription)
+ * - 'claude-sdk': Claude Agent SDK (uses ANTHROPIC_API_KEY - pay-per-token)
+ * - 'gemini': Google Gemini via Vertex AI
  */
-export type AIProvider = 'claude' | 'gemini';
+export type AIProvider = 'claude' | 'claude-sdk' | 'gemini';
 
 /**
  * Convex backend configuration for agent flows
@@ -271,6 +274,19 @@ export async function handleExistingProjectFlow(
     );
     pid = result.pid;
     logFile = result.logFile;
+  } else if (aiProvider === 'claude-sdk') {
+    console.log(`[FLOW] Using Claude Agent SDK for agent execution`);
+    const result = await executeClaudeSdkInE2B(
+      systemPrompt,
+      workingDir || "/home/user/project",
+      sessionId || undefined, // Use existing session_id for conversation continuity
+      sandbox,
+      projectId,
+      userId,
+      convexCredentials
+    );
+    pid = result.pid;
+    logFile = result.logFile;
   } else {
     console.log(`[FLOW] Using Claude Code CLI for agent execution`);
     const result = await executeClaudeInE2B(
@@ -286,7 +302,8 @@ export async function handleExistingProjectFlow(
     logFile = result.logFile;
   }
 
-  console.log(`[FLOW] ✓ ${aiProvider === 'gemini' ? 'Gemini' : 'Claude'} agent started in E2B (PID: ${pid})`);
+  const providerName = aiProvider === 'gemini' ? 'Gemini' : aiProvider === 'claude-sdk' ? 'Claude SDK' : 'Claude CLI';
+  console.log(`[FLOW] ✓ ${providerName} agent started in E2B (PID: ${pid})`);
   console.log(`[FLOW] ✓ Logs: ${logFile}`);
   console.log(`[FLOW] Agent will continue in background, updates via Supabase`);
 

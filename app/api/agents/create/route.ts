@@ -50,7 +50,13 @@ export async function POST(request: Request) {
       await request.json();
 
     // Validate and default AI provider
-    const validatedAiProvider: AIProvider = aiProvider === 'gemini' ? 'gemini' : 'claude';
+    // Supports: claude (CLI), claude-sdk (SDK), gemini
+    let validatedAiProvider: AIProvider = 'claude';
+    if (aiProvider === 'gemini') {
+      validatedAiProvider = 'gemini';
+    } else if (aiProvider === 'claude-sdk') {
+      validatedAiProvider = 'claude-sdk';
+    }
 
     if (!prompt || !projectId) {
       return NextResponse.json(

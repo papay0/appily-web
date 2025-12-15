@@ -21,6 +21,9 @@ export const template = Template()
   // Install Claude Code CLI globally (as root)
   .runCmd("npm install -g @anthropic-ai/claude-code")
 
+  // Install Claude Agent SDK globally (as root) - used by claude-sdk provider
+  .runCmd("npm install -g @anthropic-ai/claude-agent-sdk")
+
   // Install Gemini CLI globally (as root)
   .runCmd("npm install -g @google/gemini-cli")
 

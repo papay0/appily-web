@@ -46,8 +46,13 @@ interface AIProviderSelectorProps {
 const providers: { id: AIProvider; name: string; icon: React.ReactNode }[] = [
   {
     id: "claude",
-    name: "Claude",
+    name: "Claude (CLI)",
     icon: <ClaudeIcon className="text-[#cc785c]" />,
+  },
+  {
+    id: "claude-sdk",
+    name: "Claude (SDK)",
+    icon: <ClaudeIcon className="text-[#d97706]" />,
   },
   {
     id: "gemini",

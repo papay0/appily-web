@@ -1,7 +1,31 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
+
+// Claude SDK Test types
+interface SDKTestStatus {
+  status: string;
+  hasApiKey: boolean;
+  sdkAvailable: boolean;
+  timestamp: string;
+}
+
+interface SDKTestMessage {
+  type: string;
+  subtype?: string;
+  content?: string;
+  session_id?: string;
+  timestamp: string;
+}
+
+interface SDKTestResponse {
+  success: boolean;
+  messageCount?: number;
+  messages?: SDKTestMessage[];
+  error?: string;
+  stack?: string;
+}
 
 interface AIResponse {
   success: boolean;
@@ -53,6 +77,12 @@ interface UsageResponse {
 }
 
 export default function AIPlayground() {
+  // Claude SDK Test state
+  const [sdkStatus, setSdkStatus] = useState<SDKTestStatus | null>(null);
+  const [sdkPrompt, setSdkPrompt] = useState("What is 2 + 2? Answer briefly.");
+  const [sdkLoading, setSdkLoading] = useState(false);
+  const [sdkResult, setSdkResult] = useState<SDKTestResponse | null>(null);
+
   // Project ID state
   const [projectId, setProjectId] = useState("");
 
@@ -87,6 +117,46 @@ export default function AIPlayground() {
   const [imageGenLoading, setImageGenLoading] = useState(false);
   const [imageGenError, setImageGenError] = useState("");
   const sourceImageInputRef = useRef<HTMLInputElement>(null);
+
+  // Check SDK status on mount
+  useEffect(() => {
+    checkSdkStatus();
+  }, []);
+
+  const checkSdkStatus = async () => {
+    try {
+      const res = await fetch("/api/test-sdk");
+      const data: SDKTestStatus = await res.json();
+      setSdkStatus(data);
+    } catch (error) {
+      console.error("Failed to check SDK status:", error);
+    }
+  };
+
+  const testSdk = async () => {
+    if (!sdkPrompt.trim()) return;
+
+    setSdkLoading(true);
+    setSdkResult(null);
+
+    try {
+      const res = await fetch("/api/test-sdk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: sdkPrompt }),
+      });
+
+      const data: SDKTestResponse = await res.json();
+      setSdkResult(data);
+    } catch (error) {
+      setSdkResult({
+        success: false,
+        error: `Network error: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    } finally {
+      setSdkLoading(false);
+    }
+  };
 
   // Check usage
   const checkUsage = async () => {
@@ -318,6 +388,178 @@ export default function AIPlayground() {
         <p className="text-gray-600 dark:text-gray-400 mb-8">
           Test the AI text generation and vision APIs
         </p>
+
+        {/* Claude SDK Test Section */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6 border-2 border-orange-500">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <span className="text-orange-500">🧪</span> Claude Agent SDK Test
+            <span className="text-xs bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 px-2 py-1 rounded">
+              Debugging
+            </span>
+          </h2>
+
+          {/* SDK Status */}
+          <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <div className="flex items-center gap-4 text-sm">
+              <span className="text-gray-600 dark:text-gray-400">Status:</span>
+              {sdkStatus ? (
+                <>
+                  <span className={sdkStatus.hasApiKey ? "text-green-600" : "text-red-600"}>
+                    {sdkStatus.hasApiKey ? "✓" : "✗"} API Key
+                  </span>
+                  <span className={sdkStatus.sdkAvailable ? "text-green-600" : "text-red-600"}>
+                    {sdkStatus.sdkAvailable ? "✓" : "✗"} SDK Available
+                  </span>
+                </>
+              ) : (
+                <span className="text-gray-400">Loading...</span>
+              )}
+              <button
+                onClick={checkSdkStatus}
+                className="ml-auto text-xs text-blue-600 hover:text-blue-700"
+              >
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Test Prompt
+              </label>
+              <textarea
+                value={sdkPrompt}
+                onChange={(e) => setSdkPrompt(e.target.value)}
+                placeholder="Enter a simple prompt to test..."
+                rows={2}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
+              />
+            </div>
+
+            <button
+              onClick={testSdk}
+              disabled={sdkLoading || !sdkPrompt.trim()}
+              className="w-full px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+            >
+              {sdkLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  Testing SDK...
+                </span>
+              ) : (
+                "Test Claude SDK"
+              )}
+            </button>
+
+            {/* SDK Result */}
+            {sdkResult && (
+              <div
+                className={`p-4 rounded-lg ${
+                  sdkResult.success
+                    ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
+                    : "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold">
+                    {sdkResult.success ? (
+                      <span className="text-green-700 dark:text-green-400">
+                        ✓ Success - {sdkResult.messageCount} messages
+                      </span>
+                    ) : (
+                      <span className="text-red-700 dark:text-red-400">✗ Failed</span>
+                    )}
+                  </h3>
+                  <button
+                    onClick={() => {
+                      const debugInfo = `## Claude SDK Test Debug Info
+
+### Environment
+- API Key Present: ${sdkStatus?.hasApiKey ?? "unknown"}
+- SDK Available: ${sdkStatus?.sdkAvailable ?? "unknown"}
+- Timestamp: ${new Date().toISOString()}
+
+### Input
+\`\`\`
+${sdkPrompt}
+\`\`\`
+
+### Output
+\`\`\`json
+${JSON.stringify(sdkResult, null, 2)}
+\`\`\`
+`;
+                      navigator.clipboard.writeText(debugInfo);
+                      alert("Debug info copied to clipboard!");
+                    }}
+                    className="text-xs px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    📋 Copy Debug Info
+                  </button>
+                </div>
+
+                {sdkResult.error && (
+                  <div className="text-red-700 dark:text-red-400 text-sm mb-2">
+                    <strong>Error:</strong> {sdkResult.error}
+                  </div>
+                )}
+
+                {sdkResult.stack && (
+                  <pre className="text-xs text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 p-2 rounded overflow-x-auto mb-2">
+                    {sdkResult.stack}
+                  </pre>
+                )}
+
+                {sdkResult.messages && sdkResult.messages.length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Messages:
+                    </h4>
+                    {sdkResult.messages.map((msg, i) => (
+                      <div
+                        key={i}
+                        className="text-xs p-2 bg-white dark:bg-gray-800 rounded border"
+                      >
+                        <div className="flex gap-2 mb-1">
+                          <span className="font-medium text-orange-600">{msg.type}</span>
+                          {msg.subtype && (
+                            <span className="text-gray-500">({msg.subtype})</span>
+                          )}
+                          <span className="text-gray-400 ml-auto">{msg.timestamp}</span>
+                        </div>
+                        {msg.session_id && (
+                          <div className="text-gray-500 text-xs">
+                            Session: {msg.session_id}
+                          </div>
+                        )}
+                        {msg.content && (
+                          <pre className="text-xs text-gray-600 dark:text-gray-400 mt-1 overflow-x-auto">
+                            {msg.content}
+                          </pre>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Project ID Input */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6">
