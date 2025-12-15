@@ -13,6 +13,8 @@ import {
   ImagePlus,
   Square,
   ListPlus,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import { MagicButton } from "@/components/marketing/MagicButton";
 import { ImagePreviewGrid } from "@/components/image-preview-grid";
@@ -20,6 +22,43 @@ import { useImageUpload, type UploadedImage } from "@/hooks/use-image-upload";
 import { cn } from "@/lib/utils";
 import { ACCEPTED_IMAGE_EXTENSIONS } from "@/lib/image-utils";
 import { AIProviderSelector, type AIProvider } from "@/components/ai-provider-selector";
+
+type SpeechRecognitionEventLike = {
+  readonly resultIndex?: number;
+  readonly results: SpeechRecognitionResultList;
+};
+
+type SpeechRecognitionErrorLike = {
+  readonly error?: string;
+};
+
+type BrowserSpeechRecognition = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  maxAlternatives: number;
+  start: () => void;
+  stop: () => void;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorLike) => void) | null;
+  onend: (() => void) | null;
+};
+
+type SpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
+
+type SpeechRecognitionWindow = Window &
+  typeof globalThis & {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  };
+
+const appendSegment = (base: string, addition: string) => {
+  const trimmedAddition = addition.trim();
+  if (!trimmedAddition) return base;
+  if (!base) return trimmedAddition;
+  const needsSeparator = !/\s$/.test(base);
+  return `${base}${needsSeparator ? " " : ""}${trimmedAddition}`;
+};
 
 export interface UnifiedInputProps {
   /** Callback when user submits. Receives text, R2 keys, and preview URLs of uploaded images */
@@ -96,6 +135,13 @@ export function UnifiedInput({
   const [isDragOver, setIsDragOver] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const speechBaseTextRef = useRef("");
+  const speechCommittedRef = useRef("");
+  const speechInterimRef = useRef("");
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeechSupported, setIsSpeechSupported] = useState(false);
+  const [speechError, setSpeechError] = useState<string | null>(null);
 
   // Use hook-managed temp upload ID
   const {
@@ -123,6 +169,96 @@ export function UnifiedInput({
   useEffect(() => {
     onImagesChange?.(images);
   }, [images, onImagesChange]);
+
+  // Keep the speech base text aligned with manual edits when not dictating
+  useEffect(() => {
+    if (!isListening && !speechCommittedRef.current && !speechInterimRef.current) {
+      speechBaseTextRef.current = text;
+    }
+  }, [text, isListening]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const speechWindow = window as SpeechRecognitionWindow;
+    const SpeechRecognitionClass =
+      speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+
+    if (!SpeechRecognitionClass) {
+      return;
+    }
+
+    const recognition = new SpeechRecognitionClass();
+    recognition.lang = navigator?.language ?? "en-US";
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    recognition.maxAlternatives = 1;
+
+    recognition.onresult = (event: SpeechRecognitionEventLike) => {
+      let finalTranscript = "";
+      let interimTranscript = "";
+      const startIndex = event.resultIndex ?? 0;
+
+      for (let i = startIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        const transcript = result[0]?.transcript ?? "";
+        if (!transcript) continue;
+
+        if (result.isFinal) {
+          finalTranscript = `${finalTranscript}${transcript} `;
+        } else {
+          interimTranscript = `${interimTranscript}${transcript}`;
+        }
+      }
+
+      if (finalTranscript.trim()) {
+        speechCommittedRef.current = appendSegment(
+          speechCommittedRef.current,
+          finalTranscript
+        );
+      }
+
+      speechInterimRef.current = interimTranscript;
+
+      const nextText = appendSegment(
+        appendSegment(speechBaseTextRef.current, speechCommittedRef.current),
+        speechInterimRef.current
+      );
+
+      setText(nextText);
+    };
+
+    recognition.onerror = (event: SpeechRecognitionErrorLike) => {
+      setIsListening(false);
+      setSpeechError(
+        event?.error === "not-allowed"
+          ? "Microphone permission denied"
+          : "Unable to use speech recognition"
+      );
+    };
+
+    recognition.onend = () => {
+      const finalText = appendSegment(
+        appendSegment(speechBaseTextRef.current, speechCommittedRef.current),
+        speechInterimRef.current
+      );
+      speechBaseTextRef.current = finalText;
+      speechCommittedRef.current = "";
+      speechInterimRef.current = "";
+      setText(finalText);
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+    // Safe to set derived support flag after mount to avoid hydration mismatches.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsSpeechSupported(true);
+
+    return () => {
+      recognition.stop();
+      recognitionRef.current = null;
+    };
+  }, []);
 
   // Default minimum text length based on variant
   const effectiveMinLength = minTextLength ?? (variant === "home" ? 10 : 1);
@@ -219,6 +355,31 @@ export function UnifiedInput({
   const openFilePicker = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
+
+  const toggleVoiceInput = useCallback(() => {
+    if (!isSpeechSupported || !recognitionRef.current) return;
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+      return;
+    }
+
+    speechBaseTextRef.current = text;
+    speechCommittedRef.current = "";
+    speechInterimRef.current = "";
+    setSpeechError(null);
+
+    try {
+      recognitionRef.current.start();
+      setIsListening(true);
+    } catch (error) {
+      setIsListening(false);
+      setSpeechError(
+        error instanceof Error ? error.message : "Unable to start microphone"
+      );
+    }
+  }, [isSpeechSupported, isListening, text]);
 
   const isHome = variant === "home";
 
@@ -320,6 +481,66 @@ export function UnifiedInput({
     </button>
   );
 
+  const voiceInputButton = (
+    <button
+      type="button"
+      onClick={toggleVoiceInput}
+      disabled={!isSpeechSupported}
+      aria-pressed={isListening}
+      aria-label={
+        speechError
+          ? speechError
+          : isSpeechSupported
+            ? isListening
+              ? "Stop dictation"
+              : "Dictate with your microphone"
+            : "Voice input is not supported in this browser"
+      }
+      className={cn(
+        "relative flex items-center justify-center",
+        "text-muted-foreground hover:text-foreground",
+        "transition-all duration-200",
+        "disabled:opacity-50 disabled:cursor-not-allowed",
+        isListening && "text-primary",
+        isHome
+          ? cn(
+              "w-8 h-8 rounded-lg hover:bg-muted/50",
+              isListening && "bg-primary/10"
+            )
+          : cn(
+              "h-10 w-10 rounded-xl",
+              "bg-background/50 backdrop-blur-sm border border-border/50",
+              "hover:border-primary/50 hover:bg-muted/50",
+              isListening && "border-primary/60 bg-primary/5"
+            )
+      )}
+      title={
+        speechError
+          ? speechError
+          : isSpeechSupported
+            ? isListening
+              ? "Stop dictation"
+              : "Dictate with your microphone"
+            : "Voice input is not supported in this browser"
+      }
+    >
+      {isSpeechSupported ? (
+        <>
+          <Mic className={isHome ? "h-5 w-5" : "h-4 w-4"} />
+          {isListening && (
+            <span
+              className={cn(
+                "absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary animate-pulse border border-background"
+              )}
+            />
+          )}
+        </>
+      ) : (
+        <MicOff className={isHome ? "h-5 w-5" : "h-4 w-4"} />
+      )}
+    </button>
+  );
+
   if (isHome) {
     return (
       <div className="w-full max-w-2xl mx-auto">
@@ -367,6 +588,7 @@ export function UnifiedInput({
                   disabled={isLoading}
                 />
                 {imageUploadButton}
+                {voiceInputButton}
               </div>
             )}
 
@@ -377,7 +599,12 @@ export function UnifiedInput({
             <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between border-t border-border/50 bg-card/30 backdrop-blur-sm">
               <div className="flex items-center gap-4">
                 {/* Image upload button shown here if no AI provider selector */}
-                {!onAIProviderChange && imageUploadButton}
+                {!onAIProviderChange && (
+                  <div className="flex items-center gap-2">
+                    {imageUploadButton}
+                    {voiceInputButton}
+                  </div>
+                )}
 
                 {showPlanCheckbox && (
                   <div className="flex items-center gap-3">
@@ -487,13 +714,19 @@ export function UnifiedInput({
             disabled={isLoading}
           />
           {imageUploadButton}
+          {voiceInputButton}
         </div>
       )}
 
       {/* Bottom row: Full-width textarea with send/stop/queue button */}
       <div className="flex gap-2 items-end">
         {/* Show image upload button inline if no AI provider selector */}
-        {!onAIProviderChange && imageUploadButton}
+        {!onAIProviderChange && (
+          <div className="flex flex-col gap-1.5">
+            {imageUploadButton}
+            {voiceInputButton}
+          </div>
+        )}
         {textarea}
 
         {/* Stacked buttons container */}
