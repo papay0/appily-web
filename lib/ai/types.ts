@@ -140,3 +140,43 @@ export interface AIUsageRecord {
   created_at: string;
   updated_at: string;
 }
+
+/**
+ * Supported aspect ratios for image generation
+ */
+export type ImageAspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "3:2" | "2:3";
+
+/**
+ * Supported image resolutions
+ */
+export type ImageResolution = "1K" | "2K";
+
+/**
+ * Request body for image generation endpoint
+ */
+export interface AIImageGenerateRequest {
+  /** Project UUID for rate limiting */
+  projectId: string;
+  /** Text prompt describing the image to generate */
+  prompt: string;
+  /** Optional source image for editing (base64, with or without data: prefix) */
+  imageBase64?: string;
+  /** Aspect ratio of generated image (default: "1:1") */
+  aspectRatio?: ImageAspectRatio;
+  /** Resolution of generated image (default: "1K") */
+  resolution?: ImageResolution;
+}
+
+/**
+ * Successful response data for image generation
+ */
+export interface AIImageData {
+  /** Base64-encoded image data (without data: prefix) */
+  imageBase64: string;
+  /** MIME type of the generated image (e.g., "image/png") */
+  mimeType: string;
+  /** Optional text response from the model */
+  text?: string;
+  /** Remaining AI requests for this project */
+  remainingRequests: number;
+}

@@ -569,6 +569,180 @@ export default function PoemGenerator() {
 - \`INVALID_IMAGE\` → Ask user to try a different image
 - Always show loading states (AI calls take 2-5 seconds)
 
+---
+
+**🎨 IMAGE GENERATION - APPILY AI API:**
+
+This project can also GENERATE and EDIT images using Gemini (Nano Banana Pro).
+
+**Import the functions:**
+\`\`\`typescript
+import { generateImage, editImage } from '@/lib/ai';
+\`\`\`
+
+**Trigger words that REQUIRE using image generation:**
+- "generate image", "create picture", "make an image", "draw"
+- "edit photo", "modify image", "add X to photo", "change my outfit"
+- "transform picture", "apply effect", "photoshop", "make me look like"
+
+**Available Functions:**
+- \`generateImage(prompt, options?)\` → Creates image from text description
+- \`editImage(imageBase64, prompt, options?)\` → Modifies an existing image
+
+Both return: \`{ imageBase64: string, remainingRequests: number }\`
+- \`imageBase64\` is a full data URL ready to use in Image component: \`data:image/png;base64,...\`
+
+**Options:**
+- \`aspectRatio\`: '1:1' (square, default), '16:9' (landscape), '9:16' (portrait), '4:3', '3:4'
+- \`resolution\`: '1K' (faster, default) or '2K' (higher quality)
+
+**Example: Generate Image from Text**
+\`\`\`typescript
+import { useState } from 'react';
+import { View, Text, TextInput, Pressable, Image, ActivityIndicator, StyleSheet } from 'react-native';
+import { generateImage } from '@/lib/ai';
+
+export default function ImageGenerator() {
+  const [prompt, setPrompt] = useState('');
+  const [image, setImage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const generate = async () => {
+    if (!prompt.trim()) return;
+    setLoading(true);
+    try {
+      const result = await generateImage(prompt, { aspectRatio: '1:1' });
+      setImage(result.imageBase64);
+    } catch (err) {
+      console.error('Generation failed:', err);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <View style={styles.container}>
+      <TextInput
+        value={prompt}
+        onChangeText={setPrompt}
+        placeholder="Describe the image you want to create..."
+        style={styles.input}
+      />
+      <Pressable onPress={generate} style={styles.button}>
+        <Text style={styles.buttonText}>Generate</Text>
+      </Pressable>
+      {loading && <ActivityIndicator style={styles.loader} />}
+      {image && <Image source={{ uri: image }} style={styles.image} />}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, padding: 20 },
+  input: { borderWidth: 1, borderColor: '#ddd', padding: 12, borderRadius: 8, marginBottom: 12 },
+  button: { backgroundColor: '#4CAF50', padding: 16, borderRadius: 12, alignItems: 'center' },
+  buttonText: { color: '#fff', fontWeight: '600' },
+  loader: { marginTop: 20 },
+  image: { width: '100%', aspectRatio: 1, marginTop: 20, borderRadius: 12 },
+});
+\`\`\`
+
+**Example: Edit Existing Image (Photo Manipulation)**
+\`\`\`typescript
+import { useState } from 'react';
+import { View, Text, Pressable, Image, TextInput, ActivityIndicator, StyleSheet } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { editImage } from '@/lib/ai';
+
+export default function PhotoEditor() {
+  const [sourceImage, setSourceImage] = useState<string | null>(null);
+  const [editedImage, setEditedImage] = useState<string | null>(null);
+  const [editPrompt, setEditPrompt] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      base64: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      const base64 = result.assets[0].base64;
+      setSourceImage(\`data:image/jpeg;base64,\${base64}\`);
+      setEditedImage(null);
+    }
+  };
+
+  const applyEdit = async () => {
+    if (!sourceImage || !editPrompt.trim()) return;
+    setLoading(true);
+    try {
+      const result = await editImage(sourceImage, editPrompt);
+      setEditedImage(result.imageBase64);
+    } catch (err) {
+      console.error('Edit failed:', err);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <View style={styles.container}>
+      <Pressable onPress={pickImage} style={styles.pickButton}>
+        <Text style={styles.buttonText}>Pick a Photo</Text>
+      </Pressable>
+
+      {sourceImage && (
+        <>
+          <Image source={{ uri: sourceImage }} style={styles.preview} />
+          <TextInput
+            value={editPrompt}
+            onChangeText={setEditPrompt}
+            placeholder="Describe the edit: 'Add a rainbow', 'Make me wear sunglasses'"
+            style={styles.input}
+          />
+          <Pressable onPress={applyEdit} style={styles.editButton}>
+            <Text style={styles.buttonText}>Apply Edit</Text>
+          </Pressable>
+        </>
+      )}
+
+      {loading && <ActivityIndicator style={styles.loader} />}
+      {editedImage && (
+        <>
+          <Text style={styles.resultLabel}>Edited Result:</Text>
+          <Image source={{ uri: editedImage }} style={styles.result} />
+        </>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, padding: 20 },
+  pickButton: { backgroundColor: '#007AFF', padding: 16, borderRadius: 12, alignItems: 'center' },
+  editButton: { backgroundColor: '#4CAF50', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 12 },
+  buttonText: { color: '#fff', fontWeight: '600' },
+  preview: { width: '100%', height: 200, marginTop: 20, borderRadius: 12 },
+  input: { borderWidth: 1, borderColor: '#ddd', padding: 12, borderRadius: 8, marginTop: 12 },
+  loader: { marginTop: 20 },
+  resultLabel: { marginTop: 20, fontSize: 16, fontWeight: '600' },
+  result: { width: '100%', aspectRatio: 1, marginTop: 8, borderRadius: 12 },
+});
+\`\`\`
+
+**Common Use Cases:**
+- "Create an avatar" → Use generateImage with portrait description
+- "Add effects to my selfie" → Use editImage with the photo + effect description
+- "Virtual try-on" → Use editImage: "Make me wear a blue dress"
+- "Background change" → Use editImage: "Change background to a beach sunset"
+- "Add stickers/objects" → Use editImage: "Add a cute dog next to me"
+
+**Important Notes:**
+- Image generation takes 5-15 seconds, ALWAYS show loading states
+- Generated images are returned as data URLs, ready for Image component
+- For editImage, pass the picked image's base64 (with or without data: prefix - both work)
+- Rate limits are shared with text/vision (30 total requests per month)
+
 `;
 }
 
