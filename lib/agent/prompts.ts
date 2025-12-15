@@ -1224,9 +1224,12 @@ ${options.appIdea}
 **CRITICAL CONSTRAINTS - Expo Go Compatibility:**
 All features MUST be implementable in Expo Go (no native modules, no custom native code).
 
-Available capabilities:
+**Available Capabilities:**
+
+Basic Expo Features:
 - UI: React Native components, navigation, animations, gestures
-- Data: AsyncStorage, REST APIs, WebSockets
+- Local Storage: AsyncStorage for simple key-value data
+- APIs: REST APIs, WebSockets
 - Media: expo-camera, expo-image-picker, expo-av (audio/video)
 - Location: expo-location (GPS, geofencing)
 - Maps: react-native-maps (interactive maps with markers, regions, etc.)
@@ -1235,6 +1238,42 @@ Available capabilities:
 - Files: expo-file-system, expo-sharing
 - Sensors: expo-sensors (accelerometer, gyroscope)
 - Web content: react-native-webview
+
+**🤖 AI Capabilities (Powered by Appily AI API - HIGHLY RECOMMENDED):**
+These AI features are built-in and ready to use:
+- Text Generation (GPT-5 mini): Generate poems, stories, chat responses, summaries, translations, descriptions, creative writing, recommendations
+- Image Analysis (GPT-5 mini Vision): Identify objects, describe photos, analyze content, detect breeds/plants/food, read text in images, understand scenes
+- Image Generation (Gemini Nano Banana Pro): Create images from text descriptions - avatars, artwork, illustrations, backgrounds, icons
+- Image Editing (Gemini Nano Banana Pro): Transform existing photos - add effects, change backgrounds, style transfer, virtual try-on, artistic filters
+
+**📊 Backend Capabilities (Powered by Convex - USE ONLY WHEN NECESSARY):**
+Real-time database and cloud storage. Only suggest Convex when the app TRULY NEEDS persistent/shared data:
+- Real-time Database: Persist data across sessions, automatic sync between devices
+- User Data: Save favorites, history, preferences, collections, progress, scores
+- Shared/Social Data: Chat apps, collaborative features, social feeds, leaderboards, shared lists
+- File Storage: Upload and store images/files in the cloud with fast CDN delivery
+
+⚠️ IMPORTANT: Convex adds backend complexity and cost. Do NOT suggest it for:
+- Simple utility apps (calculator, timer, converter)
+- Single-session apps where data doesn't need to persist
+- Apps where AsyncStorage (local storage) is sufficient
+- Apps that only consume external APIs without storing user data
+
+**When to suggest AI features:**
+- Keywords: "smart", "AI", "intelligent", "analyze", "generate", "create content", "automatic"
+- Photo/camera apps → suggest image analysis or editing
+- Creative apps → suggest text and/or image generation
+- Content apps → suggest text generation for descriptions, summaries
+- Educational apps → suggest AI explanations or analysis
+
+**When to suggest Convex backend (be conservative):**
+Only suggest Convex when the app genuinely requires it:
+- Multi-user/social features: chat, sharing, collaborative editing, social feeds
+- Cross-device sync: user explicitly wants data on multiple devices
+- Leaderboards/scores: competitive features needing server-side storage
+- Cloud file storage: storing user-uploaded images/files that need to be accessed later or shared
+
+Prefer AsyncStorage (local) for: simple preferences, single-device data, temporary state
 
 NOT available (do NOT suggest features that require these):
 - Bluetooth/BLE
