@@ -496,61 +496,64 @@ export function UnifiedInput({
         {!onAIProviderChange && imageUploadButton}
         {textarea}
 
-        {/* Stop button - shown when agent is running and onStop is provided */}
-        {isLoading && onStop ? (
+        {/* Stacked buttons container */}
+        <div className="flex flex-col gap-1.5 shrink-0">
+          {/* Queue/Send button */}
           <Button
-            onClick={onStop}
-            disabled={isStopping}
+            onClick={handleSubmit}
+            disabled={!canSubmit}
             size="icon"
-            variant="destructive"
             className={cn(
-              "h-10 w-10 rounded-xl shrink-0",
-              "hover:scale-105",
-              "shadow-lg shadow-destructive/20",
+              "h-10 w-10 rounded-xl",
               "transition-all duration-300",
-              "disabled:opacity-50 disabled:scale-100"
+              "disabled:opacity-50 disabled:scale-100",
+              isQueueingMode
+                ? cn(
+                    "bg-muted hover:bg-muted/80",
+                    "text-muted-foreground hover:text-foreground",
+                    "shadow-sm"
+                  )
+                : cn(
+                    "bg-gradient-to-r from-primary to-[var(--magic-violet)]",
+                    "hover:opacity-90 hover:scale-105",
+                    "shadow-lg shadow-primary/20"
+                  )
             )}
-            title="Stop agent"
+            title={isQueueingMode ? `Queue message${queuedCount > 0 ? ` (${queuedCount} queued)` : ""}` : "Send message"}
           >
-            {isStopping ? (
+            {isUploading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
+            ) : isQueueingMode ? (
+              <ListPlus className="h-4 w-4" />
             ) : (
-              <Square className="h-4 w-4 fill-current" />
+              <Send className="h-4 w-4" />
             )}
           </Button>
-        ) : null}
 
-        {/* Queue/Send button */}
-        <Button
-          onClick={handleSubmit}
-          disabled={!canSubmit}
-          size="icon"
-          className={cn(
-            "h-10 w-10 rounded-xl shrink-0",
-            "transition-all duration-300",
-            "disabled:opacity-50 disabled:scale-100",
-            isQueueingMode
-              ? cn(
-                  "bg-muted hover:bg-muted/80",
-                  "text-muted-foreground hover:text-foreground",
-                  "shadow-sm"
-                )
-              : cn(
-                  "bg-gradient-to-r from-primary to-[var(--magic-violet)]",
-                  "hover:opacity-90 hover:scale-105",
-                  "shadow-lg shadow-primary/20"
-                )
-          )}
-          title={isQueueingMode ? `Queue message${queuedCount > 0 ? ` (${queuedCount} queued)` : ""}` : "Send message"}
-        >
-          {isUploading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : isQueueingMode ? (
-            <ListPlus className="h-4 w-4" />
-          ) : (
-            <Send className="h-4 w-4" />
-          )}
-        </Button>
+          {/* Stop button - shown when agent is running and onStop is provided */}
+          {isLoading && onStop ? (
+            <Button
+              onClick={onStop}
+              disabled={isStopping}
+              size="icon"
+              variant="destructive"
+              className={cn(
+                "h-10 w-10 rounded-xl",
+                "hover:scale-105",
+                "shadow-lg shadow-destructive/20",
+                "transition-all duration-300",
+                "disabled:opacity-50 disabled:scale-100"
+              )}
+              title="Stop agent"
+            >
+              {isStopping ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Square className="h-4 w-4 fill-current" />
+              )}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {/* Queue indicator */}
