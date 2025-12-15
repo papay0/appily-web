@@ -113,6 +113,25 @@ function ProjectSkeleton({ index }: { index: number }) {
   );
 }
 
+function MobileProjectSkeletonRow({ index }: { index: number }) {
+  return (
+    <TableRow
+      className="animate-fade-in-up opacity-0"
+      style={{ animationDelay: `${index * 50}ms` }}
+    >
+      <TableCell className="py-3 px-3 w-10">
+        <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 animate-pulse" />
+      </TableCell>
+      <TableCell className="py-3 px-0">
+        <div className="h-4 w-32 rounded bg-muted/40 animate-shimmer" />
+      </TableCell>
+      <TableCell className="py-3 px-3 text-right">
+        <div className="h-3 w-16 rounded bg-muted/30 animate-shimmer animation-delay-200" />
+      </TableCell>
+    </TableRow>
+  );
+}
+
 // Empty State
 function EmptyState() {
   return (
@@ -147,14 +166,25 @@ export function RecentProjectsSection({
 
   // Loading state with enhanced skeletons
   if (loading) {
+    const skeletonItems = Array.from({ length: maxDisplay });
     return (
       <div className="w-full max-w-4xl mx-auto mt-12">
         <div className="flex items-center justify-between mb-6">
-          <div className="h-6 w-32 rounded bg-muted/50 animate-shimmer" />
+          <div className="h-6 w-40 rounded bg-muted/50 animate-shimmer" />
+          <div className="h-4 w-16 rounded bg-muted/40 animate-shimmer animation-delay-200" />
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => (
-            <ProjectSkeleton key={i} index={i} />
+        <div className="md:hidden rounded-xl glass-morphism overflow-hidden">
+          <Table>
+            <TableBody>
+              {skeletonItems.map((_, index) => (
+                <MobileProjectSkeletonRow key={index} index={index} />
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        <div className="hidden md:grid md:grid-cols-3 gap-4 perspective-container">
+          {skeletonItems.map((_, index) => (
+            <ProjectSkeleton key={index} index={index} />
           ))}
         </div>
       </div>
