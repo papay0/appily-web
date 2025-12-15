@@ -11,6 +11,8 @@ import {
   Sparkles,
   Command,
   ImagePlus,
+  Square,
+  ListPlus,
 } from "lucide-react";
 import { MagicButton } from "@/components/marketing/MagicButton";
 import { ImagePreviewGrid } from "@/components/image-preview-grid";
@@ -59,6 +61,14 @@ export interface UnifiedInputProps {
   aiProvider?: AIProvider;
   /** Callback when AI provider changes */
   onAIProviderChange?: (provider: AIProvider) => void;
+
+  // Stop/Queue functionality (build variant only)
+  /** Callback to stop the running agent */
+  onStop?: () => void;
+  /** Whether stop request is in progress */
+  isStopping?: boolean;
+  /** Number of messages currently queued */
+  queuedCount?: number;
 }
 
 export function UnifiedInput({
@@ -77,6 +87,9 @@ export function UnifiedInput({
   onImagesChange,
   aiProvider = "claude",
   onAIProviderChange,
+  onStop,
+  isStopping = false,
+  queuedCount = 0,
 }: UnifiedInputProps) {
   const [text, setText] = useState("");
   const [isFocused, setIsFocused] = useState(false);
@@ -123,7 +136,9 @@ export function UnifiedInput({
 
   const handleSubmit = useCallback(() => {
     if (text.trim().length < effectiveMinLength) return;
-    if (isLoading || isUploading) return;
+    // For home variant, block when loading. For build variant, allow queueing.
+    if (variant === "home" && isLoading) return;
+    if (isUploading) return;
 
     const imageKeys = getUploadedKeys();
     // Get preview URLs before clearing (for display in chat)
@@ -136,7 +151,7 @@ export function UnifiedInput({
     // Clear text and images after submit
     setText("");
     clearImages();
-  }, [text, effectiveMinLength, isLoading, isUploading, getUploadedKeys, images, onSubmit, clearImages]);
+  }, [text, effectiveMinLength, variant, isLoading, isUploading, getUploadedKeys, images, onSubmit, clearImages]);
 
   const handleKeyDown = (
     e: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>
@@ -205,15 +220,18 @@ export function UnifiedInput({
     fileInputRef.current?.click();
   }, []);
 
-  const canSubmit =
-    text.trim().length >= effectiveMinLength && !isLoading && !isUploading;
+  const isHome = variant === "home";
+
+  // For build variant: allow queueing when agent is busy
+  const isQueueingMode = !isHome && isLoading && !isUploading;
+  const canSubmit = isHome
+    ? text.trim().length >= effectiveMinLength && !isLoading && !isUploading
+    : text.trim().length >= effectiveMinLength && !isUploading; // Build allows queueing
   const hasImages = images.length > 0;
   const canAddMoreImages = images.length < maxImages;
 
   // Accept attribute for file input
   const acceptedFormats = ACCEPTED_IMAGE_EXTENSIONS.map((ext) => `.${ext}`).join(",");
-
-  const isHome = variant === "home";
 
   // Shared elements
   const fileInput = (
@@ -250,14 +268,14 @@ export function UnifiedInput({
 
   const textarea = (
     <Textarea
-      placeholder={effectivePlaceholder}
+      placeholder={isQueueingMode ? "Type to queue a message..." : effectivePlaceholder}
       value={text}
       onChange={(e) => setText(e.target.value)}
       onKeyDown={handleKeyDown}
       onPaste={handlePaste}
       onFocus={() => setIsFocused(true)}
       onBlur={() => setIsFocused(false)}
-      disabled={isLoading}
+      disabled={isHome ? isLoading : false} // Build variant stays enabled for queueing
       rows={isHome ? 5 : 3}
       className={cn(
         "resize-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0",
@@ -472,32 +490,76 @@ export function UnifiedInput({
         </div>
       )}
 
-      {/* Bottom row: Full-width textarea with send button */}
+      {/* Bottom row: Full-width textarea with send/stop/queue button */}
       <div className="flex gap-2 items-end">
         {/* Show image upload button inline if no AI provider selector */}
         {!onAIProviderChange && imageUploadButton}
         {textarea}
 
+        {/* Stop button - shown when agent is running and onStop is provided */}
+        {isLoading && onStop ? (
+          <Button
+            onClick={onStop}
+            disabled={isStopping}
+            size="icon"
+            variant="destructive"
+            className={cn(
+              "h-10 w-10 rounded-xl shrink-0",
+              "hover:scale-105",
+              "shadow-lg shadow-destructive/20",
+              "transition-all duration-300",
+              "disabled:opacity-50 disabled:scale-100"
+            )}
+            title="Stop agent"
+          >
+            {isStopping ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Square className="h-4 w-4 fill-current" />
+            )}
+          </Button>
+        ) : null}
+
+        {/* Queue/Send button */}
         <Button
           onClick={handleSubmit}
           disabled={!canSubmit}
           size="icon"
           className={cn(
             "h-10 w-10 rounded-xl shrink-0",
-            "bg-gradient-to-r from-primary to-[var(--magic-violet)]",
-            "hover:opacity-90 hover:scale-105",
-            "shadow-lg shadow-primary/20",
             "transition-all duration-300",
-            "disabled:opacity-50 disabled:scale-100"
+            "disabled:opacity-50 disabled:scale-100",
+            isQueueingMode
+              ? cn(
+                  "bg-muted hover:bg-muted/80",
+                  "text-muted-foreground hover:text-foreground",
+                  "shadow-sm"
+                )
+              : cn(
+                  "bg-gradient-to-r from-primary to-[var(--magic-violet)]",
+                  "hover:opacity-90 hover:scale-105",
+                  "shadow-lg shadow-primary/20"
+                )
           )}
+          title={isQueueingMode ? `Queue message${queuedCount > 0 ? ` (${queuedCount} queued)` : ""}` : "Send message"}
         >
-          {isLoading || isUploading ? (
+          {isUploading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
+          ) : isQueueingMode ? (
+            <ListPlus className="h-4 w-4" />
           ) : (
             <Send className="h-4 w-4" />
           )}
         </Button>
       </div>
+
+      {/* Queue indicator */}
+      {queuedCount > 0 && (
+        <div className="mt-2 text-xs text-muted-foreground flex items-center gap-1.5">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+          {queuedCount} message{queuedCount > 1 ? "s" : ""} queued
+        </div>
+      )}
     </div>
   );
 }

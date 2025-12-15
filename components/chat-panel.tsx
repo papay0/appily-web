@@ -115,6 +115,15 @@ function groupMessages(messages: Message[]): MessageGroup[] {
   return groups;
 }
 
+// Queued message interface
+interface QueuedMessage {
+  id: string;
+  text: string;
+  imageKeys: string[];
+  imagePreviewUrls: string[];
+  timestamp: Date;
+}
+
 export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvider }: ChatPanelProps) {
   const { isLoaded } = useSession();
   const { user } = useUser();
@@ -124,6 +133,8 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
   const [aiProvider, setAIProvider] = useState<AIProvider>(initialAiProvider || "claude");
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [openTodoIndex, setOpenTodoIndex] = useState<number | null>(null);
+  const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
+  const [isStopping, setIsStopping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const seenEventIds = useRef<{ order: string[]; set: Set<string> }>({
     order: [],
@@ -146,6 +157,8 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
     pendingUserMessageIds.current.clear();
     setMessages([]);
     setInitialLoadComplete(false);
+    setQueuedMessages([]);
+    setIsStopping(false);
   }, [projectId]);
 
   // Auto-scroll to bottom when new messages arrive
@@ -296,6 +309,8 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
 
     if (event.event_type === "result") {
       setIsLoading(false);
+      setIsStopping(false);
+
       if (event.event_data.subtype === "success") {
         setMessages((prev) => [...prev, {
           id: generateId(),
@@ -303,41 +318,14 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
           content: "✓ Task completed",
           timestamp: new Date(event.created_at),
         }]);
-
-        // Auto-save is now handled by the backend (E2B script)
-        // The stream-to-supabase.js script automatically triggers saves
-        // after storing success result events via the internal save API.
-        //
-        // Frontend auto-save is disabled to prevent duplicates.
-        // Kept here as reference/fallback:
-        /*
-        const eventId = event.id || `${event.created_at}-result-success`;
-        if (sandboxId && !savedEvents.current.has(eventId)) {
-          savedEvents.current.add(eventId);
-
-          console.log("[ChatPanel] Task completed - Auto-saving project to R2...");
-          fetch(`/api/projects/${projectId}/save`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              description: "Auto-save after task completion",
-            }),
-          })
-            .then((res) => res.json())
-            .then((data) => {
-              if (data.success) {
-                console.log("[ChatPanel] ✓ Project saved to R2:", data.snapshot);
-              } else {
-                console.error("[ChatPanel] ✗ Failed to save project:", data.error);
-                savedEvents.current.delete(eventId);
-              }
-            })
-            .catch((error) => {
-              console.error("[ChatPanel] ✗ Save request failed:", error);
-              savedEvents.current.delete(eventId);
-            });
-        }
-        */
+      } else if (event.event_data.subtype === "cancelled") {
+        // User stopped the agent
+        setMessages((prev) => [...prev, {
+          id: generateId(),
+          role: "system",
+          content: "⏹ Task cancelled by user",
+          timestamp: new Date(event.created_at),
+        }]);
       } else {
         setMessages((prev) => [...prev, {
           id: generateId(),
@@ -414,7 +402,21 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
 
   // Send message helper - used by both auto-start and manual send
   const sendMessageProgrammatically = useCallback(async (messageText: string, imageKeys: string[] = [], imagePreviewUrls: string[] = [], displayMessage?: string) => {
-    if (!messageText.trim() || isLoading || !user) return;
+    if (!messageText.trim() || !user) return;
+
+    // If agent is busy, queue the message instead of sending
+    if (isLoading) {
+      const queuedMessage: QueuedMessage = {
+        id: generateId(),
+        text: messageText,
+        imageKeys,
+        imagePreviewUrls,
+        timestamp: new Date(),
+      };
+      setQueuedMessages(prev => [...prev, queuedMessage]);
+      console.log("[ChatPanel] Message queued:", queuedMessage.id);
+      return;
+    }
 
     // Check if this is the first message and we have feature context
     const isFirstMessage = messages.filter(m => m.role === "user").length === 0;
@@ -471,15 +473,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
 
       const data = await response.json();
       console.log("Agent started:", data);
-
-      if (data.status === "processing") {
-        setMessages((prev) => [...prev, {
-          id: generateId(),
-          role: "system",
-          content: "Claude is thinking...",
-          timestamp: new Date(),
-        }]);
-      }
+      // Loading indicator is now shown via isLoading state, not as a message
     } catch (error) {
       console.error("Failed to send message:", error);
       pendingUserMessageIds.current.delete(userMessage.id);
@@ -529,6 +523,56 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
     // Send with friendly display message, but full error details to Claude
     sendMessageProgrammatically(fixPrompt, [], [], displayMessage);
   }, [sendMessageProgrammatically]);
+
+  // Stop the running agent
+  const handleStopAgent = useCallback(async () => {
+    if (!isLoading || isStopping) return;
+
+    setIsStopping(true);
+    console.log("[ChatPanel] Stopping agent...");
+
+    try {
+      const response = await fetch("/api/agents/stop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        console.error("[ChatPanel] Failed to stop agent:", data.error);
+        // Reset stopping state on error
+        setIsStopping(false);
+      } else {
+        console.log("[ChatPanel] Stop request sent successfully");
+        // The result event will set isLoading to false and reset isStopping
+      }
+    } catch (error) {
+      console.error("[ChatPanel] Error stopping agent:", error);
+      setIsStopping(false);
+    }
+  }, [isLoading, isStopping, projectId]);
+
+  // Remove a message from the queue
+  const removeFromQueue = useCallback((id: string) => {
+    setQueuedMessages(prev => prev.filter(m => m.id !== id));
+  }, []);
+
+  // Process queued messages when agent becomes idle
+  useEffect(() => {
+    if (isLoading || queuedMessages.length === 0) return;
+
+    // Small delay before processing next message for better UX
+    const timeoutId = setTimeout(() => {
+      const [next, ...remaining] = queuedMessages;
+      setQueuedMessages(remaining);
+      console.log("[ChatPanel] Processing queued message:", next.id);
+      // Use setTimeout to avoid state update conflicts
+      sendMessageProgrammatically(next.text, next.imageKeys, next.imagePreviewUrls);
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [isLoading, queuedMessages, sendMessageProgrammatically]);
 
   // Auto-start when coming from planning with feature context
   useEffect(() => {
@@ -676,6 +720,57 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
                 }
               });
             })()}
+
+            {/* Loading Indicator */}
+            {isLoading && (
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30">
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
+                  <span className="w-2 h-2 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
+                  <span className="w-2 h-2 rounded-full bg-primary animate-bounce" />
+                </div>
+                <span className="text-sm text-muted-foreground">
+                  {isStopping ? "Stopping..." : `${aiProvider === "gemini" ? "Gemini" : "Claude"} is thinking`}
+                </span>
+              </div>
+            )}
+
+            {/* Queued Messages */}
+            {queuedMessages.length > 0 && (
+              <div className="space-y-2 mt-2 border-t border-dashed border-border/50 pt-2">
+                <div className="text-xs text-muted-foreground flex items-center gap-1.5 px-2">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Queued ({queuedMessages.length})
+                </div>
+                {queuedMessages.map((qm) => (
+                  <div
+                    key={qm.id}
+                    className="flex items-start gap-2 p-2 rounded-lg bg-muted/30 border border-dashed border-border/50"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-muted-foreground truncate">
+                        {qm.text}
+                      </p>
+                      {qm.imagePreviewUrls.length > 0 && (
+                        <span className="text-xs text-muted-foreground/60">
+                          +{qm.imagePreviewUrls.length} image(s)
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => removeFromQueue(qm.id)}
+                      className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                      title="Remove from queue"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div ref={messagesEndRef} />
           </div>
         )}
@@ -689,6 +784,9 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
         projectId={projectId}
         aiProvider={aiProvider}
         onAIProviderChange={setAIProvider}
+        onStop={handleStopAgent}
+        isStopping={isStopping}
+        queuedCount={queuedMessages.length}
       />
     </div>
   );

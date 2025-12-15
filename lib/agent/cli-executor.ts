@@ -22,6 +22,7 @@
 
 import type { Sandbox } from "e2b";
 import type { AgentStreamEvent } from "./types";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 /**
  * Convex credentials for E2B sandbox
@@ -210,6 +211,19 @@ export async function executeClaudeInE2B(
     console.log(`[E2B] ✓ Script started in background (PID: ${pid})`);
     console.log(`[E2B] ✓ Logs: ${logFile}`);
     console.log(`[E2B] Script will run independently on E2B and stream to Supabase`);
+
+    // Store agent PID in database for stop functionality
+    const { error: pidError } = await supabaseAdmin
+      .from('projects')
+      .update({ agent_pid: pid })
+      .eq('id', projectId);
+
+    if (pidError) {
+      console.error('[E2B] Failed to store agent PID:', pidError.message);
+      // Don't fail the execution, just log the error
+    } else {
+      console.log(`[E2B] ✓ Agent PID ${pid} stored in database`);
+    }
 
     // Show initial output for debugging (non-blocking)
     setTimeout(async () => {
@@ -420,6 +434,19 @@ export async function executeGeminiInE2B(
     console.log(`[E2B] Gemini script started in background (PID: ${pid})`);
     console.log(`[E2B] Logs: ${logFile}`);
     console.log(`[E2B] Script will run independently on E2B and stream to Supabase`);
+
+    // Store agent PID in database for stop functionality
+    const { error: pidError } = await supabaseAdmin
+      .from('projects')
+      .update({ agent_pid: pid })
+      .eq('id', projectId);
+
+    if (pidError) {
+      console.error('[E2B] Failed to store Gemini agent PID:', pidError.message);
+      // Don't fail the execution, just log the error
+    } else {
+      console.log(`[E2B] ✓ Gemini agent PID ${pid} stored in database`);
+    }
 
     // Show initial output for debugging (non-blocking)
     setTimeout(async () => {
