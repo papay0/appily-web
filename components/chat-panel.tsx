@@ -333,7 +333,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
           } else if (block.name === "Edit" && input.file_path) {
             toolContext = input.file_path.split("/").pop();
           } else if (block.name === "Bash" && input.command) {
-            toolContext = input.command.substring(0, 30) + (input.command.length > 30 ? "..." : "");
+            toolContext = input.command;  // Full command, no truncation
           } else if (block.name === "Glob" && input.pattern) {
             toolContext = input.pattern;
           }

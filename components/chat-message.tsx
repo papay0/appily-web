@@ -113,6 +113,7 @@ function UserMessageWithLightbox({ message, hasImages }: { message: Message; has
 
 export function ChatMessage({ message, onFixError }: ChatMessageProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isToolContextExpanded, setIsToolContextExpanded] = useState(false);
 
   // Helper to check if this is an expandable message (e.g., stderr with full content)
   const isExpandableMessage =
@@ -303,16 +304,38 @@ export function ChatMessage({ message, onFixError }: ChatMessageProps) {
         <div className="flex items-start gap-2 my-1.5 w-full animate-fade-in-up">
           <div
             className={cn(
-              "inline-flex items-start gap-2 px-3 py-1.5 rounded-xl",
+              "inline-flex flex-col gap-1 px-3 py-1.5 rounded-xl",
               "glass-morphism",
               "text-xs max-w-xl",
               glowClass && `shadow-lg ${glowClass}`
             )}
           >
-            <Icon className={cn("h-3.5 w-3.5 flex-shrink-0 mt-0.5", iconColorClass)} />
-            <span className="font-medium text-foreground/80 break-words whitespace-normal">{message.content}</span>
+            {/* Row 1: Icon + "Using X..." */}
+            <div className="flex items-center gap-2">
+              <Icon className={cn("h-3.5 w-3.5 flex-shrink-0", iconColorClass)} />
+              <span className="font-medium text-foreground/80">{message.content}</span>
+            </div>
+
+            {/* Row 2: Tool context with line clamping */}
             {message.toolContext && (
-              <span className="opacity-60 font-mono text-xs break-all whitespace-normal">• {message.toolContext}</span>
+              <div className="flex flex-col gap-0.5">
+                <span
+                  className={cn(
+                    "opacity-60 font-mono text-xs break-all",
+                    !isToolContextExpanded && "line-clamp-2"
+                  )}
+                >
+                  • {message.toolContext}
+                </span>
+                {message.toolContext.length > 80 && (
+                  <button
+                    onClick={() => setIsToolContextExpanded(!isToolContextExpanded)}
+                    className="self-start text-primary hover:text-primary/80 text-[10px] font-medium transition-colors"
+                  >
+                    {isToolContextExpanded ? "Show less" : "Read more"}
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
