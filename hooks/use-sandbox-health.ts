@@ -26,7 +26,7 @@ interface UseSandboxHealthResult {
 }
 
 // Polling intervals
-const HEALTHY_POLL_INTERVAL = 30000; // 30 seconds when healthy
+const HEALTHY_POLL_INTERVAL = 60000; // 60 seconds when healthy
 const STARTING_POLL_INTERVAL = 5000; // 5 seconds when starting/restarting
 
 export function useSandboxHealth({
