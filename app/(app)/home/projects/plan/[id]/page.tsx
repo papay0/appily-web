@@ -10,7 +10,8 @@ import { ProjectHeader } from "@/components/project-header";
 import { ClickableImageGrid } from "@/components/clickable-image-grid";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { Plus, ArrowRight, Loader2, Lightbulb, Image as ImageIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { Feature, GeneratedFeature } from "@/lib/types/features";
 
 interface Project {
@@ -39,18 +40,23 @@ function FeatureListSkeleton() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-4 w-32 bg-muted/50" />
       </div>
-      <div className="space-y-2">
-        {[...Array(6)].map((_, i) => (
+      <div className="space-y-3">
+        {[...Array(5)].map((_, i) => (
           <div
             key={i}
-            className="flex items-start gap-3 p-3 rounded-lg border bg-muted/30"
+            className={cn(
+              "flex items-start gap-4 p-4 rounded-2xl",
+              "bg-card border border-border",
+              "animate-fade-in-up opacity-0"
+            )}
+            style={{ animationDelay: `${i * 100}ms` }}
           >
-            <Skeleton className="h-4 w-4 rounded mt-0.5" />
+            <Skeleton className="h-5 w-5 rounded-md mt-0.5 bg-muted/50" />
             <div className="flex-1 space-y-2">
-              <Skeleton className="h-4 w-48" />
-              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-4 w-48 bg-muted/50" />
+              <Skeleton className="h-3 w-full bg-muted/30" />
             </div>
           </div>
         ))}
@@ -61,24 +67,32 @@ function FeatureListSkeleton() {
 
 function PlanPageSkeleton() {
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
+      {/* Gradient orbs background */}
+      <div className="fixed inset-0 -z-10 bg-background">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[1200px] h-[800px] opacity-30 dark:opacity-15 pointer-events-none">
+          <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] bg-blue-200/60 dark:bg-blue-500/20 rounded-full blur-[100px]" />
+          <div className="absolute bottom-1/3 right-1/4 w-[500px] h-[500px] bg-orange-200/50 dark:bg-orange-500/15 rounded-full blur-[120px]" />
+        </div>
+      </div>
+
       <ProjectHeader />
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto p-6 pb-4 space-y-6">
-          <div className="space-y-2">
-            <Skeleton className="h-8 w-64" />
-            <Skeleton className="h-5 w-96" />
+        <div className="max-w-2xl mx-auto px-6 py-8 space-y-8">
+          <div className="space-y-3 animate-fade-in-up opacity-0">
+            <Skeleton className="h-9 w-72 bg-muted/50" />
+            <Skeleton className="h-5 w-96 bg-muted/30" />
           </div>
-          <div className="rounded-lg border p-4 bg-muted/30">
-            <Skeleton className="h-4 w-24 mb-2" />
-            <Skeleton className="h-16 w-full" />
+          <div className="rounded-2xl border border-border p-5 bg-card animate-fade-in-up opacity-0 animation-delay-200">
+            <Skeleton className="h-4 w-24 mb-3 bg-muted/50" />
+            <Skeleton className="h-16 w-full bg-muted/30" />
           </div>
           <FeatureListSkeleton />
         </div>
       </div>
-      <div className="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="max-w-2xl mx-auto px-6 py-4">
-          <Skeleton className="h-11 w-full" />
+      <div className="border-t border-border bg-background/80 backdrop-blur-xl">
+        <div className="max-w-2xl mx-auto px-6 py-5">
+          <Skeleton className="h-12 w-full rounded-full bg-muted/50" />
         </div>
       </div>
     </div>
@@ -280,52 +294,93 @@ export default function PlanPage({
   }
 
   const includedCount = features.filter((f) => f.is_included).length;
+  const totalCount = features.length;
+  const progressPercent = totalCount > 0 ? (includedCount / totalCount) * 100 : 0;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
+      {/* Gradient orbs background */}
+      <div className="fixed inset-0 -z-10 bg-background">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[1200px] h-[800px] opacity-30 dark:opacity-15 pointer-events-none">
+          <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] bg-blue-200/60 dark:bg-blue-500/20 rounded-full blur-[100px]" />
+          <div className="absolute bottom-1/3 right-1/4 w-[500px] h-[500px] bg-orange-200/50 dark:bg-orange-500/15 rounded-full blur-[120px]" />
+        </div>
+      </div>
+
       <ProjectHeader projectId={project.id} projectName={project.name} />
 
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto p-6 pb-4 space-y-6">
+        <div className="max-w-2xl mx-auto px-6 py-8 space-y-8">
           {/* Header */}
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Sparkles className="h-6 w-6 text-primary" />
-              Plan Your App Features
+          <div className="space-y-3 animate-fade-in-up opacity-0">
+            <h1 className="text-3xl md:text-4xl font-bold font-display text-foreground">
+              Plan Your{" "}
+              <span className="relative inline-block">
+                <span className="relative z-10 bg-gradient-to-r from-primary to-blue-500 bg-clip-text text-transparent">
+                  Features
+                </span>
+                <svg
+                  className="absolute w-full h-2 -bottom-0.5 left-0 text-primary/30 dark:text-primary/40"
+                  viewBox="0 0 100 10"
+                  preserveAspectRatio="none"
+                >
+                  <path d="M0 5 Q 50 10 100 5" stroke="currentColor" strokeWidth="6" fill="none" />
+                </svg>
+              </span>
             </h1>
-            <p className="text-muted-foreground">
-              Select the features you want to build. You can customize this list
-              before starting.
+            <p className="text-muted-foreground text-base md:text-lg">
+              Select the features you want to build. Customize the list before starting.
             </p>
           </div>
 
-          {/* App Idea Display */}
+          {/* App Idea Card */}
           {project.app_idea && (
-            <div className="rounded-lg border p-4 bg-muted/30">
-              <p className="text-sm font-medium text-muted-foreground mb-2">
-                Your App Idea
-              </p>
-              <p className="text-foreground">{project.app_idea}</p>
+            <div className="animate-fade-in-up opacity-0 animation-delay-200">
+              <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-1.5 rounded-lg bg-primary/10">
+                    <Lightbulb className="h-4 w-4 text-primary" />
+                  </div>
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Your App Idea
+                  </span>
+                </div>
+                <p className="text-foreground leading-relaxed">{project.app_idea}</p>
+              </div>
             </div>
           )}
 
-          {/* Reference Images */}
+          {/* Reference Images Card */}
           {imagePreviewUrls.length > 0 && (
-            <div className="rounded-lg border p-4 bg-muted/30">
-              <p className="text-sm font-medium text-muted-foreground mb-3">
-                Reference Images
-              </p>
-              <ClickableImageGrid imageUrls={imagePreviewUrls} thumbnailSize="lg" />
+            <div className="animate-fade-in-up opacity-0 animation-delay-400">
+              <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="p-1.5 rounded-lg bg-blue-500/10">
+                    <ImageIcon className="h-4 w-4 text-blue-500" />
+                  </div>
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Reference Images
+                  </span>
+                </div>
+                <ClickableImageGrid imageUrls={imagePreviewUrls} thumbnailSize="lg" />
+              </div>
             </div>
           )}
 
           {/* Features Section */}
-          <div className="space-y-4">
+          <div className="space-y-4 animate-fade-in-up opacity-0 animation-delay-600">
             {generatingFeatures ? (
               <div className="space-y-4">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Generating feature suggestions...
+                <div className="flex items-center gap-3 p-4 rounded-2xl bg-primary/5 border border-primary/10">
+                  <div className="relative">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    <div className="absolute inset-0 h-5 w-5 animate-ping text-primary opacity-20">
+                      <Loader2 className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <span className="text-sm font-medium text-foreground">
+                    AI is analyzing your idea and generating features...
+                  </span>
                 </div>
                 <FeatureListSkeleton />
               </div>
@@ -339,45 +394,98 @@ export default function PlanPage({
                 />
 
                 {/* Add Feature Button */}
-                <Button
-                  variant="outline"
+                <button
                   onClick={() => setAddDialogOpen(true)}
                   disabled={isSaving}
-                  className="w-full"
+                  className={cn(
+                    "w-full p-4 rounded-2xl border-2 border-dashed border-border",
+                    "flex items-center justify-center gap-2",
+                    "text-muted-foreground hover:text-foreground",
+                    "hover:border-primary/50 hover:bg-primary/5",
+                    "transition-all duration-200",
+                    "disabled:opacity-50 disabled:cursor-not-allowed"
+                  )}
                 >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Custom Feature
-                </Button>
+                  <Plus className="h-4 w-4" />
+                  <span className="font-medium">Add Custom Feature</span>
+                </button>
               </>
             )}
           </div>
         </div>
       </div>
 
-      {/* Start Building Button - Sticky Footer */}
-      <div className="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="max-w-2xl mx-auto px-6 py-4">
-          <Button
-            onClick={handleStartBuilding}
-            disabled={isSaving || generatingFeatures}
-            size="lg"
-            className="w-full"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                Start Building
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </>
+      {/* Sticky Footer */}
+      <div className="border-t border-border bg-background/80 backdrop-blur-xl">
+        <div className="max-w-2xl mx-auto px-6 py-5">
+          <div className="flex items-center gap-4">
+            {/* Progress indicator */}
+            {features.length > 0 && !generatingFeatures && (
+              <div className="hidden sm:flex items-center gap-3 flex-shrink-0">
+                <div className="relative h-10 w-10">
+                  <svg className="h-10 w-10 -rotate-90" viewBox="0 0 36 36">
+                    <circle
+                      cx="18"
+                      cy="18"
+                      r="16"
+                      fill="none"
+                      className="stroke-muted"
+                      strokeWidth="2"
+                    />
+                    <circle
+                      cx="18"
+                      cy="18"
+                      r="16"
+                      fill="none"
+                      className="stroke-primary transition-all duration-500"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeDasharray={`${progressPercent} 100`}
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-foreground">
+                    {includedCount}
+                  </span>
+                </div>
+                <div className="text-sm">
+                  <p className="font-medium text-foreground">{includedCount} selected</p>
+                  <p className="text-muted-foreground text-xs">of {totalCount} features</p>
+                </div>
+              </div>
             )}
-          </Button>
+
+            {/* Start Building Button */}
+            <button
+              onClick={handleStartBuilding}
+              disabled={isSaving || generatingFeatures}
+              className={cn(
+                "flex-1 py-3.5 px-6 rounded-full font-semibold text-base",
+                "bg-primary text-primary-foreground",
+                "hover:bg-primary/90 transition-all duration-200",
+                "shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30",
+                "hover:scale-[1.02] active:scale-[0.98]",
+                "flex items-center justify-center gap-2",
+                "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-none"
+              )}
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <span>Start Building</span>
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Mobile feature count */}
           {features.length > 0 && !generatingFeatures && (
-            <p className="text-center text-sm text-muted-foreground mt-2">
-              {includedCount} feature{includedCount !== 1 ? "s" : ""} selected
+            <p className="sm:hidden text-center text-sm text-muted-foreground mt-3">
+              {includedCount} of {totalCount} features selected
             </p>
           )}
         </div>
