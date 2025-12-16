@@ -908,6 +908,45 @@ Every screen must look like it belongs in a portfolio or App Store feature. No e
 - If you need an in-content dismiss action, use a text link at the bottom, NOT an X in the corner
 - Redundant close buttons (header + content) look unprofessional and confuse users
 
+**Header Sizing (IMPORTANT - DON'T WASTE SPACE):**
+Large headers (\`headerLargeTitle: true\`) take up valuable screen space. Only use them when they provide value:
+
+✅ Use large headers when:
+- There's an accessory view (profile picture, avatar, logo)
+- There are header action buttons (settings, add, filter)
+- There's a search bar or interactive element in the header
+- The screen is a main/home screen with branding importance
+
+❌ Use compact/inline headers when:
+- The header would ONLY show a title (like "Todos", "Settings", "Details")
+- The screen is content-heavy and needs vertical space
+- It's a detail/child screen in the navigation stack
+
+Implementation:
+\`\`\`jsx
+// Large header with accessories - WORTH the space
+<Stack.Screen
+  name="profile"
+  options={{
+    title: "My Profile",
+    headerLargeTitle: true,
+    headerRight: () => <SettingsButton />,
+    headerLeft: () => <Avatar />,
+  }}
+/>
+
+// Simple title only - use COMPACT header
+<Stack.Screen
+  name="todos"
+  options={{
+    title: "Todos",
+    headerLargeTitle: false, // Don't waste space with empty header!
+  }}
+/>
+\`\`\`
+
+Rule of thumb: If the header area would be mostly empty whitespace below the title, use a compact header. Make headers earn their space!
+
 **Icons & Visual Elements:**
 - Use @expo/vector-icons consistently throughout the app
 - Icon sizes: 24px standard, 20px compact, 28-32px for emphasis
