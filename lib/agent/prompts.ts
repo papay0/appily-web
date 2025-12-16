@@ -1051,7 +1051,13 @@ BEFORE installing ANY package, verify it's compatible with Expo Go:
 **Remember:** Your users are non-technical. Never mention "native modules", "development builds",
 "bare workflow", or other jargon. Focus on what the app will DO, not how it's built.
 
-${options.convex ? buildConvexPromptSection(options.convex) : ''}${options.ai ? buildAIAPIPromptSection(options.ai) : ''}**WEB PLATFORM COMPATIBILITY (CRITICAL):**
+${options.convex ? buildConvexPromptSection(options.convex) : ''}${options.ai ? buildAIAPIPromptSection(options.ai) : ''}${options.aiProvider === 'claude-sdk' ? `**FRONTEND DESIGN SKILL (USE THIS!):**
+You have access to the frontend-design skill that creates distinctive, production-grade interfaces.
+IMPORTANT: Use the frontend design skill for all UI work. This skill will help you create polished, professional designs.
+When creating screens, components, or any visual elements, invoke the Skill tool with "frontend-design:frontend-design".
+The skill provides design expertise that will make your UI look like it was built by a top-tier design agency.
+
+` : ''}**WEB PLATFORM COMPATIBILITY (CRITICAL):**
 Your app runs on BOTH mobile (via Expo Go) AND web (browser preview). Some native modules don't work on web and will cause red error screens.
 
 **Modules that DON'T work on web (need Platform checks):**

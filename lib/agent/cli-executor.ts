@@ -816,6 +816,23 @@ export async function executeSetupInE2B(
       const metroControlContent = readFileSync(metroControlPath, 'utf-8');
       await sandbox.files.write('/home/user/metro-control.js', metroControlContent);
       console.log(`[E2B] ✓ Metro-control module uploaded`);
+
+      // For claude-sdk provider, download the frontend-design skill for better UI generation
+      if (aiProvider === 'claude-sdk') {
+        console.log(`[E2B] Downloading frontend-design skill...`);
+        const skillDownloadResult = await sandbox.commands.run(
+          `mkdir -p /home/user/project/.claude/skills/frontend-design && ` +
+          `curl -sL "https://raw.githubusercontent.com/anthropics/claude-code/main/plugins/frontend-design/skills/frontend-design/SKILL.md" ` +
+          `-o /home/user/project/.claude/skills/frontend-design/SKILL.md`,
+          { timeoutMs: 30000 }
+        );
+        if (skillDownloadResult.exitCode === 0) {
+          console.log(`[E2B] ✓ Frontend-design skill downloaded`);
+        } else {
+          console.warn(`[E2B] ⚠️ Failed to download frontend-design skill: ${skillDownloadResult.stderr}`);
+          // Continue anyway - skill is optional enhancement
+        }
+      }
     }
 
     // Step 3: Install required dependencies if not already installed
