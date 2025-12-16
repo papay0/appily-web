@@ -171,10 +171,10 @@ export function PreviewPanel({
 
         {/* Preview Available - Side by Side Layout */}
         {hasPreview && sandboxStatus !== "error" && (
-          <div className="flex gap-8 h-full items-center justify-center animate-scale-fade-in">
+          <div className="flex gap-8 h-full items-center justify-center animate-scale-fade-in overflow-x-auto min-w-0">
             {/* Left: Phone Preview (Web) */}
-            <div className="flex items-center justify-center h-full">
-              <div className="web-preview-glow h-full flex items-center relative">
+            <div className="flex items-center justify-center h-full min-w-0 flex-shrink">
+              <div className="web-preview-glow h-full flex items-center relative min-w-0">
                 {/* Floating Refresh Button */}
                 {webUrl && (
                   <button
@@ -225,8 +225,8 @@ export function PreviewPanel({
               </div>
             </div>
 
-            {/* Right: QR Code + Instructions - fixed width, vertically centered */}
-            <div className="flex flex-col items-center justify-center gap-6 w-[300px] flex-shrink-0 overflow-y-auto">
+            {/* Right: QR Code + Instructions - responsive width, vertically centered */}
+            <div className="flex flex-col items-center justify-center gap-6 w-[300px] flex-shrink min-w-[220px] overflow-y-auto">
               {/* QR Code */}
               {qrCode ? (
                 <div className="qr-glow">

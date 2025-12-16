@@ -55,7 +55,7 @@ function UserMessageWithLightbox({ message, hasImages }: { message: Message; has
   return (
     <>
       <div className="flex items-end gap-2 w-full justify-end animate-message-right">
-        <div className="flex flex-col items-end gap-1.5 max-w-[80%]">
+        <div className="flex flex-col items-end gap-1.5 max-w-[80%] min-w-0">
           {/* Image thumbnails */}
           {hasImages && (
             <div className="flex flex-wrap gap-1.5 justify-end">
@@ -79,7 +79,7 @@ function UserMessageWithLightbox({ message, hasImages }: { message: Message; has
             </div>
           )}
           {/* Text bubble */}
-          <div className="message-bubble-user px-4 py-2.5 overflow-hidden">
+          <div className="message-bubble-user px-4 py-2.5 w-full max-w-full overflow-hidden [word-break:break-all]">
             <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
           </div>
         </div>
@@ -157,8 +157,8 @@ export function ChatMessage({ message, onFixError }: ChatMessageProps) {
             height={16}
           />
         </div>
-        <div className="message-bubble-ai px-4 py-2.5 max-w-[85%] overflow-hidden">
-          <div className="text-sm leading-relaxed text-foreground">
+        <div className="message-bubble-ai px-4 py-2.5 max-w-[85%] overflow-hidden break-words">
+          <div className="text-sm leading-relaxed text-foreground overflow-hidden break-words [overflow-wrap:anywhere]">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
