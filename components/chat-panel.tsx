@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Terminal, ChevronDown } from "lucide-react";
+import { Toggle } from "@/components/ui/toggle";
 import { useSession, useUser } from "@clerk/nextjs";
 import { useSupabaseClient } from "@/lib/supabase-client";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
@@ -115,6 +116,18 @@ function groupMessages(messages: Message[]): MessageGroup[] {
   return groups;
 }
 
+// Helper to identify system log messages that can be filtered
+function isSystemLogMessage(message: Message): boolean {
+  if (message.role !== "system") return false;
+  if (message.toolUse) return false; // Keep tool use messages (Read, Write, etc.)
+  const content = message.content;
+  return (
+    content.startsWith("[Setup]") ||
+    content.startsWith("[E2B-SDK]") ||
+    content.startsWith("[SDK]")
+  );
+}
+
 // Queued message interface
 interface QueuedMessage {
   id: string;
@@ -135,7 +148,12 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
   const [openTodoIndex, setOpenTodoIndex] = useState<number | null>(null);
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
   const [isStopping, setIsStopping] = useState(false);
+  const [showSystemLogs, setShowSystemLogs] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [isNearBottom, setIsNearBottom] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const prevMessagesCountRef = useRef(0);
   const seenEventIds = useRef<{ order: string[]; set: Set<string> }>({
     order: [],
     set: new Set(),
@@ -155,16 +173,59 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
     didInitialFetchRef.current = false;
     didAutoStartRef.current = false;
     pendingUserMessageIds.current.clear();
+    prevMessagesCountRef.current = 0;
     setMessages([]);
     setInitialLoadComplete(false);
     setQueuedMessages([]);
     setIsStopping(false);
+    setIsNearBottom(true);
+    setUnreadCount(0);
   }, [projectId]);
 
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
+  // Handle scroll events to track if user is near bottom
+  const handleScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    const threshold = 100; // pixels from bottom to consider "near bottom"
+
+    const nearBottom = distanceFromBottom <= threshold;
+    setIsNearBottom(nearBottom);
+
+    // Reset unread count when user scrolls to bottom
+    if (nearBottom) {
+      setUnreadCount(0);
+    }
+  }, []);
+
+  // Scroll to bottom helper
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    setUnreadCount(0);
+  }, []);
+
+  // Smart auto-scroll: only scroll when user is at/near bottom
+  // Only count visible messages (exclude system log messages when toggle is off)
+  useEffect(() => {
+    const visibleMessages = showSystemLogs
+      ? messages
+      : messages.filter(m => !isSystemLogMessage(m));
+    const visibleCount = visibleMessages.length;
+    const newMessageCount = visibleCount - prevMessagesCountRef.current;
+    prevMessagesCountRef.current = visibleCount;
+
+    if (newMessageCount > 0) {
+      if (isNearBottom) {
+        // User is at bottom, auto-scroll
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      } else {
+        // User scrolled up, increment unread count
+        setUnreadCount(prev => prev + newMessageCount);
+      }
+    }
+  }, [messages, isNearBottom, showSystemLogs]);
 
   // Auto-open the latest todo list when messages change
   useEffect(() => {
@@ -450,6 +511,14 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
     pendingUserMessageIds.current.add(userMessage.id);
     setIsLoading(true);
 
+    // Scroll to bottom and reset unread count when user sends a message
+    setIsNearBottom(true);
+    setUnreadCount(0);
+    // Use requestAnimationFrame to ensure DOM has updated before scrolling
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    });
+
     try {
       const response = await fetch("/api/agents/create", {
         method: "POST",
@@ -638,7 +707,11 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Chat Messages */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 pt-4 min-h-0">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto overflow-x-hidden p-3 pt-4 min-h-0"
+      >
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-4 animate-fade-in-up">
             {/* Magical logo container */}
@@ -665,11 +738,45 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
           </div>
         ) : (
           <div className="space-y-2 w-full max-w-full overflow-hidden">
+            {/* System Logs Toggle */}
+            {(() => {
+              const hiddenCount = messages.filter(isSystemLogMessage).length;
+              if (hiddenCount === 0) return null;
+              return (
+                <div className="flex items-center justify-end gap-2 pb-2 mb-2 border-b border-border/30">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Terminal className="h-3 w-3" />
+                    <span>System Logs</span>
+                    {!showSystemLogs && hiddenCount > 0 && (
+                      <span className="text-muted-foreground/60">
+                        ({hiddenCount} hidden)
+                      </span>
+                    )}
+                  </div>
+                  <Toggle
+                    variant="outline"
+                    size="sm"
+                    pressed={showSystemLogs}
+                    onPressedChange={setShowSystemLogs}
+                    className="h-6 w-10 data-[state=on]:bg-primary/20"
+                    aria-label="Toggle system logs visibility"
+                  >
+                    <span className="text-[10px] font-medium">
+                      {showSystemLogs ? "ON" : "OFF"}
+                    </span>
+                  </Toggle>
+                </div>
+              );
+            })()}
             {/* Messages with inline todos and grouped tool uses */}
             {(() => {
-              const messageGroups = groupMessages(messages);
-              const lastTodoWriteIndex = messages.map((m, i) => m.toolUse === "TodoWrite" ? i : -1).filter(i => i !== -1).pop() ?? -1;
-              const firstUserMessageIndex = messages.findIndex(m => m.role === "user");
+              const visibleMessages = showSystemLogs
+                ? messages
+                : messages.filter(m => !isSystemLogMessage(m));
+              const messageGroups = groupMessages(visibleMessages);
+              // Calculate indices based on visible messages for correct matching
+              const lastTodoWriteIndex = visibleMessages.map((m, i) => m.toolUse === "TodoWrite" ? i : -1).filter(i => i !== -1).pop() ?? -1;
+              const firstUserMessageIndex = visibleMessages.findIndex(m => m.role === "user");
 
               return messageGroups.map((group, groupIndex) => {
                 if (group.type === 'group') {
@@ -777,16 +884,29 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
       </div>
 
       {/* Chat Input - Using UnifiedInput */}
-      <UnifiedInput
-        variant="build"
-        onSubmit={handleSendMessage}
-        isLoading={isLoading}
-        projectId={projectId}
-        aiProvider={aiProvider}
-        onStop={handleStopAgent}
-        isStopping={isStopping}
-        queuedCount={queuedMessages.length}
-      />
+      <div className="relative">
+        {/* New messages pill */}
+        {unreadCount > 0 && !isNearBottom && (
+          <button
+            onClick={scrollToBottom}
+            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-sm font-medium shadow-lg hover:bg-primary/90 transition-all animate-fade-in-up flex items-center gap-1.5 z-10"
+          >
+            <ChevronDown className="w-4 h-4" />
+            {unreadCount === 1 ? "1 new message" : `${unreadCount} new messages`}
+          </button>
+        )}
+
+        <UnifiedInput
+          variant="build"
+          onSubmit={handleSendMessage}
+          isLoading={isLoading}
+          projectId={projectId}
+          aiProvider={aiProvider}
+          onStop={handleStopAgent}
+          isStopping={isStopping}
+          queuedCount={queuedMessages.length}
+        />
+      </div>
     </div>
   );
 }
