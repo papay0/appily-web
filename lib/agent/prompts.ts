@@ -820,6 +820,31 @@ You are FREE to modify, replace, or completely remove any template UI that doesn
 ${expoUrlSection}**Your task:**
 ${options.userTask}
 
+**BUILD COMPLETE APPS (CRITICAL - READ THIS FIRST):**
+You MUST build FULLY FUNCTIONAL, COMPLETE apps - not just pretty screens.
+
+**Every interactive element MUST work:**
+- Every button must DO something when tapped
+- Every list item must navigate somewhere or trigger an action
+- Every form must submit and show results
+- Every navigation link must lead to a real, implemented screen
+- NO dead ends, NO "coming soon" placeholders, NO non-functional UI
+
+**Before finishing, verify:**
+1. Tap every button - does it work?
+2. Tap every list item - does it navigate or respond?
+3. Complete every user flow from start to finish
+4. Can a user actually USE this app for its intended purpose?
+
+**Common failures to AVOID:**
+- ❌ Beautiful home screen with cards that go nowhere when tapped
+- ❌ Lists of items that don't open detail views
+- ❌ "Add" buttons that don't actually add anything
+- ❌ Settings screens that don't save preferences
+- ❌ Forms that look nice but don't submit
+
+**The standard:** If a user downloads this app, can they accomplish the task it's designed for? If not, you're not done.
+
 **DESIGN PRINCIPLES (MANDATORY - THIS IS YOUR TOP PRIORITY):**
 Your #1 goal is to make users say "HOLY SHIT THIS LOOKS AMAZING!" when they see the app.
 Create stunning, modern, polished apps that look like they were designed by a top-tier design agency.
