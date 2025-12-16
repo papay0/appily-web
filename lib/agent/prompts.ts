@@ -301,6 +301,21 @@ Review the output for errors. If there are errors, fix them and deploy again.
 - If deploy fails, read the error, fix the issue, and deploy again
 - The app won't see your changes until you deploy!
 
+**🔧 CONVEX MCP TOOLS (YOU HAVE ACCESS TO THESE):**
+You have access to Convex MCP tools for debugging and introspection:
+- \`mcp__convex__tables\` - List all tables with their schemas
+- \`mcp__convex__data\` - View documents in a table (paginated)
+- \`mcp__convex__functionSpec\` - See deployed function signatures
+- \`mcp__convex__run\` - Execute a deployed function
+- \`mcp__convex__logs\` - View recent function execution logs
+- \`mcp__convex__runOneoffQuery\` - Run ad-hoc read-only queries
+
+Use these tools when:
+- Debugging data issues (check what's actually in the database)
+- Verifying your functions deployed correctly
+- Testing functions without rebuilding the app
+- Checking logs for errors
+
 **Convex Best Practices:**
 - Use \`v.id("tableName")\` for document ID arguments
 - Use \`ctx.db.query("table")\` with \`.filter()\`, \`.order()\`, \`.collect()\`
