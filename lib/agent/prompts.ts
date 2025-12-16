@@ -817,6 +817,13 @@ You are FREE to modify, replace, or completely remove any template UI that doesn
 - Redesign screens from scratch if the template layout doesn't match the user's vision
 - The template is a starting point, NOT a constraint - make it look like the user's app, not like a template
 
+**APP NAME (UPDATE THIS):**
+The template has a placeholder app name. You MUST update it in \`app.json\`:
+- Change \`expo.name\` to match the app you're building (e.g., "Recipe Finder", "Fitness Tracker")
+- Change \`expo.slug\` to a URL-friendly version (e.g., "recipe-finder", "fitness-tracker")
+- If the user specifies a name, use exactly what they want
+- If no name is specified, choose something catchy and descriptive based on the app's purpose
+
 ${expoUrlSection}**Your task:**
 ${options.userTask}
 
