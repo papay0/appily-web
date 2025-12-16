@@ -127,26 +127,50 @@ Do NOT automatically use Convex for every app. Only use Convex when the user EXP
 **If unsure:** Build WITHOUT Convex first. The user can always ask to add saving later.
 Keep apps simple - don't over-engineer with databases when not needed!
 
-**⚠️ CRITICAL: Import Rules for React Native + Convex ⚠️**
-Convex has TWO separate environments. Using the WRONG imports will CRASH the app!
+**🚨🚨🚨 CRITICAL: Import Rules for React Native + Convex 🚨🚨🚨**
+**THIS IS THE #1 CAUSE OF APP CRASHES. READ THIS CAREFULLY.**
 
-**FILES IN \`convex/\` FOLDER** (server-side, runs on Convex cloud):
+Convex has TWO separate environments. Using the WRONG imports will cause INSTANT RED SCREEN CRASH!
+
+**FORBIDDEN IMPORTS IN REACT NATIVE (app/, components/, screens/, hooks/, lib/):**
 \`\`\`typescript
-// ✅ CORRECT for convex/*.ts files:
-import { query, mutation } from "./_generated/server";
-import { v } from "convex/values";
+// ❌❌❌ NEVER EVER IMPORT THESE IN REACT NATIVE CODE ❌❌❌
+import { anything } from "convex/server";      // CRASHES - server only!
+import { v } from "convex/values";             // CRASHES - server only!
+import { query, mutation } from "convex/server"; // CRASHES!
+import { defineSchema } from "convex/server";  // CRASHES!
+import { anything } from "./_generated/server"; // CRASHES in RN components!
+
+// These imports WILL crash your app with "Unable to resolve module" error
+// There is NO exception to this rule!
 \`\`\`
 
-**REACT NATIVE COMPONENTS** (app/, components/, etc.):
+**✅ ONLY THESE IMPORTS ARE ALLOWED IN REACT NATIVE COMPONENTS:**
 \`\`\`typescript
-// ✅ CORRECT for React Native - use "convex/react" (same as web):
-import { ConvexProvider, ConvexReactClient, useQuery, useMutation } from "convex/react";
+// ✅ CORRECT for React Native (app/, components/, etc.):
+import { ConvexProvider, ConvexReactClient, useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../convex/_generated/api";
 
-// ❌ NEVER DO THIS IN REACT NATIVE COMPONENTS:
-// import { query, mutation } from "convex/server";   // ← CRASHES! (server code)
-// import { v } from "convex/values";                 // ← CRASHES! (server code)
+// That's it! Only "convex/react" and "_generated/api" - nothing else!
 \`\`\`
+
+**FILES IN \`convex/\` FOLDER ONLY** (these run on Convex cloud, NOT in React Native):
+\`\`\`typescript
+// ✅ CORRECT for convex/*.ts files (server-side only):
+import { query, mutation, action } from "./_generated/server";
+import { v } from "convex/values";
+import { defineSchema, defineTable } from "convex/server";
+// These are fine HERE because convex/ files run on Convex servers, not in the app
+\`\`\`
+
+**QUICK REFERENCE - Where can I import what?**
+| Import | convex/*.ts | app/*.tsx | components/*.tsx |
+|--------|-------------|-----------|------------------|
+| convex/server | ✅ YES | ❌ CRASH | ❌ CRASH |
+| convex/values | ✅ YES | ❌ CRASH | ❌ CRASH |
+| ./_generated/server | ✅ YES | ❌ CRASH | ❌ CRASH |
+| convex/react | ❌ NO | ✅ YES | ✅ YES |
+| ./_generated/api | ❌ NO | ✅ YES | ✅ YES |
 
 **Setting up ConvexProvider in _layout.tsx:**
 \`\`\`typescript
@@ -284,11 +308,17 @@ Review the output for errors. If there are errors, fix them and deploy again.
 - Use \`_id\` (not \`id\`) for document IDs in Convex
 - Mutations are transactional - if anything fails, nothing is saved
 
-**DO NOT:**
-- Import from \`convex/server\` or \`convex/values\` in React Native components (CRASHES! - these are server-only)
+**🚫 DO NOT (WILL CAUSE CRASHES):**
+- **NEVER import from \`convex/server\` in React Native** - causes instant red screen crash!
+- **NEVER import from \`convex/values\` in React Native** - causes instant red screen crash!
+- **NEVER import from \`./_generated/server\` in app/ or components/** - server code only!
+- **NEVER use \`v.string()\`, \`v.number()\`, etc. in React Native** - these come from convex/values which crashes!
 - Use AsyncStorage for data that should persist across devices (use Convex instead)
 - Forget to deploy after making Convex changes
 - **NEVER store images/files as base64 strings in the database** - use Convex File Storage instead!
+
+**If you see "Unable to resolve module" error mentioning convex/server or schema.js:**
+You imported server code in a React Native file. Check your imports and remove any convex/server or convex/values imports.
 
 **📁 FILE STORAGE (CRITICAL - USE THIS FOR IMAGES/FILES):**
 When the app needs to upload or store images/files, ALWAYS use Convex File Storage. NEVER store base64 strings in documents - it bloats the database and is inefficient.
@@ -1040,24 +1070,26 @@ Your code MUST render without errors. A broken UI is worse than an ugly UI. Foll
 5. Every array/object access uses optional chaining
 6. Every Text component is a direct child of View (never inside Pressable without View wrapper if multiple children)
 
-**TOP 11 MISTAKES THAT BREAK UI (MEMORIZE THESE):**
-1. ❌ Importing a package before installing it (instant RED SCREEN crash - always install first!)
-2. ❌ Importing from wrong package (SafeAreaView from wrong lib, useNavigation instead of useRouter)
-3. ❌ Using 'px' in styles or string numbers (fontSize: '16px' crashes)
-4. ❌ Missing flex: 1 on container (content invisible or squished)
-5. ❌ ScrollView with style instead of contentContainerStyle for padding (content cut off)
-6. ❌ FlatList without keyExtractor or with non-string keys (crashes or warnings)
-7. ❌ Accessing undefined properties (item.name when item is undefined crashes)
-8. ❌ Text not wrapped properly (raw text outside Text component crashes)
-9. ❌ Missing SafeAreaView (content hidden under notch/status bar)
-10. ❌ position: 'absolute' without positioning values (element disappears)
-11. ❌ Inline styles on every render (causes lag and re-renders)
+**TOP 12 MISTAKES THAT BREAK UI (MEMORIZE THESE):**
+1. ❌ **Importing convex/server or convex/values in React Native** (instant RED SCREEN - these are server-only!)
+2. ❌ Importing a package before installing it (instant RED SCREEN crash - always install first!)
+3. ❌ Importing from wrong package (SafeAreaView from wrong lib, useNavigation instead of useRouter)
+4. ❌ Using 'px' in styles or string numbers (fontSize: '16px' crashes)
+5. ❌ Missing flex: 1 on container (content invisible or squished)
+6. ❌ ScrollView with style instead of contentContainerStyle for padding (content cut off)
+7. ❌ FlatList without keyExtractor or with non-string keys (crashes or warnings)
+8. ❌ Accessing undefined properties (item.name when item is undefined crashes)
+9. ❌ Text not wrapped properly (raw text outside Text component crashes)
+10. ❌ Missing SafeAreaView (content hidden under notch/status bar)
+11. ❌ position: 'absolute' without positioning values (element disappears)
+12. ❌ Inline styles on every render (causes lag and re-renders)
 
 **If Metro shows an error after your change:**
 1. READ the error message carefully - it tells you exactly what's wrong
 2. Fix the SPECIFIC line mentioned in the error
 3. Common fixes: add missing import, fix typo, add optional chaining, wrap in View
-4. NEVER ignore errors and move on - fix them immediately
+4. **If error mentions "convex/server" or "schema.js"** → You imported server code in React Native! Remove convex/server and convex/values imports
+5. NEVER ignore errors and move on - fix them immediately
 
 **VALIDATION (RUN AFTER EVERY CODE CHANGE):**
 After making code changes, ALWAYS run these commands to catch errors early:
