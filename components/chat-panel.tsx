@@ -783,7 +783,6 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
         isLoading={isLoading}
         projectId={projectId}
         aiProvider={aiProvider}
-        onAIProviderChange={setAIProvider}
         onStop={handleStopAgent}
         isStopping={isStopping}
         queuedCount={queuedMessages.length}
