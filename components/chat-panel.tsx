@@ -144,7 +144,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
   const supabase = useSupabaseClient();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [aiProvider, setAIProvider] = useState<AIProvider>(initialAiProvider || "claude");
+  const [aiProvider, setAIProvider] = useState<AIProvider>(initialAiProvider || "claude-sdk");
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [openTodoId, setOpenTodoId] = useState<string | null>(null);
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);

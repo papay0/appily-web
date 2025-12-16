@@ -34,7 +34,7 @@ export default function HomePage() {
   const [isCreating, setIsCreating] = useState(false);
   const [planFeatures, setPlanFeatures] = useState(true);
   const [tempUploadId, setTempUploadId] = useState<string>("");
-  const [aiProvider, setAIProvider] = useState<AIProvider>("claude");
+  const [aiProvider, setAIProvider] = useState<AIProvider>("claude-sdk");
   const [supabaseUserId, setSupabaseUserId] = useState<string | null>(null);
   const greeting = getGreeting();
 
@@ -55,8 +55,13 @@ export default function HomePage() {
         setSupabaseUserId(userData.id);
 
         // Set AI provider from user preference
-        if (userData.ai_provider && (userData.ai_provider === "claude" || userData.ai_provider === "gemini")) {
-          setAIProvider(userData.ai_provider as AIProvider);
+        // Note: "claude" (CLI) is legacy, we now default to "claude-sdk"
+        if (userData.ai_provider) {
+          if (userData.ai_provider === "gemini") {
+            setAIProvider("gemini");
+          }
+          // "claude" and "claude-sdk" both map to "claude-sdk" (the new default)
+          // No action needed as state is already "claude-sdk"
         }
 
         // Fetch user's projects

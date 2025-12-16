@@ -124,7 +124,7 @@ export function UnifiedInput({
   minTextLength,
   onTempUploadIdReady,
   onImagesChange,
-  aiProvider = "claude",
+  aiProvider = "claude-sdk",
   onAIProviderChange,
   onStop,
   isStopping = false,
@@ -423,7 +423,11 @@ export function UnifiedInput({
       images={images}
       onRemove={removeImage}
       disabled={isLoading}
-      className={!isHome ? "mb-2 -mx-3 -mt-3 border-b border-border/50" : undefined}
+      className={cn(
+        !isHome
+          ? "mb-2 -mx-3 -mt-3 border-b border-border/50"
+          : "mx-4 mb-3 rounded-xl bg-background/40 border border-border/30"
+      )}
     />
   );
 
@@ -443,9 +447,9 @@ export function UnifiedInput({
         "transition-colors duration-300",
         isHome
           ? cn(
-              "min-h-[180px] bg-transparent border-none text-foreground",
-              "placeholder:text-muted-foreground/60 text-lg p-6 pt-14 pb-24",
-              hasImages && "min-h-[140px]"
+              "min-h-[160px] bg-transparent border-none text-foreground",
+              "placeholder:text-muted-foreground/60 text-lg px-6 pt-2 pb-24",
+              hasImages && "min-h-[100px]"
             )
           : cn(
               "flex-1 min-h-[80px] rounded-xl border-border/50 text-sm",
@@ -581,7 +585,7 @@ export function UnifiedInput({
           <div className="relative">
             {/* Top toolbar: AI Provider selector and Image upload */}
             {onAIProviderChange && (
-              <div className="absolute top-0 left-0 right-0 p-3 flex items-center gap-2 z-10">
+              <div className="absolute top-0 left-0 right-0 p-3 flex items-center gap-2 z-10 bg-gradient-to-b from-card/80 to-transparent">
                 <AIProviderSelector
                   value={aiProvider}
                   onChange={onAIProviderChange}
@@ -592,8 +596,11 @@ export function UnifiedInput({
               </div>
             )}
 
-            {imageGrid}
-            {textarea}
+            {/* Content area with padding to clear the toolbar */}
+            <div className={cn("pt-14", onAIProviderChange && "pt-16")}>
+              {imageGrid}
+              {textarea}
+            </div>
 
             {/* Bottom toolbar */}
             <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between border-t border-border/50 bg-card/30 backdrop-blur-sm">
