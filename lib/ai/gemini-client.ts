@@ -167,6 +167,54 @@ export async function editImageWithPrompt(
 }
 
 /**
+ * Generate text/JSON using Gemini Pro 3
+ * Used for design generation with structured output
+ *
+ * @param prompt - The user prompt
+ * @param systemPrompt - System instructions for the model
+ * @returns Raw text response from the model
+ */
+export async function generateDesignWithGemini(
+  prompt: string,
+  systemPrompt: string
+): Promise<string> {
+  const client = getGeminiClient();
+
+  const response = await client.models.generateContent({
+    model: "gemini-3-pro-preview",
+    contents: prompt,
+    config: {
+      systemInstruction: systemPrompt,
+      responseMimeType: "application/json",
+    },
+  });
+
+  // Type the response structure
+  const typedResponse = response as {
+    candidates?: Array<{
+      content?: {
+        parts?: Array<{
+          text?: string;
+        }>;
+      };
+    }>;
+  };
+
+  const parts = typedResponse.candidates?.[0]?.content?.parts;
+
+  if (!parts || parts.length === 0) {
+    throw new Error("No content in Gemini response");
+  }
+
+  const text = parts[0]?.text;
+  if (!text) {
+    throw new Error("No text in Gemini response");
+  }
+
+  return text;
+}
+
+/**
  * Extract image data from Gemini response
  */
 function extractImageFromResponse(response: unknown): ImageGenerationResult {
