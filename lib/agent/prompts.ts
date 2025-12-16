@@ -921,12 +921,66 @@ Every screen must look like it belongs in a portfolio or App Store feature. No e
 - Never crowd elements - whitespace is a feature, not wasted space
 - Use SafeAreaView and proper insets for notched devices
 
-**Colors:**
-- Primary backgrounds: soft whites (#FAFAFA, #F8F9FA) or very subtle warm grays
-- Accent colors: one primary (vibrant but not harsh) + one secondary
-- Text: dark gray (#1A1A1A or #2D3748) not pure black - easier on eyes
-- Subtle borders: use rgba(0,0,0,0.06) not harsh lines
-- Always design with dark mode in mind (invert appropriately)
+**Colors (CRITICAL - MUST SUPPORT BOTH LIGHT AND DARK MODE):**
+Apps MUST look great in BOTH light AND dark mode. Use \`useColorScheme()\` from react-native to detect the current mode.
+
+**Light Mode Palette:**
+- Background: #FFFFFF or #FAFAFA
+- Card/Surface: #FFFFFF with subtle shadow
+- Primary Text: #1A1A1A or #2D3748 (never pure black)
+- Secondary Text: #6B7280
+- Borders: rgba(0,0,0,0.08)
+- Accent colors: vibrant but not harsh
+
+**Dark Mode Palette:**
+- Background: #000000 or #121212
+- Card/Surface: #1C1C1E or #2C2C2E
+- Primary Text: #FFFFFF or #F5F5F5
+- Secondary Text: #A1A1A6
+- Borders: rgba(255,255,255,0.1)
+- Accent colors: slightly brighter/saturated than light mode
+
+**Contrast Requirements (MANDATORY - BROKEN CONTRAST = FAILURE):**
+- Text on backgrounds: minimum 4.5:1 contrast ratio
+- NEVER use gray text (#666, #999) on colored backgrounds in dark mode - use WHITE
+- Colored cards (purple, blue, pink, etc.) should have white/light text in dark mode
+- If you can't read the text easily in dark mode, FIX IT immediately
+- Test mentally: "Would this text be readable on a dark background?"
+
+**Theme-Aware Colors Pattern (USE THIS):**
+\\\`\\\`\\\`typescript
+import { useColorScheme, View, Text, StyleSheet } from 'react-native';
+
+function MyScreen() {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
+  const colors = {
+    background: isDark ? '#000000' : '#FAFAFA',
+    card: isDark ? '#1C1C1E' : '#FFFFFF',
+    text: isDark ? '#FFFFFF' : '#1A1A1A',
+    secondaryText: isDark ? '#A1A1A6' : '#6B7280',
+    border: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+  };
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Title</Text>
+        <Text style={[styles.subtitle, { color: colors.secondaryText }]}>Subtitle</Text>
+      </View>
+    </View>
+  );
+}
+\\\`\\\`\\\`
+
+**NEVER hardcode colors without checking colorScheme!** Example of what NOT to do:
+\\\`\\\`\\\`typescript
+// ❌ WRONG - This breaks in dark mode!
+<View style={{ backgroundColor: '#FAFAFA' }}>
+  <Text style={{ color: '#333' }}>This is invisible in dark mode!</Text>
+</View>
+\\\`\\\`\\\`
 
 **Animations & Polish (ALWAYS ADD THESE):**
 - Smooth navigation transitions (300ms ease-in-out)
@@ -1085,7 +1139,7 @@ Your code MUST render without errors. A broken UI is worse than an ugly UI. Foll
 5. Every array/object access uses optional chaining
 6. Every Text component is a direct child of View (never inside Pressable without View wrapper if multiple children)
 
-**TOP 12 MISTAKES THAT BREAK UI (MEMORIZE THESE):**
+**TOP MISTAKES THAT BREAK UI (MEMORIZE THESE):**
 1. ❌ **Importing convex/server or convex/values in React Native** (instant RED SCREEN - these are server-only!)
 2. ❌ Importing a package before installing it (instant RED SCREEN crash - always install first!)
 3. ❌ Importing from wrong package (SafeAreaView from wrong lib, useNavigation instead of useRouter)
@@ -1098,6 +1152,7 @@ Your code MUST render without errors. A broken UI is worse than an ugly UI. Foll
 10. ❌ Missing SafeAreaView (content hidden under notch/status bar)
 11. ❌ position: 'absolute' without positioning values (element disappears)
 12. ❌ Inline styles on every render (causes lag and re-renders)
+13. ❌ **Hardcoded light-mode colors without useColorScheme()** (text invisible/unreadable in dark mode - ALWAYS use theme-aware colors!)
 
 **If Metro shows an error after your change:**
 1. READ the error message carefully - it tells you exactly what's wrong
@@ -1259,17 +1314,28 @@ import MapView from 'react-native-maps';
 // Even with Platform.OS === 'web' check, the import above fails!
 
 // ✅ CORRECT - Use conditional require (resolved at runtime):
-import { Platform, View, Text, StyleSheet } from 'react-native';
+import { Platform, View, Text, StyleSheet, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function MapScreen() {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
+  // Theme-aware colors
+  const colors = {
+    background: isDark ? '#1C1C1E' : '#f5f5f5',
+    text: isDark ? '#FFFFFF' : '#333',
+    secondaryText: isDark ? '#A1A1A6' : '#666',
+    icon: isDark ? '#A1A1A6' : '#999',
+  };
+
   // Early return for web BEFORE any react-native-maps code
   if (Platform.OS === 'web') {
     return (
-      <View style={styles.webFallback}>
-        <Ionicons name="map-outline" size={64} color="#999" />
-        <Text style={styles.fallbackTitle}>Map not available on web</Text>
-        <Text style={styles.fallbackSubtitle}>Scan the QR code to try this on your phone!</Text>
+      <View style={[styles.webFallback, { backgroundColor: colors.background }]}>
+        <Ionicons name="map-outline" size={64} color={colors.icon} />
+        <Text style={[styles.fallbackTitle, { color: colors.text }]}>Map not available on web</Text>
+        <Text style={[styles.fallbackSubtitle, { color: colors.secondaryText }]}>Scan the QR code to try this on your phone!</Text>
       </View>
     );
   }
@@ -1298,17 +1364,14 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
     gap: 12,
   },
   fallbackTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
   },
   fallbackSubtitle: {
     fontSize: 14,
-    color: '#666',
     textAlign: 'center',
     paddingHorizontal: 40,
   },
