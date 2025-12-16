@@ -810,6 +810,13 @@ ${communicationInstructions}
 The Expo template is already cloned and running at: ${workingDir}
 Metro bundler is already running on port 8081.
 
+**TEMPLATE CUSTOMIZATION (IMPORTANT):**
+This is a starter template with some preinstalled UI components (headers, icons, navigation, etc.).
+You are FREE to modify, replace, or completely remove any template UI that doesn't fit the user's app.
+- Don't keep template elements just because they exist (large header titles, settings icons, placeholder screens, etc.)
+- Redesign screens from scratch if the template layout doesn't match the user's vision
+- The template is a starting point, NOT a constraint - make it look like the user's app, not like a template
+
 ${expoUrlSection}**Your task:**
 ${options.userTask}
 
