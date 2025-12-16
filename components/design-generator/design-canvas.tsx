@@ -35,12 +35,13 @@ function PhoneMockup({ screen, theme }: { screen: GeneratedScreen; theme: Genera
           width: PHONE_WIDTH * PHONE_SCALE + 24,
         }}
       >
-        {/* Screen Content */}
+        {/* Screen Content - use theme background color */}
         <div
-          className="relative bg-white rounded-[36px] overflow-hidden"
+          className="relative rounded-[36px] overflow-hidden"
           style={{
             width: PHONE_WIDTH * PHONE_SCALE,
             height: contentHeight * PHONE_SCALE,
+            backgroundColor: theme.background || "#ffffff",
           }}
         >
           <div
@@ -54,6 +55,7 @@ function PhoneMockup({ screen, theme }: { screen: GeneratedScreen; theme: Genera
             <ScreenPreview
               code={screen.code}
               cssVariables={theme.cssVariables}
+              backgroundColor={theme.background}
               onHeightChange={setContentHeight}
             />
           </div>

@@ -228,11 +228,23 @@ export interface DesignGenerationResult {
 }
 
 /**
+ * A single message in the conversation history
+ */
+export interface ConversationMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+/**
  * Request body for design generation endpoint
  */
 export interface AIDesignGenerateRequest {
-  /** App description prompt */
+  /** App description or follow-up prompt */
   prompt: string;
+  /** Current design state (for follow-up requests) */
+  currentDesign?: DesignGenerationResult;
+  /** Previous conversation messages (for context) */
+  conversationHistory?: ConversationMessage[];
 }
 
 /**

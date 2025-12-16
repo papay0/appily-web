@@ -8,6 +8,8 @@ interface ScreenPreviewProps {
   code: string;
   /** CSS variables string (full :root block) */
   cssVariables: string;
+  /** Background color for the screen (hex) */
+  backgroundColor?: string;
   /** Callback when content height is measured */
   onHeightChange?: (height: number) => void;
 }
@@ -43,7 +45,7 @@ function transformCode(code: string): { transformedCode: string; componentName: 
  * Renders generated React code in a sandboxed iframe
  * Renders at mobile width with dynamic height based on content
  */
-export function ScreenPreview({ code, cssVariables, onHeightChange }: ScreenPreviewProps) {
+export function ScreenPreview({ code, cssVariables, backgroundColor = "#ffffff", onHeightChange }: ScreenPreviewProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [contentHeight, setContentHeight] = useState(MIN_MOBILE_HEIGHT);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -95,12 +97,14 @@ export function ScreenPreview({ code, cssVariables, onHeightChange }: ScreenPrev
       padding: 0;
       width: ${MOBILE_WIDTH}px;
       min-height: ${MIN_MOBILE_HEIGHT}px;
+      background-color: ${backgroundColor};
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     }
 
     #root {
       width: ${MOBILE_WIDTH}px;
       min-height: ${MIN_MOBILE_HEIGHT}px;
+      background-color: ${backgroundColor};
     }
 
     /* Tailwind v4 compatibility - size utility */
@@ -185,7 +189,7 @@ export function ScreenPreview({ code, cssVariables, onHeightChange }: ScreenPrev
   </script>
 </body>
 </html>`;
-  }, [code, cssVariables, previewId]);
+  }, [code, cssVariables, backgroundColor, previewId]);
 
   return (
     <div className="relative" style={{ width: MOBILE_WIDTH, height: contentHeight }}>

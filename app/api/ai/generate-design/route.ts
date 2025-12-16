@@ -93,7 +93,7 @@ export async function POST(
 ): Promise<NextResponse<AIResponse<AIDesignData>>> {
   try {
     const body = (await request.json()) as Partial<AIDesignGenerateRequest>;
-    const { prompt } = body;
+    const { prompt, currentDesign, conversationHistory } = body;
 
     // Validate prompt
     if (!prompt || typeof prompt !== "string" || prompt.trim().length === 0) {
@@ -109,13 +109,58 @@ export async function POST(
       );
     }
 
+    const isFollowUp = currentDesign !== undefined;
+
     console.log(
-      `[Design Generator] Generating design for: ${prompt.substring(0, 100)}...`
+      `[Design Generator] ${isFollowUp ? "Follow-up" : "Initial"} request: ${prompt.substring(0, 100)}...`
     );
+
+    // Build the user prompt based on whether this is a follow-up
+    let userPrompt: string;
+
+    if (isFollowUp && currentDesign) {
+      // For follow-ups, include the current design and ask for updates
+      const screensSummary = currentDesign.screens
+        .map((s, i) => `${i + 1}. ${s.name}: ${s.description}`)
+        .join("\n");
+
+      // Build conversation context
+      const conversationContext = conversationHistory && conversationHistory.length > 0
+        ? `\nConversation so far:\n${conversationHistory.map(m => `${m.role}: ${m.content}`).join("\n")}\n`
+        : "";
+
+      userPrompt = `You are updating an existing mobile app design called "${currentDesign.appName}".
+${conversationContext}
+Current theme:
+- Primary: ${currentDesign.theme.primary}
+- Secondary: ${currentDesign.theme.secondary}
+- Accent: ${currentDesign.theme.accent}
+- Background: ${currentDesign.theme.background}
+
+Current screens:
+${screensSummary}
+
+Here is the complete current code for each screen:
+${currentDesign.screens.map(s => `\n=== ${s.name} ===\n${s.code}`).join("\n")}
+
+User's request: "${prompt}"
+
+IMPORTANT INSTRUCTIONS:
+1. Understand what the user wants to change
+2. Identify which screen(s) need to be modified based on the user's request (e.g., "settings screen" or "home page")
+3. Make the requested changes while keeping the rest of the design intact
+4. Return the COMPLETE updated design JSON with ALL screens (modified and unmodified)
+5. Keep the same appName unless the user asks to change it
+6. Keep the same theme unless the user asks to change colors
+7. Make sure to return valid JSON with the exact same structure`;
+    } else {
+      // Initial design request
+      userPrompt = `Create a beautiful mobile app design for the following app idea:\n\n${prompt}\n\nGenerate 3-5 screens that would be essential for this app. Make them visually stunning and cohesive.`;
+    }
 
     // Call Gemini Pro 3 with design system prompt
     const resultJson = await generateDesignWithGemini(
-      `Create a beautiful mobile app design for the following app idea:\n\n${prompt}\n\nGenerate 3-5 screens that would be essential for this app. Make them visually stunning and cohesive.`,
+      userPrompt,
       DESIGN_SYSTEM_PROMPT
     );
 
