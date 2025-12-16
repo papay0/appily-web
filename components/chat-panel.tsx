@@ -124,6 +124,7 @@ function isSystemLogMessage(message: Message): boolean {
   return (
     content.startsWith("[Setup]") ||
     content.startsWith("[E2B-SDK]") ||
+    content.startsWith("[E2B]") ||
     content.startsWith("[SDK]")
   );
 }
@@ -145,7 +146,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
   const [isLoading, setIsLoading] = useState(false);
   const [aiProvider, setAIProvider] = useState<AIProvider>(initialAiProvider || "claude");
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
-  const [openTodoIndex, setOpenTodoIndex] = useState<number | null>(null);
+  const [openTodoId, setOpenTodoId] = useState<string | null>(null);
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
   const [isStopping, setIsStopping] = useState(false);
   const [showSystemLogs, setShowSystemLogs] = useState(false);
@@ -229,13 +230,12 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
 
   // Auto-open the latest todo list when messages change
   useEffect(() => {
-    const lastTodoWriteIndex = messages
-      .map((m, i) => (m.toolUse === "TodoWrite" ? i : -1))
-      .filter((i) => i !== -1)
+    const lastTodoWriteMessage = messages
+      .filter((m) => m.toolUse === "TodoWrite")
       .pop();
 
-    if (lastTodoWriteIndex !== undefined && lastTodoWriteIndex !== -1) {
-      setOpenTodoIndex(lastTodoWriteIndex);
+    if (lastTodoWriteMessage) {
+      setOpenTodoId(lastTodoWriteMessage.id);
     }
   }, [messages]);
 
@@ -815,9 +815,9 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
                           <TodoList
                             todos={message.toolInput.todos as Todo[]}
                             isLatest={isLatestTodoWrite}
-                            isOpen={openTodoIndex === index}
+                            isOpen={openTodoId === message.id}
                             onOpenChange={(open) => {
-                              setOpenTodoIndex(open ? index : null);
+                              setOpenTodoId(open ? message.id : null);
                             }}
                           />
                         </div>
