@@ -6,9 +6,6 @@ import { useUser } from "@clerk/nextjs";
 import { useSupabaseClient } from "@/lib/supabase-client";
 import { AppIdeaInput } from "@/components/app-idea-input";
 import { RecentProjectsSection } from "@/components/recent-projects-section";
-import { ParticleField } from "@/components/marketing/ParticleField";
-import Image from "next/image";
-import { Sparkles } from "lucide-react";
 import type { AIProvider } from "@/components/ai-provider-selector";
 
 interface Project {
@@ -18,11 +15,11 @@ interface Project {
   updated_at: string;
 }
 
-function getGreeting(): { text: string; emoji: string } {
+function getGreeting(): string {
   const hour = new Date().getHours();
-  if (hour < 12) return { text: "Good morning", emoji: "☀️" };
-  if (hour < 18) return { text: "Good afternoon", emoji: "🌤️" };
-  return { text: "Good evening", emoji: "🌙" };
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
 }
 
 export default function HomePage() {
@@ -181,19 +178,12 @@ export default function HomePage() {
       {/* ============================================
           AMBIENT BACKGROUND
           ============================================ */}
-      <div className="fixed inset-0 -z-10">
-        {/* Soft gradient base */}
-        <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-primary/5" />
-
-        {/* Subtle gradient orbs */}
-        <div className="absolute top-0 right-1/4 w-[400px] h-[400px] bg-primary/5 rounded-full blur-3xl animate-pulse-slow" />
-        <div className="absolute bottom-1/4 left-1/4 w-[300px] h-[300px] bg-[var(--magic-violet)]/5 rounded-full blur-3xl animate-pulse-slow animation-delay-2000" />
-
-        {/* Subtle particles */}
-        <ParticleField particleCount={15} />
-
-        {/* Noise texture */}
-        <div className="absolute inset-0 noise-overlay" />
+      <div className="fixed inset-0 -z-10 bg-background">
+        {/* Soft gradient orbs - marketing page style */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[1200px] h-[800px] opacity-40 dark:opacity-20 pointer-events-none">
+          <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-orange-200/50 dark:bg-orange-500/20 rounded-full blur-[120px]" />
+          <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[600px] bg-blue-200/50 dark:bg-blue-500/20 rounded-full blur-[120px]" />
+        </div>
       </div>
 
       {/* ============================================
@@ -204,38 +194,32 @@ export default function HomePage() {
         <div className="text-center mb-12 max-w-2xl mx-auto">
           {/* Greeting with time-based message */}
           <div className="animate-fade-in-up opacity-0 animation-delay-200">
-            <span className="inline-flex items-center gap-2 text-lg text-muted-foreground mb-4">
-              <span>{greeting.emoji}</span>
-              <span>{greeting.text}</span>
+            <span className="text-lg text-muted-foreground mb-4">
+              {greeting}
             </span>
           </div>
 
           {/* Main headline */}
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold font-display text-foreground mb-6 animate-fade-in-up opacity-0 animation-delay-400">
-            <span className="flex items-center justify-center gap-3 flex-wrap">
-              What will you
-              <span className="inline-flex items-center gap-2">
-                <Image
-                  src="/appily-logo.svg"
-                  alt="Appily"
-                  width={48}
-                  height={48}
-                  className="inline animate-float-gentle"
-                  onError={(e) => {
-                    e.currentTarget.style.display = "none";
-                  }}
-                />
-                <span className="text-gradient-magic">build</span>
+            What will you{" "}
+            <span className="relative inline-block">
+              <span className="relative z-10 bg-gradient-to-r from-primary to-blue-500 bg-clip-text text-transparent">
+                build
               </span>
-              today?
-            </span>
+              <svg
+                className="absolute w-full h-3 -bottom-1 left-0 text-primary/30 dark:text-primary/40"
+                viewBox="0 0 100 10"
+                preserveAspectRatio="none"
+              >
+                <path d="M0 5 Q 50 10 100 5" stroke="currentColor" strokeWidth="8" fill="none" />
+              </svg>
+            </span>{" "}
+            today?
           </h1>
 
-          {/* Subtext with sparkle */}
-          <p className="text-lg md:text-xl text-muted-foreground flex items-center justify-center gap-2 animate-fade-in-up opacity-0 animation-delay-600">
-            <Sparkles className="h-5 w-5 text-primary animate-pulse-slow" />
-            <span>Describe your app idea and let AI bring it to life</span>
-            <Sparkles className="h-5 w-5 text-primary animate-pulse-slow animation-delay-1000" />
+          {/* Subtext */}
+          <p className="text-lg md:text-xl text-muted-foreground animate-fade-in-up opacity-0 animation-delay-600">
+            Describe your idea and watch AI bring it to life
           </p>
         </div>
 

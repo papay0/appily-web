@@ -74,20 +74,20 @@ export function AIProviderSelector({
       <DropdownMenuTrigger
         disabled={disabled}
         className={cn(
-          "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg",
+          "flex items-center gap-1.5 px-3 py-2 rounded-full",
           "text-xs font-medium",
-          "bg-background/50 backdrop-blur-sm",
+          "bg-secondary/50 hover:bg-secondary",
+          "text-secondary-foreground/80 hover:text-secondary-foreground",
           "border border-border/50",
-          "hover:border-primary/50 hover:bg-muted/50",
-          "transition-all duration-200",
+          "transition-colors duration-200",
           "disabled:opacity-50 disabled:cursor-not-allowed",
           "focus:outline-none focus:ring-2 focus:ring-primary/20",
           className
         )}
       >
         {selectedProvider.icon}
-        <span className="text-muted-foreground">{selectedProvider.name}</span>
-        <ChevronDown className="size-3 text-muted-foreground/70" />
+        <span>{selectedProvider.name}</span>
+        <ChevronDown className="size-3 opacity-60" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[140px]">
         {providers.map((provider) => (

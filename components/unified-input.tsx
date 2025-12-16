@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import {
   Send,
   Loader2,
-  Sparkles,
   Command,
   ImagePlus,
   Square,
@@ -16,7 +15,6 @@ import {
   Mic,
   MicOff,
 } from "lucide-react";
-import { MagicButton } from "@/components/marketing/MagicButton";
 import { ImagePreviewGrid } from "@/components/image-preview-grid";
 import { useImageUpload, type UploadedImage } from "@/hooks/use-image-upload";
 import { cn } from "@/lib/utils";
@@ -447,9 +445,9 @@ export function UnifiedInput({
         "transition-colors duration-300",
         isHome
           ? cn(
-              "min-h-[160px] bg-transparent border-none text-foreground",
-              "placeholder:text-muted-foreground/60 text-lg px-6 pt-2 pb-24",
-              hasImages && "min-h-[100px]"
+              "min-h-[120px] bg-transparent border-none text-foreground",
+              "placeholder:text-muted-foreground/60 text-base px-6 pt-6 pb-20",
+              hasImages && "min-h-[80px]"
             )
           : cn(
               "flex-1 min-h-[80px] rounded-xl border-border/50 text-sm",
@@ -468,20 +466,20 @@ export function UnifiedInput({
       disabled={isLoading || !canAddMoreImages}
       className={cn(
         "flex items-center justify-center",
-        "text-muted-foreground hover:text-foreground",
         "transition-all duration-200",
         "disabled:opacity-50 disabled:cursor-not-allowed",
         isHome
-          ? "w-8 h-8 rounded-lg hover:bg-muted/50"
+          ? "w-9 h-9 rounded-full bg-secondary/50 hover:bg-secondary border border-border/50 text-secondary-foreground/80 hover:text-secondary-foreground"
           : cn(
               "h-10 w-10 rounded-xl",
               "bg-background/50 backdrop-blur-sm border border-border/50",
-              "hover:border-primary/50 hover:bg-muted/50"
+              "hover:border-primary/50 hover:bg-muted/50",
+              "text-muted-foreground hover:text-foreground"
             )
       )}
       title={canAddMoreImages ? "Add images" : `Maximum ${maxImages} images`}
     >
-      <ImagePlus className={isHome ? "h-5 w-5" : "h-4 w-4"} />
+      <ImagePlus className="h-4 w-4" />
     </button>
   );
 
@@ -502,20 +500,19 @@ export function UnifiedInput({
       }
       className={cn(
         "relative flex items-center justify-center",
-        "text-muted-foreground hover:text-foreground",
         "transition-all duration-200",
         "disabled:opacity-50 disabled:cursor-not-allowed",
-        isListening && "text-primary",
         isHome
           ? cn(
-              "w-8 h-8 rounded-lg hover:bg-muted/50",
-              isListening && "bg-primary/10"
+              "w-9 h-9 rounded-full bg-secondary/50 hover:bg-secondary border border-border/50 text-secondary-foreground/80 hover:text-secondary-foreground",
+              isListening && "bg-primary/20 border-primary/50 text-primary"
             )
           : cn(
               "h-10 w-10 rounded-xl",
               "bg-background/50 backdrop-blur-sm border border-border/50",
               "hover:border-primary/50 hover:bg-muted/50",
-              isListening && "border-primary/60 bg-primary/5"
+              "text-muted-foreground hover:text-foreground",
+              isListening && "border-primary/60 bg-primary/5 text-primary"
             )
       )}
       title={
@@ -530,17 +527,13 @@ export function UnifiedInput({
     >
       {isSpeechSupported ? (
         <>
-          <Mic className={isHome ? "h-5 w-5" : "h-4 w-4"} />
+          <Mic className="h-4 w-4" />
           {isListening && (
-            <span
-              className={cn(
-                "absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary animate-pulse border border-background"
-              )}
-            />
+            <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full animate-pulse border border-background bg-primary" />
           )}
         </>
       ) : (
-        <MicOff className={isHome ? "h-5 w-5" : "h-4 w-4"} />
+        <MicOff className="h-4 w-4" />
       )}
     </button>
   );
@@ -555,46 +548,41 @@ export function UnifiedInput({
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          className={cn(
-            "relative rounded-2xl overflow-hidden transition-all duration-500",
-            "glass-morphism",
-            isFocused && "shadow-xl shadow-primary/10",
-            isDragOver && "ring-2 ring-primary ring-offset-2"
-          )}
+          className="relative w-full group"
         >
-          {/* Gradient border overlay */}
+          {/* Glow effect behind input */}
           <div
             className={cn(
-              "absolute inset-0 rounded-2xl pointer-events-none transition-opacity duration-500",
-              isFocused ? "opacity-100" : "opacity-0",
-              "gradient-border"
+              "absolute -inset-1 bg-gradient-to-r from-blue-400/20 to-orange-400/20 dark:from-blue-500/10 dark:to-orange-500/10 rounded-[2rem] blur-2xl",
+              "opacity-60 group-hover:opacity-80 transition-all duration-500",
+              isFocused && "opacity-100 scale-[1.02]"
             )}
           />
 
-          {/* Focus glow effect */}
+          {/* Main card */}
           <div
             className={cn(
-              "absolute -inset-1 rounded-2xl blur-xl transition-opacity duration-500 pointer-events-none",
-              "bg-gradient-to-r from-primary/20 via-[var(--magic-violet)]/20 to-primary/20",
-              isFocused ? "opacity-100" : "opacity-0"
+              "relative bg-card rounded-3xl shadow-xl border border-border",
+              "overflow-hidden transition-all duration-300",
+              isFocused && "ring-2 ring-primary/10 border-border",
+              isDragOver && "ring-2 ring-primary ring-offset-2"
             )}
-          />
+          >
+            {dropOverlay}
 
-          {dropOverlay}
-
-          <div className="relative">
-            {/* Top toolbar: AI Provider selector and Image upload */}
-            {onAIProviderChange && (
-              <div className="absolute top-0 left-0 right-0 p-3 flex items-center gap-2 z-10 bg-gradient-to-b from-card/80 to-transparent">
-                <AIProviderSelector
-                  value={aiProvider}
-                  onChange={onAIProviderChange}
-                  disabled={isLoading}
-                />
-                {imageUploadButton}
-                {voiceInputButton}
-              </div>
-            )}
+            <div className="relative">
+              {/* Top toolbar: AI Provider selector and Image upload */}
+              {onAIProviderChange && (
+                <div className="absolute top-0 left-0 right-0 p-4 flex items-center gap-2 z-10">
+                  <AIProviderSelector
+                    value={aiProvider}
+                    onChange={onAIProviderChange}
+                    disabled={isLoading}
+                  />
+                  {imageUploadButton}
+                  {voiceInputButton}
+                </div>
+              )}
 
             {/* Content area with padding to clear the toolbar */}
             <div className={cn("pt-14", onAIProviderChange && "pt-16")}>
@@ -602,20 +590,19 @@ export function UnifiedInput({
               {textarea}
             </div>
 
-            {/* Bottom toolbar */}
-            <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between border-t border-border/50 bg-card/30 backdrop-blur-sm">
-              <div className="flex items-center gap-4">
-                {/* Image upload button shown here if no AI provider selector */}
-                {!onAIProviderChange && (
-                  <div className="flex items-center gap-2">
-                    {imageUploadButton}
-                    {voiceInputButton}
-                  </div>
-                )}
+              {/* Bottom toolbar */}
+              <div className="p-4 flex items-center justify-between border-t border-border">
+                <div className="flex items-center gap-4">
+                  {/* Image upload button shown here if no AI provider selector */}
+                  {!onAIProviderChange && (
+                    <div className="flex items-center gap-2">
+                      {imageUploadButton}
+                      {voiceInputButton}
+                    </div>
+                  )}
 
-                {showPlanCheckbox && (
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
+                  {showPlanCheckbox && (
+                    <div className="flex items-center gap-3">
                       <Checkbox
                         id="plan-features"
                         checked={planFeatures}
@@ -629,63 +616,44 @@ export function UnifiedInput({
                             "border-primary data-[state=checked]:bg-primary"
                         )}
                       />
-                      {planFeatures && (
-                        <Sparkles className="absolute -top-1 -right-1 w-3 h-3 text-[var(--magic-gold)] animate-sparkle" />
-                      )}
+                      <Label
+                        htmlFor="plan-features"
+                        className="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                      >
+                        Plan features first
+                      </Label>
                     </div>
-                    <Label
-                      htmlFor="plan-features"
-                      className="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors flex items-center gap-1.5"
-                    >
-                      <Sparkles className="h-3.5 w-3.5 text-primary" />
-                      Plan features first
-                    </Label>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
 
-              <MagicButton
-                onClick={handleSubmit}
-                className={cn(
-                  "px-6",
-                  !canSubmit && "opacity-50 pointer-events-none"
-                )}
-              >
-                {isLoading || isUploading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : showPlanCheckbox && planFeatures ? (
-                  <>
-                    <Sparkles className="h-4 w-4" />
-                    Create & Plan
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4" />
-                    Create
-                  </>
-                )}
-              </MagicButton>
+                <button
+                  onClick={handleSubmit}
+                  disabled={!canSubmit}
+                  className={cn(
+                    "bg-primary text-primary-foreground px-6 py-3 rounded-full text-sm font-semibold",
+                    "hover:bg-primary/90 transition-all shadow-lg",
+                    "hover:scale-[1.02] active:scale-[0.98]",
+                    "flex items-center gap-2 cursor-pointer",
+                    "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                  )}
+                >
+                  {isLoading || isUploading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4" />
+                      {showPlanCheckbox && planFeatures ? "Create & Plan" : "Create"}
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
-
-          {/* Decorative sparkles */}
-          <Sparkles
-            className={cn(
-              "absolute top-4 right-4 w-4 h-4 text-[var(--magic-violet)] transition-opacity duration-500",
-              isFocused ? "opacity-100 animate-sparkle" : "opacity-0"
-            )}
-          />
-          <Sparkles
-            className={cn(
-              "absolute top-8 right-8 w-3 h-3 text-primary transition-opacity duration-500 animation-delay-500",
-              isFocused ? "opacity-100 animate-sparkle" : "opacity-0"
-            )}
-          />
         </div>
 
         <p className="hidden md:flex items-center justify-center gap-2 text-muted-foreground text-sm mt-4">
           <span>Press</span>
-          <kbd className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-muted/50 border border-border/50 text-xs font-medium">
+          <kbd className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-muted border border-border text-xs font-medium">
             <Command className="h-3 w-3" />
             <span>+</span>
             <span>Enter</span>
