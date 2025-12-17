@@ -1195,6 +1195,128 @@ Your code MUST render without errors. A broken UI is worse than an ugly UI. Foll
 </Pressable>
 \`\`\`
 
+**Keyboard Handling (CRITICAL FOR FORMS - READ THIS!):**
+Any screen with TextInput MUST handle keyboard properly. These are the 4 most common bugs:
+
+1. ❌ Input hidden behind keyboard → Use KeyboardAvoidingView
+2. ❌ Can't tap submit button → Use keyboardShouldPersistTaps="handled"
+3. ❌ Keyboard won't dismiss → Add wrapper with Keyboard.dismiss()
+4. ❌ Layout jumps/glitches → Use correct platform-specific behavior
+
+**THE CORRECT PATTERN FOR FORMS (COPY THIS):**
+\`\`\`tsx
+import { useRef } from 'react';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  TextInput,
+  Pressable,
+  Keyboard,
+  TouchableWithoutFeedback,
+  Text,
+  View,
+  StyleSheet,
+} from 'react-native';
+
+function FormScreen() {
+  const passwordRef = useRef<TextInput>(null);
+
+  const handleSubmit = () => {
+    Keyboard.dismiss();
+    // Handle form submission
+  };
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            blurOnSubmit={false}
+          />
+          <TextInput
+            ref={passwordRef}
+            style={styles.input}
+            placeholder="Password"
+            secureTextEntry
+            returnKeyType="done"
+            onSubmitEditing={handleSubmit}
+          />
+          <Pressable style={styles.button} onPress={handleSubmit}>
+            <Text style={styles.buttonText}>Submit</Text>
+          </Pressable>
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  scrollContent: { padding: 20, gap: 16 },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+  },
+  button: {
+    backgroundColor: '#007AFF',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+});
+\`\`\`
+
+**Platform-Specific Rules (IMPORTANT):**
+- **iOS:** behavior="padding" + keyboardVerticalOffset (header height, usually ~100)
+- **Android:** behavior={undefined} (or omit the prop entirely) - Android handles keyboard automatically
+- Using behavior="padding" on Android causes double-offset bugs!
+
+**REQUIRED for all screens with TextInput:**
+1. \`KeyboardAvoidingView\` as outermost container (or wrap around the form area)
+2. \`TouchableWithoutFeedback\` or \`Pressable\` with \`onPress={Keyboard.dismiss}\` to dismiss keyboard when tapping outside
+3. \`ScrollView\` with \`keyboardShouldPersistTaps="handled"\` so buttons are tappable while keyboard is open
+4. TextInputs with \`returnKeyType\` and \`onSubmitEditing\` for field navigation
+
+**TextInput ref pattern for multi-field forms:**
+\`\`\`tsx
+const emailRef = useRef<TextInput>(null);
+const passwordRef = useRef<TextInput>(null);
+
+// First field - moves to next on submit
+<TextInput
+  ref={emailRef}
+  returnKeyType="next"
+  onSubmitEditing={() => passwordRef.current?.focus()}
+  blurOnSubmit={false}  // Keep keyboard open
+/>
+
+// Last field - submits form
+<TextInput
+  ref={passwordRef}
+  returnKeyType="done"
+  onSubmitEditing={handleSubmit}
+/>
+\`\`\`
+
 **Before Finishing - VERIFY:**
 1. Every import statement uses the correct source package
 2. Every StyleSheet property uses valid React Native syntax (no 'px', no string numbers)
@@ -1782,6 +1904,128 @@ Your code MUST render without errors. A broken UI is worse than an ugly UI. Foll
 >
   <Text style={styles.buttonText}>Press Me</Text>
 </Pressable>
+\`\`\`
+
+**Keyboard Handling (CRITICAL FOR FORMS - READ THIS!):**
+Any screen with TextInput MUST handle keyboard properly. These are the 4 most common bugs:
+
+1. ❌ Input hidden behind keyboard → Use KeyboardAvoidingView
+2. ❌ Can't tap submit button → Use keyboardShouldPersistTaps="handled"
+3. ❌ Keyboard won't dismiss → Add wrapper with Keyboard.dismiss()
+4. ❌ Layout jumps/glitches → Use correct platform-specific behavior
+
+**THE CORRECT PATTERN FOR FORMS (COPY THIS):**
+\`\`\`tsx
+import { useRef } from 'react';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  TextInput,
+  Pressable,
+  Keyboard,
+  TouchableWithoutFeedback,
+  Text,
+  View,
+  StyleSheet,
+} from 'react-native';
+
+function FormScreen() {
+  const passwordRef = useRef<TextInput>(null);
+
+  const handleSubmit = () => {
+    Keyboard.dismiss();
+    // Handle form submission
+  };
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            blurOnSubmit={false}
+          />
+          <TextInput
+            ref={passwordRef}
+            style={styles.input}
+            placeholder="Password"
+            secureTextEntry
+            returnKeyType="done"
+            onSubmitEditing={handleSubmit}
+          />
+          <Pressable style={styles.button} onPress={handleSubmit}>
+            <Text style={styles.buttonText}>Submit</Text>
+          </Pressable>
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  scrollContent: { padding: 20, gap: 16 },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+  },
+  button: {
+    backgroundColor: '#007AFF',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+});
+\`\`\`
+
+**Platform-Specific Rules (IMPORTANT):**
+- **iOS:** behavior="padding" + keyboardVerticalOffset (header height, usually ~100)
+- **Android:** behavior={undefined} (or omit the prop entirely) - Android handles keyboard automatically
+- Using behavior="padding" on Android causes double-offset bugs!
+
+**REQUIRED for all screens with TextInput:**
+1. \`KeyboardAvoidingView\` as outermost container (or wrap around the form area)
+2. \`TouchableWithoutFeedback\` or \`Pressable\` with \`onPress={Keyboard.dismiss}\` to dismiss keyboard when tapping outside
+3. \`ScrollView\` with \`keyboardShouldPersistTaps="handled"\` so buttons are tappable while keyboard is open
+4. TextInputs with \`returnKeyType\` and \`onSubmitEditing\` for field navigation
+
+**TextInput ref pattern for multi-field forms:**
+\`\`\`tsx
+const emailRef = useRef<TextInput>(null);
+const passwordRef = useRef<TextInput>(null);
+
+// First field - moves to next on submit
+<TextInput
+  ref={emailRef}
+  returnKeyType="next"
+  onSubmitEditing={() => passwordRef.current?.focus()}
+  blurOnSubmit={false}  // Keep keyboard open
+/>
+
+// Last field - submits form
+<TextInput
+  ref={passwordRef}
+  returnKeyType="done"
+  onSubmitEditing={handleSubmit}
+/>
 \`\`\`
 
 **Before Finishing - VERIFY:**
