@@ -354,8 +354,10 @@ function TodoList() {
 After you finish writing or editing files in the \`convex/\` directory, you MUST deploy by running:
 
 \`\`\`bash
-npx convex dev --once --typecheck=disable
+npm run convex:deploy
 \`\`\`
+
+This command deploys your Convex functions AND clears Metro cache (required because Convex regenerates files that Metro caches).
 
 Review the output for errors. If there are errors, fix them and deploy again.
 
@@ -364,6 +366,7 @@ Review the output for errors. If there are errors, fix them and deploy again.
 - Batch your Convex changes (schema + functions), then deploy once
 - If deploy fails, read the error, fix the issue, and deploy again
 - The app won't see your changes until you deploy!
+- ALWAYS use \`npm run convex:deploy\` (not \`npx convex dev --once\`) to ensure Metro cache is cleared
 
 **🔧 CONVEX MCP TOOLS (YOU HAVE ACCESS TO THESE):**
 You have access to Convex MCP tools for debugging and introspection:
