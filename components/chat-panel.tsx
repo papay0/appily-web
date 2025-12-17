@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
-import { Sparkles, Terminal, ChevronDown } from "lucide-react";
+import { Sparkles, Terminal, ChevronDown, DollarSign } from "lucide-react";
 import { Toggle } from "@/components/ui/toggle";
 import { useSession, useUser } from "@clerk/nextjs";
 import { useSupabaseClient } from "@/lib/supabase-client";
@@ -17,10 +17,18 @@ import type { Feature } from "@/lib/types/features";
 import { buildEnhancedPrompt } from "@/lib/types/features";
 import { generateId } from "@/lib/uuid";
 import type { AIProvider } from "@/lib/agent/flows";
+import { calculateCost } from "@/lib/utils/cost-calculator";
 
 // Module-level Set to track projects that have auto-started
 // This persists across React Strict Mode's mount/unmount/remount cycle
 const autoStartedProjects = new Set<string>();
+
+interface TokenUsage {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+}
 
 interface Message {
   id: string;
@@ -34,6 +42,7 @@ interface Message {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   toolInput?: any; // Stores the input data from tool use (e.g., todos for TodoWrite)
   eventData?: Record<string, unknown>; // Full event_data for operational logs
+  usage?: TokenUsage; // Token usage for cost tracking (assistant messages)
 }
 
 interface AssistantContentBlock {
@@ -150,6 +159,13 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
   const [isStopping, setIsStopping] = useState(false);
   const [showSystemLogs, setShowSystemLogs] = useState(false);
+  const [showCostTracking, setShowCostTracking] = useState(false);
+  const [costSummary, setCostSummary] = useState({
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
+    totalCacheReadTokens: 0,
+    totalCost: 0,
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
@@ -164,6 +180,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
   const didInitialFetchRef = useRef(false);
   const pendingUserMessageIds = useRef<Set<string>>(new Set());
   const didAutoStartRef = useRef(false);
+  const processedUsageIds = useRef<Set<string>>(new Set());
   // const savedEvents = useRef<Set<string>>(new Set()); // No longer needed - saves are backend-triggered
 
   // Reset local caches when switching projects
@@ -174,6 +191,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
     didInitialFetchRef.current = false;
     didAutoStartRef.current = false;
     pendingUserMessageIds.current.clear();
+    processedUsageIds.current.clear();
     prevMessagesCountRef.current = 0;
     setMessages([]);
     setInitialLoadComplete(false);
@@ -181,6 +199,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
     setIsStopping(false);
     setIsNearBottom(true);
     setUnreadCount(0);
+    setCostSummary({ totalInputTokens: 0, totalOutputTokens: 0, totalCacheReadTokens: 0, totalCost: 0 });
   }, [projectId]);
 
   // Handle scroll events to track if user is near bottom
@@ -313,6 +332,27 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
     if (event.event_type === "assistant") {
       const content =
         (event.event_data?.message?.content as AssistantContentBlock[] | undefined) || [];
+
+      // Extract usage from message (SDK provides it at message.usage)
+      const usage = event.event_data?.message?.usage as TokenUsage | undefined;
+      const messageId = event.event_data?.message?.id as string | undefined;
+
+      // Update cost summary (deduplicate by message ID for parallel tool uses)
+      if (usage && messageId && !processedUsageIds.current.has(messageId)) {
+        processedUsageIds.current.add(messageId);
+        const cost = calculateCost(usage);
+        // Total input includes non-cached + cache creation + cache read
+        const totalIn = (usage.input_tokens || 0) +
+                       (usage.cache_creation_input_tokens || 0) +
+                       (usage.cache_read_input_tokens || 0);
+        setCostSummary((prev) => ({
+          totalInputTokens: prev.totalInputTokens + totalIn,
+          totalOutputTokens: prev.totalOutputTokens + (usage.output_tokens || 0),
+          totalCacheReadTokens: prev.totalCacheReadTokens + (usage.cache_read_input_tokens || 0),
+          totalCost: prev.totalCost + cost,
+        }));
+      }
+
       for (const block of content) {
         if (isTextBlock(block)) {
           const text = block.text;
@@ -321,6 +361,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
             role: "assistant",
             content: text,
             timestamp: new Date(event.created_at),
+            usage, // Include usage for per-message display
           }]);
         } else if (block.type === "tool_use") {
           let toolContext = "";
@@ -371,6 +412,24 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
     if (event.event_type === "result") {
       setIsLoading(false);
       setIsStopping(false);
+
+      // Check for usage in result event (cumulative usage from SDK)
+      const resultUsage = event.event_data?.usage as TokenUsage | undefined;
+      const totalCostUsd = event.event_data?.total_cost_usd as number | undefined;
+
+      if (resultUsage) {
+        const cost = totalCostUsd ?? calculateCost(resultUsage);
+        // Total input includes non-cached + cache creation + cache read
+        const totalIn = (resultUsage.input_tokens || 0) +
+                       (resultUsage.cache_creation_input_tokens || 0) +
+                       (resultUsage.cache_read_input_tokens || 0);
+        setCostSummary({
+          totalInputTokens: totalIn,
+          totalOutputTokens: resultUsage.output_tokens || 0,
+          totalCacheReadTokens: resultUsage.cache_read_input_tokens || 0,
+          totalCost: cost,
+        });
+      }
 
       if (event.event_data.subtype === "success") {
         setMessages((prev) => [...prev, {
@@ -738,33 +797,68 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
           </div>
         ) : (
           <div className="space-y-2 w-full max-w-full overflow-hidden">
-            {/* System Logs Toggle */}
+            {/* Debug Toggles: System Logs & Cost Tracking */}
             {(() => {
               const hiddenCount = messages.filter(isSystemLogMessage).length;
-              if (hiddenCount === 0) return null;
+              const hasSystemLogs = hiddenCount > 0;
+              const hasMessages = messages.length > 0;
+
+              // Show toggle row if we have system logs or any messages (for cost toggle)
+              if (!hasSystemLogs && !hasMessages) return null;
+
               return (
-                <div className="flex items-center justify-end gap-2 pb-2 mb-2 border-b border-border/30">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Terminal className="h-3 w-3" />
-                    <span>System Logs</span>
-                    {!showSystemLogs && hiddenCount > 0 && (
-                      <span className="text-muted-foreground/60">
-                        ({hiddenCount} hidden)
+                <div className="flex items-center justify-end gap-4 pb-2 mb-2 border-b border-border/30">
+                  {/* System Logs Toggle */}
+                  {hasSystemLogs && (
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Terminal className="h-3 w-3" />
+                        <span>System Logs</span>
+                        {!showSystemLogs && hiddenCount > 0 && (
+                          <span className="text-muted-foreground/60">
+                            ({hiddenCount} hidden)
+                          </span>
+                        )}
+                      </div>
+                      <Toggle
+                        variant="outline"
+                        size="sm"
+                        pressed={showSystemLogs}
+                        onPressedChange={setShowSystemLogs}
+                        className="h-6 w-10 data-[state=on]:bg-primary/20"
+                        aria-label="Toggle system logs visibility"
+                      >
+                        <span className="text-[10px] font-medium">
+                          {showSystemLogs ? "ON" : "OFF"}
+                        </span>
+                      </Toggle>
+                    </div>
+                  )}
+
+                  {/* Cost Tracking Toggle - always show when there are messages */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <DollarSign className="h-3 w-3" />
+                      <span>Cost</span>
+                      {showCostTracking && (
+                        <span className="text-muted-foreground/60 font-mono">
+                          (${costSummary.totalCost.toFixed(4)})
+                        </span>
+                      )}
+                    </div>
+                    <Toggle
+                      variant="outline"
+                      size="sm"
+                      pressed={showCostTracking}
+                      onPressedChange={setShowCostTracking}
+                      className="h-6 w-10 data-[state=on]:bg-primary/20"
+                      aria-label="Toggle cost tracking visibility"
+                    >
+                      <span className="text-[10px] font-medium">
+                        {showCostTracking ? "ON" : "OFF"}
                       </span>
-                    )}
+                    </Toggle>
                   </div>
-                  <Toggle
-                    variant="outline"
-                    size="sm"
-                    pressed={showSystemLogs}
-                    onPressedChange={setShowSystemLogs}
-                    className="h-6 w-10 data-[state=on]:bg-primary/20"
-                    aria-label="Toggle system logs visibility"
-                  >
-                    <span className="text-[10px] font-medium">
-                      {showSystemLogs ? "ON" : "OFF"}
-                    </span>
-                  </Toggle>
                 </div>
               );
             })()}
@@ -798,7 +892,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
 
                   return (
                     <div key={message.id} className="w-full max-w-full overflow-hidden">
-                      <ChatMessage message={message} onFixError={handleFixError} />
+                      <ChatMessage message={message} onFixError={handleFixError} showCostTracking={showCostTracking} />
                       {/* Show feature context after first user message */}
                       {showFeatureContext && (
                         <div className="mt-1.5 ml-auto max-w-[85%]">
@@ -894,6 +988,30 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
             <ChevronDown className="w-4 h-4" />
             {unreadCount === 1 ? "1 new message" : `${unreadCount} new messages`}
           </button>
+        )}
+
+        {/* Cost Summary Bar */}
+        {showCostTracking && (
+          <div className="px-3 py-2 border-t border-border/50 bg-muted/30 text-xs text-muted-foreground">
+            <div className="flex justify-between items-center">
+              <span>
+                {costSummary.totalCost > 0 ? (
+                  <>
+                    Total: {costSummary.totalInputTokens.toLocaleString()} in
+                    {costSummary.totalCacheReadTokens > 0 && (
+                      <span className="text-green-600 dark:text-green-400">
+                        {" "}({Math.round((costSummary.totalCacheReadTokens / costSummary.totalInputTokens) * 100)}% cached)
+                      </span>
+                    )}
+                    {" / "}{costSummary.totalOutputTokens.toLocaleString()} out
+                  </>
+                ) : (
+                  <span className="text-muted-foreground/50">Waiting for usage data from SDK...</span>
+                )}
+              </span>
+              <span className="font-mono font-medium">${costSummary.totalCost.toFixed(4)}</span>
+            </div>
+          </div>
         )}
 
         <UnifiedInput

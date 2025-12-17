@@ -14,7 +14,7 @@
 
 import type { Sandbox } from "e2b";
 import { NextResponse } from "next/server";
-import { buildExpoAgentPrompt } from "./prompts";
+import { buildExpoAgentPrompt, buildExpoSystemPrompt } from "./prompts";
 import { executeSetupInE2B, executeClaudeInE2B, executeGeminiInE2B, executeClaudeSdkInE2B } from "./cli-executor";
 import { downloadImagesToSandbox, buildImageContext } from "./download-images-to-sandbox";
 
@@ -131,25 +131,47 @@ export async function handleNewProjectFlow(
     }
   }
 
-  // Build agent system prompt (no Expo URL yet - will be generated)
-  const systemPrompt = buildExpoAgentPrompt({
-    userTask: userPrompt + imageContext,
-    workingDir: workingDir || "/home/user/project",
-    aiProvider,
-    // expoUrl: undefined - not available yet
-    // Include Convex config if enabled
-    convex: convex ? {
-      deploymentUrl: convex.deploymentUrl,
-      isInitialized: convex.isInitialized,
-    } : undefined,
-    // Include AI API config if enabled
-    ai: ai ? {
-      projectId: ai.projectId,
-      apiBaseUrl: ai.apiBaseUrl,
-    } : undefined,
-  });
+  // Build prompts based on AI provider
+  // For SDK: separate system prompt and user message for token optimization
+  // For CLI/Gemini: combined prompt with user task embedded
+  let systemPrompt: string;
+  let userMessage: string | undefined;
 
-  console.log(`[FLOW] System prompt built (${systemPrompt.length} chars)`);
+  if (aiProvider === 'claude-sdk') {
+    // SDK: separate prompts for token optimization
+    systemPrompt = buildExpoSystemPrompt({
+      workingDir: workingDir || "/home/user/project",
+      aiProvider,
+      // expoUrl: undefined - not available yet
+      convex: convex ? {
+        deploymentUrl: convex.deploymentUrl,
+        isInitialized: convex.isInitialized,
+      } : undefined,
+      ai: ai ? {
+        projectId: ai.projectId,
+        apiBaseUrl: ai.apiBaseUrl,
+      } : undefined,
+    });
+    userMessage = userPrompt + imageContext;
+    console.log(`[FLOW] SDK system prompt: ${systemPrompt.length} chars`);
+    console.log(`[FLOW] SDK user message: ${userMessage.length} chars`);
+  } else {
+    // CLI/Gemini: combined prompt
+    systemPrompt = buildExpoAgentPrompt({
+      userTask: userPrompt + imageContext,
+      workingDir: workingDir || "/home/user/project",
+      aiProvider,
+      convex: convex ? {
+        deploymentUrl: convex.deploymentUrl,
+        isInitialized: convex.isInitialized,
+      } : undefined,
+      ai: ai ? {
+        projectId: ai.projectId,
+        apiBaseUrl: ai.apiBaseUrl,
+      } : undefined,
+    });
+    console.log(`[FLOW] Combined prompt built (${systemPrompt.length} chars)`);
+  }
 
   // Start Expo setup in E2B background
   // This will clone template, install deps, start Expo, then run the appropriate agent
@@ -157,8 +179,9 @@ export async function handleNewProjectFlow(
     sandbox,
     projectId,
     userId,
-    systemPrompt, // Agent will start after setup completes
-    aiProvider, // Pass AI provider so setup knows which agent to start
+    systemPrompt,
+    userMessage, // Only set for claude-sdk
+    aiProvider,
     convex ? { deploymentUrl: convex.deploymentUrl, deployKey: convex.deployKey } : undefined
   );
 
@@ -276,8 +299,33 @@ export async function handleExistingProjectFlow(
     logFile = result.logFile;
   } else if (aiProvider === 'claude-sdk') {
     console.log(`[FLOW] Using Claude Agent SDK for agent execution`);
+
+    // For SDK, separate system instructions from user message to optimize token usage
+    // On follow-up requests with sessionId, the SDK maintains the system prompt internally
+    const sdkSystemPrompt = buildExpoSystemPrompt({
+      expoUrl: expoUrl || undefined,
+      workingDir: workingDir || "/home/user/project",
+      aiProvider,
+      convex: convex ? {
+        deploymentUrl: convex.deploymentUrl,
+        isInitialized: convex.isInitialized,
+      } : undefined,
+      ai: ai ? {
+        projectId: ai.projectId,
+        apiBaseUrl: ai.apiBaseUrl,
+      } : undefined,
+    });
+
+    // User message is just the prompt + any image context (~500-2000 tokens)
+    const userMessage = userPrompt + imageContext;
+
+    console.log(`[FLOW] SDK system prompt: ${sdkSystemPrompt.length} chars`);
+    console.log(`[FLOW] User message: ${userMessage.length} chars`);
+    console.log(`[FLOW] Session ID for resume: ${sessionId || '(none - first request)'}`);
+
     const result = await executeClaudeSdkInE2B(
-      systemPrompt,
+      sdkSystemPrompt,
+      userMessage,
       workingDir || "/home/user/project",
       sessionId || undefined, // Use existing session_id for conversation continuity
       sandbox,

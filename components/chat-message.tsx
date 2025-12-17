@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
+import { calculateCost, type TokenUsage } from "@/lib/utils/cost-calculator";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -35,11 +36,13 @@ interface Message {
   avatarUrl?: string;
   imageUrls?: string[]; // Preview URLs for attached images
   eventData?: Record<string, unknown>; // Full event_data for operational logs
+  usage?: TokenUsage; // Token usage for cost tracking (assistant messages)
 }
 
 interface ChatMessageProps {
   message: Message;
   onFixError?: (errorMessage: string, fullError?: FullError) => void;
+  showCostTracking?: boolean;
 }
 
 // Separate component for user messages to handle lightbox state
@@ -111,7 +114,7 @@ function UserMessageWithLightbox({ message, hasImages }: { message: Message; has
   );
 }
 
-export function ChatMessage({ message, onFixError }: ChatMessageProps) {
+export function ChatMessage({ message, onFixError, showCostTracking }: ChatMessageProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isToolContextExpanded, setIsToolContextExpanded] = useState(false);
 
@@ -148,108 +151,126 @@ export function ChatMessage({ message, onFixError }: ChatMessageProps) {
   // Assistant messages - Glassmorphic bubble
   if (message.role === "assistant") {
     return (
-      <div className="flex items-end gap-2 w-full animate-message-left">
-        {/* AI Avatar */}
-        <div className="h-7 w-7 rounded-full glass-morphism flex items-center justify-center flex-shrink-0 p-1">
-          <Image
-            src="/appily-logo.svg"
-            alt="AI"
-            width={16}
-            height={16}
-          />
-        </div>
-        <div className="message-bubble-ai px-4 py-2.5 max-w-[85%] overflow-hidden break-words">
-          <div className="text-sm leading-relaxed text-foreground overflow-hidden break-words [overflow-wrap:anywhere]">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                // Customize code blocks
-                code({ node, inline, className, children, ...props }: {
-                  node?: unknown;
-                  inline?: boolean;
-                  className?: string;
-                  children?: React.ReactNode;
-                }) {
-                  const match = /language-(\w+)/.exec(className || "");
-                  return !inline && match ? (
-                    <SyntaxHighlighter
-                      style={oneDark}
-                      language={match[1]}
-                      PreTag="div"
-                      className="rounded-lg my-2"
-                      {...props}
-                    >
-                      {String(children).replace(/\n$/, "")}
-                    </SyntaxHighlighter>
-                  ) : (
-                    <code
-                      className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-xs font-mono"
-                      {...props}
-                    >
-                      {children}
-                    </code>
-                  );
-                },
-                // Customize headings
-                h1: ({ children }) => (
-                  <h1 className="text-lg font-bold mt-4 mb-2">{children}</h1>
-                ),
-                h2: ({ children }) => (
-                  <h2 className="text-base font-bold mt-3 mb-2">{children}</h2>
-                ),
-                h3: ({ children }) => (
-                  <h3 className="text-sm font-bold mt-2 mb-1">{children}</h3>
-                ),
-                // Customize lists
-                ul: ({ children }) => (
-                  <ul className="list-disc list-inside space-y-1 my-2">{children}</ul>
-                ),
-                ol: ({ children }) => (
-                  <ol className="list-decimal list-inside space-y-1 my-2">{children}</ol>
-                ),
-                // Customize links
-                a: ({ href, children }) => (
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 dark:text-blue-400 hover:underline"
-                  >
-                    {children}
-                  </a>
-                ),
-                // Customize paragraphs
-                p: ({ children }) => <p className="my-2">{children}</p>,
-                // Customize blockquotes
-                blockquote: ({ children }) => (
-                  <blockquote className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 italic my-2">
-                    {children}
-                  </blockquote>
-                ),
-                // Customize tables
-                table: ({ children }) => (
-                  <div className="overflow-x-auto my-2">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                      {children}
-                    </table>
-                  </div>
-                ),
-                th: ({ children }) => (
-                  <th className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-left text-xs font-semibold">
-                    {children}
-                  </th>
-                ),
-                td: ({ children }) => (
-                  <td className="px-3 py-2 text-xs border-t border-gray-200 dark:border-gray-700">
-                    {children}
-                  </td>
-                ),
-              }}
-            >
-              {message.content}
-            </ReactMarkdown>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-end gap-2 w-full animate-message-left">
+          {/* AI Avatar */}
+          <div className="h-7 w-7 rounded-full glass-morphism flex items-center justify-center flex-shrink-0 p-1">
+            <Image
+              src="/appily-logo.svg"
+              alt="AI"
+              width={16}
+              height={16}
+            />
+          </div>
+          <div className="message-bubble-ai px-4 py-2.5 max-w-[85%] overflow-hidden break-words">
+            <div className="text-sm leading-relaxed text-foreground overflow-hidden break-words [overflow-wrap:anywhere]">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    // Customize code blocks
+                    code({ node, inline, className, children, ...props }: {
+                      node?: unknown;
+                      inline?: boolean;
+                      className?: string;
+                      children?: React.ReactNode;
+                    }) {
+                      const match = /language-(\w+)/.exec(className || "");
+                      return !inline && match ? (
+                        <SyntaxHighlighter
+                          style={oneDark}
+                          language={match[1]}
+                          PreTag="div"
+                          className="rounded-lg my-2"
+                          {...props}
+                        >
+                          {String(children).replace(/\n$/, "")}
+                        </SyntaxHighlighter>
+                      ) : (
+                        <code
+                          className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-xs font-mono"
+                          {...props}
+                        >
+                          {children}
+                        </code>
+                      );
+                    },
+                    // Customize headings
+                    h1: ({ children }) => (
+                      <h1 className="text-lg font-bold mt-4 mb-2">{children}</h1>
+                    ),
+                    h2: ({ children }) => (
+                      <h2 className="text-base font-bold mt-3 mb-2">{children}</h2>
+                    ),
+                    h3: ({ children }) => (
+                      <h3 className="text-sm font-bold mt-2 mb-1">{children}</h3>
+                    ),
+                    // Customize lists
+                    ul: ({ children }) => (
+                      <ul className="list-disc list-inside space-y-1 my-2">{children}</ul>
+                    ),
+                    ol: ({ children }) => (
+                      <ol className="list-decimal list-inside space-y-1 my-2">{children}</ol>
+                    ),
+                    // Customize links
+                    a: ({ href, children }) => (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        {children}
+                      </a>
+                    ),
+                    // Customize paragraphs
+                    p: ({ children }) => <p className="my-2">{children}</p>,
+                    // Customize blockquotes
+                    blockquote: ({ children }) => (
+                      <blockquote className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 italic my-2">
+                        {children}
+                      </blockquote>
+                    ),
+                    // Customize tables
+                    table: ({ children }) => (
+                      <div className="overflow-x-auto my-2">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                          {children}
+                        </table>
+                      </div>
+                    ),
+                    th: ({ children }) => (
+                      <th className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-left text-xs font-semibold">
+                        {children}
+                      </th>
+                    ),
+                    td: ({ children }) => (
+                      <td className="px-3 py-2 text-xs border-t border-gray-200 dark:border-gray-700">
+                        {children}
+                      </td>
+                    ),
+                  }}
+                >
+                  {message.content}
+                </ReactMarkdown>
+            </div>
           </div>
         </div>
+        {/* Per-message cost tracking */}
+        {showCostTracking && message.usage && (
+          <div className="text-[10px] text-muted-foreground/50 ml-9 font-mono">
+            {(() => {
+              const u = message.usage;
+              const totalIn = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
+              const cacheHitPercent = totalIn > 0 ? Math.round(((u.cache_read_input_tokens || 0) / totalIn) * 100) : 0;
+              return (
+                <>
+                  {totalIn.toLocaleString()} in ({cacheHitPercent}% cached) / {(u.output_tokens || 0).toLocaleString()} out
+                  {" "}(${calculateCost(u).toFixed(4)})
+                </>
+              );
+            })()}
+          </div>
+        )}
       </div>
     );
   }

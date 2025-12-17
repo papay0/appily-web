@@ -522,7 +522,8 @@ export async function executeGeminiInE2B(
  * @returns Execution result with PID and sandbox ID
  */
 export async function executeClaudeSdkInE2B(
-  prompt: string,
+  systemPrompt: string,
+  userMessage: string,
   workingDirectory: string,
   sessionId: string | undefined,
   sandbox: Sandbox,
@@ -588,13 +589,17 @@ export async function executeClaudeSdkInE2B(
     }
 
     // Step 4: Prepare environment variables
+    // IMPORTANT: We pass SYSTEM_PROMPT and USER_MESSAGE separately to optimize token usage
+    // - On first request (no sessionId): SDK uses systemPrompt + prompt
+    // - On follow-up (with sessionId): SDK uses resume option, only sends user message (~500 tokens vs 60K)
     const envVars: Record<string, string> = {
       SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL!,
       SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY!,
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY!, // SDK requires API key
       PROJECT_ID: projectId,
       USER_ID: userId,
-      USER_PROMPT: prompt,
+      SYSTEM_PROMPT: systemPrompt, // System instructions (~40K tokens, only needed for first request)
+      USER_MESSAGE: userMessage,   // User's request (~500-2000 tokens)
       WORKING_DIRECTORY: workingDirectory,
       // R2 credentials for direct E2B saves
       R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID!,
@@ -730,7 +735,8 @@ export async function executeClaudeSdkInE2B(
  * @param sandbox - Existing E2B sandbox
  * @param projectId - Project ID for linking to database
  * @param userId - User ID for session tracking
- * @param userPrompt - Initial prompt for Claude agent (optional)
+ * @param systemPrompt - System prompt for Claude agent (optional)
+ * @param userMessage - User message for Claude SDK (optional, only for claude-sdk)
  * @param aiProvider - AI provider for agent execution
  * @param convex - Optional Convex credentials for backend
  * @returns Execution result with PID and log file path
@@ -739,7 +745,8 @@ export async function executeSetupInE2B(
   sandbox: Sandbox,
   projectId: string,
   userId: string,
-  userPrompt?: string,
+  systemPrompt?: string,
+  userMessage?: string, // Only for claude-sdk (separate from systemPrompt)
   aiProvider: 'claude' | 'claude-sdk' | 'gemini' = 'claude',
   convex?: ConvexCredentials
 ): Promise<E2BExecutionResult> {
@@ -779,7 +786,7 @@ export async function executeSetupInE2B(
     console.log(`[E2B] ✓ E2B-Logger module uploaded`);
 
     // Step 2.5: Also upload stream-to-supabase.js (needed for AI agent)
-    if (userPrompt) {
+    if (systemPrompt) {
       // Upload the correct agent script based on AI provider
       let agentScriptName: string;
       let e2bScriptPath: string;
@@ -878,11 +885,22 @@ export async function executeSetupInE2B(
     };
 
     // Add AI agent env vars if prompt provided
-    if (userPrompt) {
+    if (systemPrompt) {
       envVars.AI_PROVIDER = aiProvider;
-      envVars.USER_PROMPT = userPrompt;
 
-      if (aiProvider === 'gemini') {
+      if (aiProvider === 'claude-sdk') {
+        // SDK: separate SYSTEM_PROMPT and USER_MESSAGE for token optimization
+        envVars.SYSTEM_PROMPT = systemPrompt;
+        if (userMessage) {
+          envVars.USER_MESSAGE = userMessage;
+        }
+        if (process.env.ANTHROPIC_API_KEY) {
+          envVars.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+          console.log(`[E2B] Claude SDK: SYSTEM_PROMPT (${systemPrompt.length} chars), USER_MESSAGE (${userMessage?.length || 0} chars)`);
+        }
+      } else if (aiProvider === 'gemini') {
+        // Gemini: combined prompt (USER_PROMPT for legacy compatibility)
+        envVars.USER_PROMPT = systemPrompt;
         // Vertex AI credentials (required for Gemini)
         if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON && process.env.GOOGLE_CLOUD_PROJECT) {
           console.log(`[E2B] Gemini will use Vertex AI authentication (project: ${process.env.GOOGLE_CLOUD_PROJECT})`);
@@ -892,13 +910,12 @@ export async function executeSetupInE2B(
         } else {
           console.error(`[E2B] Missing Vertex AI credentials for Gemini`);
         }
-      } else if (aiProvider === 'claude-sdk' && process.env.ANTHROPIC_API_KEY) {
-        // SDK requires API key (not OAuth token)
-        envVars.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-        console.log(`[E2B] Claude SDK will use ANTHROPIC_API_KEY`);
-      } else if (aiProvider === 'claude' && process.env.CLAUDE_CODE_OAUTH_TOKEN) {
-        // CLI uses OAuth token
-        envVars.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+      } else if (aiProvider === 'claude') {
+        // CLI: combined prompt
+        envVars.USER_PROMPT = systemPrompt;
+        if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+          envVars.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+        }
       }
     }
 
