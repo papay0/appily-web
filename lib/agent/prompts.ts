@@ -160,6 +160,12 @@ function buildConvexPromptSection(convexConfig: {
   return `**CONVEX BACKEND (ENABLED FOR THIS PROJECT):**
 This app uses Convex as its real-time backend. Convex is already configured and the environment variables are set.
 
+**🚫 DO NOT INSTALL CONVEX - IT'S ALREADY INSTALLED:**
+The \`convex\` package is pre-installed in the template's package.json. Do NOT run:
+- \`npx expo install convex\` ❌
+- \`npm install convex\` ❌
+These commands are unnecessary and waste time. Just start using Convex imports directly.
+
 **Convex Deployment URL:** ${convexConfig.deploymentUrl}
 
 **📖 IMPORTANT: Read the Convex Rules File First!**
