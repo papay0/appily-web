@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pan-pinch";
 import { ZoomIn, ZoomOut, RotateCcw, Loader2, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -94,7 +94,7 @@ interface StreamingPhoneMockupProps {
 }
 
 /** Component to display a single completed streamed HTML screen */
-function CompletedHtmlScreenPreview({
+const CompletedHtmlScreenPreview = React.memo(function CompletedHtmlScreenPreview({
   screen,
   theme,
 }: {
@@ -224,7 +224,7 @@ ${screen.html}
       </div>
     </div>
   );
-}
+});
 
 function StreamingPhoneMockup({
   theme,

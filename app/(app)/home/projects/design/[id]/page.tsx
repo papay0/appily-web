@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use, useRef, useCallback } from "react";
+import { useEffect, useState, use, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useSupabaseClient } from "@/lib/supabase-client";
@@ -303,6 +303,33 @@ export default function DesignPage({
     });
   }, []);
 
+  // Memoize theme to prevent re-renders (must be before early returns)
+  const theme = useMemo(() => ({
+    primary: "#8b5cf6",
+    secondary: "#d946ef",
+    background: "#ffffff",
+    foreground: "#1e293b",
+    accent: "#a855f7",
+    cssVariables:
+      ":root { --primary: #8b5cf6; --secondary: #d946ef; --background: #ffffff; --foreground: #1e293b; --accent: #a855f7; }",
+  }), []);
+
+  // Memoize included features list (must be before early returns)
+  const includedFeatures = useMemo(
+    () => features.filter((f) => f.is_included),
+    [features]
+  );
+
+  // Memoize features for design canvas to prevent re-renders (must be before early returns)
+  const featuresForDesign = useMemo(
+    () => includedFeatures.map((f) => ({
+      title: f.title,
+      description: f.description,
+      is_included: f.is_included,
+    })),
+    [includedFeatures]
+  );
+
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputValue(e.target.value);
     e.target.style.height = "auto";
@@ -358,27 +385,24 @@ export default function DesignPage({
 
     setIsSaving(true);
     try {
-      // Delete existing designs for this project (in case of re-generation)
-      await supabase
-        .from("project_designs")
-        .delete()
-        .eq("project_id", projectId);
-
-      // Save all completed screens to database
-      const designsToInsert: DesignInsert[] = completedScreens.map((screen, index) => ({
+      // Save all completed screens to database using upsert to handle duplicates
+      const designsToUpsert: DesignInsert[] = completedScreens.map((screen, index) => ({
         project_id: projectId,
         screen_name: screen.name,
         html_content: screen.html,
         sort_order: index,
       }));
 
-      const { error: insertError } = await supabase
+      const { error: upsertError } = await supabase
         .from("project_designs")
-        .insert(designsToInsert);
+        .upsert(designsToUpsert, {
+          onConflict: "project_id,screen_name",
+          ignoreDuplicates: false
+        });
 
-      if (insertError) {
-        console.error("Error saving designs:", insertError);
-        throw insertError;
+      if (upsertError) {
+        console.error("Error saving designs:", upsertError);
+        throw upsertError;
       }
 
       // Update project design_completed_at
@@ -431,8 +455,6 @@ export default function DesignPage({
   if (!project) {
     return null;
   }
-
-  const includedFeatures = features.filter((f) => f.is_included);
 
   return (
     <div className="flex flex-col h-full relative">
@@ -670,23 +692,11 @@ export default function DesignPage({
 
               <DesignCanvas
                 screens={[]}
-                theme={{
-                  primary: "#8b5cf6",
-                  secondary: "#d946ef",
-                  background: "#ffffff",
-                  foreground: "#1e293b",
-                  accent: "#a855f7",
-                  cssVariables:
-                    ":root { --primary: #8b5cf6; --secondary: #d946ef; --background: #ffffff; --foreground: #1e293b; --accent: #a855f7; }",
-                }}
+                theme={theme}
                 isStreaming={isStreaming}
                 streamingPrompt={streamingPrompt}
                 streamingScreenName="Preview"
-                features={includedFeatures.map((f) => ({
-                  title: f.title,
-                  description: f.description,
-                  is_included: f.is_included,
-                }))}
+                features={featuresForDesign}
                 streamedScreens={streamedScreens}
                 onStreamComplete={handleStreamComplete}
                 onScreenComplete={handleScreenComplete}
