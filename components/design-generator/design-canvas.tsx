@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pan-pinch";
-import { ZoomIn, ZoomOut, RotateCcw, Loader2, Copy, Check, Files } from "lucide-react";
+import { ZoomIn, ZoomOut, RotateCcw, Loader2, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScreenPreview } from "./screen-preview";
-import { StreamingScreenPreview, type ParsedScreen } from "./streaming-screen-preview";
+import { StreamingScreenPreview, type ParsedScreen, type DesignFeature } from "./streaming-screen-preview";
 import type { GeneratedScreen, GeneratedTheme } from "@/lib/ai/types";
 
 // iPhone 14 Pro dimensions
@@ -22,6 +22,8 @@ interface DesignCanvasProps {
   streamingPrompt?: string;
   /** Screen name for streaming generation */
   streamingScreenName?: string;
+  /** Features from planning phase for context-aware design */
+  features?: DesignFeature[];
   /** Completed streamed HTML screens to display after streaming ends */
   streamedScreens?: ParsedScreen[] | null;
   /** Callback when all HTML streaming completes */
@@ -85,6 +87,7 @@ interface StreamingPhoneMockupProps {
   isStreaming: boolean;
   prompt: string;
   screenName?: string;
+  features?: DesignFeature[];
   onStreamComplete?: (screens: ParsedScreen[]) => void;
   onScreenComplete?: (screen: ParsedScreen) => void;
   onStreamError?: (error: string) => void;
@@ -228,13 +231,14 @@ function StreamingPhoneMockup({
   isStreaming,
   prompt,
   screenName,
+  features,
   onStreamComplete,
   onScreenComplete,
   onStreamError,
 }: StreamingPhoneMockupProps) {
   const [contentHeight, setContentHeight] = useState(MIN_PHONE_HEIGHT);
 
-  console.log("[StreamingPhoneMockup] Rendering with:", { isStreaming, promptLength: prompt?.length, screenName });
+  console.log("[StreamingPhoneMockup] Rendering with:", { isStreaming, promptLength: prompt?.length, screenName, featuresCount: features?.length });
 
   return (
     <div className="flex flex-col items-start">
@@ -285,6 +289,7 @@ function StreamingPhoneMockup({
               backgroundColor={theme.background}
               prompt={prompt}
               screenName={screenName}
+              features={features}
               onHeightChange={setContentHeight}
               onStreamComplete={onStreamComplete}
               onScreenComplete={onScreenComplete}
@@ -293,46 +298,6 @@ function StreamingPhoneMockup({
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-// Copy All button component
-function CopyAllButton({ screens }: { screens: ParsedScreen[] }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopyAll = async () => {
-    try {
-      // Combine all screens with comments indicating screen names
-      const allHtml = screens
-        .map(screen => `<!-- Screen: ${screen.name} -->\n${screen.html}`)
-        .join("\n\n");
-
-      await navigator.clipboard.writeText(allHtml);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy all:", err);
-    }
-  };
-
-  if (screens.length === 0) return null;
-
-  return (
-    <div className="absolute bottom-6 right-6 flex items-center gap-2 bg-[#2a2a2a] rounded-full px-3 py-2 shadow-xl border border-gray-700">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={handleCopyAll}
-        className="h-8 text-gray-400 hover:text-white hover:bg-gray-700 gap-2"
-      >
-        {copied ? (
-          <Check className="h-4 w-4 text-green-400" />
-        ) : (
-          <Files className="h-4 w-4" />
-        )}
-        <span className="text-sm">{copied ? "Copied!" : `Copy All (${screens.length})`}</span>
-      </Button>
     </div>
   );
 }
@@ -385,12 +350,13 @@ export function DesignCanvas({
   isStreaming = false,
   streamingPrompt,
   streamingScreenName,
+  features,
   streamedScreens,
   onStreamComplete,
   onScreenComplete,
   onStreamError,
 }: DesignCanvasProps) {
-  const [scale, setScale] = useState(0.8);
+  const [scale, setScale] = useState(0.99);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Track completed HTML screens during streaming
@@ -438,7 +404,7 @@ export function DesignCanvas({
   return (
     <div ref={containerRef} className="relative h-full w-full bg-[#1a1a1a] overflow-hidden">
       <TransformWrapper
-        initialScale={0.6}
+        initialScale={0.99}
         minScale={0.2}
         maxScale={3}
         centerOnInit
@@ -497,6 +463,7 @@ export function DesignCanvas({
                 isStreaming={isStreaming}
                 prompt={streamingPrompt}
                 screenName={streamingScreenName}
+                features={features}
                 onStreamComplete={onStreamComplete}
                 onScreenComplete={handleScreenComplete}
                 onStreamError={onStreamError}
@@ -525,17 +492,6 @@ export function DesignCanvas({
 
           {/* Zoom Controls */}
           <ZoomControls scale={scale} />
-
-          {/* === COPY ALL BUTTONS === */}
-          {/* Copy All Button for HTML - show when there are completed screens */}
-          {!isStreaming && streamedScreens && streamedScreens.length > 0 && (
-            <CopyAllButton screens={streamedScreens} />
-          )}
-
-          {/* Copy All Button during HTML streaming - show completed screens so far */}
-          {isStreaming && completedDuringStreaming.length > 0 && (
-            <CopyAllButton screens={completedDuringStreaming} />
-          )}
         </>
       </TransformWrapper>
 

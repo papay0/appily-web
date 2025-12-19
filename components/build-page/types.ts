@@ -1,4 +1,5 @@
 import type { Feature } from "@/lib/types/features";
+import type { DesignForBuild } from "@/lib/types/designs";
 import type { HealthStatus } from "@/app/api/sandbox/health/route";
 import type { AIProvider } from "@/lib/agent/flows";
 
@@ -23,6 +24,7 @@ export interface BuildPageLayoutProps {
     appIdea: string;
     features: Feature[];
     imageKeys?: string[];
+    designs?: DesignForBuild[];
   };
 
   // Preview panel props

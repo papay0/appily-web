@@ -51,12 +51,21 @@ export interface FeatureGenerationResponse {
 }
 
 /**
+ * Design reference for the build prompt
+ */
+export interface DesignReference {
+  screenName: string;
+  html: string;
+}
+
+/**
  * Feature context for the build prompt
  */
 export interface FeatureContext {
   appIdea: string;
   includedFeatures: Feature[];
   excludedFeatures: Feature[];
+  designs?: DesignReference[];
 }
 
 /**
@@ -72,6 +81,36 @@ export function buildEnhancedPrompt(
 
   const excluded = context.excludedFeatures.map((f) => `- ${f.title}`).join("\n");
 
+  // Build design reference section if designs are available
+  let designSection = "";
+  if (context.designs && context.designs.length > 0) {
+    const designsText = context.designs
+      .map(
+        (d) => `### ${d.screenName}
+\`\`\`html
+${d.html}
+\`\`\``
+      )
+      .join("\n\n");
+
+    designSection = `
+
+**UI DESIGN REFERENCE (MATCH THESE DESIGNS):**
+HTML mockups are provided below. Convert them to React Native while matching the visual design as closely as possible.
+
+**Conversion Guide:**
+- <div> → <View>, <span/p/h1> → <Text>, <button> → <Pressable>
+- Tailwind padding/margin (p-4, m-2) → numeric values (padding: 16, margin: 8)
+- Tailwind rounded (rounded-xl) → borderRadius: 12
+- Use useColorScheme() for dark mode support where appropriate
+- Make all interactions FUNCTIONAL, not just visual
+
+**SCREENS:**
+${designsText}
+
+---`;
+  }
+
   return `I want to build a mobile app based on this idea:
 
 ${context.appIdea}
@@ -81,7 +120,7 @@ ${included || "- No specific features selected"}
 
 **FEATURES NOT TO BUILD:**
 ${excluded || "- None excluded"}
-
+${designSection}
 ---
 
 My request: ${userMessage}`;

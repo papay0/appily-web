@@ -55,11 +55,12 @@ export function AppBreadcrumbs({ projectName }: AppBreadcrumbsProps = {}) {
     );
   }
 
-  // Check if we're on a specific project page (build or plan)
-  // Pattern: /home/projects/build/[id] or /home/projects/plan/[id]
+  // Check if we're on a specific project page (build, plan, or design)
+  // Pattern: /home/projects/build/[id] or /home/projects/plan/[id] or /home/projects/design/[id]
   const isProjectBuildPage = segments[0] === "home" && segments[1] === "projects" && segments[2] === "build" && segments[3];
   const isProjectPlanPage = segments[0] === "home" && segments[1] === "projects" && segments[2] === "plan" && segments[3];
-  const isProjectPage = isProjectBuildPage || isProjectPlanPage;
+  const isProjectDesignPage = segments[0] === "home" && segments[1] === "projects" && segments[2] === "design" && segments[3];
+  const isProjectPage = isProjectBuildPage || isProjectPlanPage || isProjectDesignPage;
 
   if (isProjectPage && projectName) {
     return (

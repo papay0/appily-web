@@ -9,6 +9,13 @@ export interface ParsedScreen {
   html: string;
 }
 
+/** Feature input for context-aware design generation */
+export interface DesignFeature {
+  title: string;
+  description: string | null;
+  is_included: boolean;
+}
+
 interface StreamingScreenPreviewProps {
   /** CSS variables string for theming */
   cssVariables?: string;
@@ -24,6 +31,8 @@ interface StreamingScreenPreviewProps {
   prompt?: string;
   /** Optional screen name for the prompt */
   screenName?: string;
+  /** Features from planning phase for context-aware design */
+  features?: DesignFeature[];
   /** Callback when streaming completes with all screens */
   onStreamComplete?: (screens: ParsedScreen[]) => void;
   /** Callback when a single screen completes during streaming */
@@ -47,6 +56,7 @@ export function StreamingScreenPreview({
   onHeightChange,
   prompt,
   screenName,
+  features,
   onStreamComplete,
   onScreenComplete,
   onStreamError,
@@ -228,12 +238,17 @@ export function StreamingScreenPreview({
     };
 
     try {
-      console.log("[StreamingPreview] Fetching /api/ai/generate-design-stream...");
+      // Use feature-aware endpoint when features are provided
+      const apiEndpoint = features && features.length > 0
+        ? "/api/ai/generate-design-with-features"
+        : "/api/ai/generate-design-stream";
 
-      const response = await fetch("/api/ai/generate-design-stream", {
+      console.log(`[StreamingPreview] Fetching ${apiEndpoint}...`);
+
+      const response = await fetch(apiEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, screenName }),
+        body: JSON.stringify({ prompt, screenName, features }),
         signal: abortControllerRef.current.signal,
       });
 

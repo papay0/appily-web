@@ -19,6 +19,7 @@ interface Project {
   name: string;
   app_idea: string | null;
   planning_completed_at: string | null;
+  design_completed_at: string | null;
   image_keys: string[] | null;
 }
 
@@ -125,7 +126,7 @@ export default function PlanPage({
       try {
         const { data: projectData, error } = await supabase
           .from("projects")
-          .select("id, name, app_idea, planning_completed_at, image_keys")
+          .select("id, name, app_idea, planning_completed_at, design_completed_at, image_keys")
           .eq("id", projectId)
           .single();
 
@@ -135,9 +136,13 @@ export default function PlanPage({
           return;
         }
 
-        // If planning is already completed, redirect to build
+        // If planning is already completed, redirect to design or build
         if (projectData.planning_completed_at) {
-          router.push(`/home/projects/build/${projectId}`);
+          if (projectData.design_completed_at) {
+            router.push(`/home/projects/build/${projectId}`);
+          } else {
+            router.push(`/home/projects/design/${projectId}`);
+          }
           return;
         }
 
@@ -277,8 +282,8 @@ export default function PlanPage({
         throw projectError;
       }
 
-      // 3. Navigate to build page
-      router.push(`/home/projects/build/${projectId}`);
+      // 3. Navigate to design page
+      router.push(`/home/projects/design/${projectId}`);
     } catch (error) {
       console.error("Error starting build:", error);
       setIsSaving(false);
@@ -475,7 +480,7 @@ export default function PlanPage({
                 </>
               ) : (
                 <>
-                  <span>Start Building</span>
+                  <span>Continue to Design</span>
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}

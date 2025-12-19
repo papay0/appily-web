@@ -13,6 +13,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ProjectHeader } from "@/components/project-header";
 import { BuildPageDesktop, BuildPageMobile } from "@/components/build-page";
 import type { Feature } from "@/lib/types/features";
+import type { ProjectDesign, DesignForBuild } from "@/lib/types/designs";
+import { toDesignForBuild } from "@/lib/types/designs";
 import type { HealthStatus } from "@/app/api/sandbox/health/route";
 
 type ViewMode = "preview" | "code" | "database";
@@ -38,6 +40,7 @@ type Project = {
   session_id: string | null;
   app_idea: string | null;
   planning_completed_at: string | null;
+  design_completed_at: string | null;
   image_keys: string[] | null;
   ai_provider: "claude" | "gemini" | null;
   convex_project: ConvexProject | null;
@@ -56,6 +59,7 @@ export default function ProjectBuildPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [features, setFeatures] = useState<Feature[]>([]);
+  const [designs, setDesigns] = useState<DesignForBuild[]>([]);
 
   // E2B state (now synced from database via realtime)
   const [sandboxStatus, setSandboxStatus] = useState<SandboxStatus>("idle");
@@ -157,6 +161,19 @@ export default function ProjectBuildPage() {
 
           if (featuresData) {
             setFeatures(featuresData);
+          }
+        }
+
+        // Load designs if design phase was completed
+        if (projectData.design_completed_at) {
+          const { data: designsData } = await supabase
+            .from("project_designs")
+            .select("*")
+            .eq("project_id", projectId)
+            .order("sort_order", { ascending: true });
+
+          if (designsData && designsData.length > 0) {
+            setDesigns(toDesignForBuild(designsData as ProjectDesign[]));
           }
         }
 
@@ -573,7 +590,7 @@ export default function ProjectBuildPage() {
           sandboxId={project.e2b_sandbox_id || undefined}
           featureContext={
             project.app_idea
-              ? { appIdea: project.app_idea, features, imageKeys: project.image_keys || [] }
+              ? { appIdea: project.app_idea, features, imageKeys: project.image_keys || [], designs }
               : undefined
           }
           sandboxStatus={sandboxStatus}
@@ -592,7 +609,7 @@ export default function ProjectBuildPage() {
           sandboxId={project.e2b_sandbox_id || undefined}
           featureContext={
             project.app_idea
-              ? { appIdea: project.app_idea, features, imageKeys: project.image_keys || [] }
+              ? { appIdea: project.app_idea, features, imageKeys: project.image_keys || [], designs }
               : undefined
           }
           sandboxStatus={sandboxStatus}

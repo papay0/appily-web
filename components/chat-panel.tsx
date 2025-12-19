@@ -15,6 +15,7 @@ import { FeatureContextCard } from "./feature-context-card";
 import { UnifiedInput } from "./unified-input";
 import type { Feature } from "@/lib/types/features";
 import { buildEnhancedPrompt } from "@/lib/types/features";
+import type { DesignForBuild } from "@/lib/types/designs";
 import { generateId } from "@/lib/uuid";
 import type { AIProvider } from "@/lib/agent/flows";
 import { calculateCost } from "@/lib/utils/cost-calculator";
@@ -70,6 +71,7 @@ interface FeatureContext {
   appIdea: string;
   features: Feature[];
   imageKeys?: string[];
+  designs?: DesignForBuild[];
 }
 
 interface ChatPanelProps {
@@ -547,10 +549,16 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
     if (shouldIncludeContext) {
       const includedFeatures = featureContext.features.filter(f => f.is_included);
       const excludedFeatures = featureContext.features.filter(f => !f.is_included);
+      // Convert designs to the format expected by buildEnhancedPrompt
+      const designs = featureContext.designs?.map(d => ({
+        screenName: d.screenName,
+        html: d.html,
+      }));
       promptContent = buildEnhancedPrompt(messageText, {
         appIdea: featureContext.appIdea,
         includedFeatures,
         excludedFeatures,
+        designs,
       });
     }
 
