@@ -260,6 +260,81 @@ export async function generateDesignWithGemini(
   return text;
 }
 
+/** Input for feature generation with optional images */
+export interface FeatureGenerationInput {
+  prompt: string;
+  images?: Array<{
+    base64: string;
+    mimeType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+  }>;
+}
+
+/**
+ * Generate features using Gemini 2.5 Flash
+ * Optimized for speed - uses the fast Flash model instead of Pro
+ *
+ * @param input - Prompt and optional images for feature generation
+ * @returns Raw text response from the model (expected to be JSON)
+ */
+export async function generateFeaturesWithGemini(
+  input: FeatureGenerationInput
+): Promise<string> {
+  const client = getGeminiClient();
+
+  // Build content array: images first (if any), then text
+  const contents: Array<
+    | { text: string }
+    | { inlineData: { mimeType: string; data: string } }
+  > = [];
+
+  // Add images first (per Gemini Vision docs)
+  if (input.images && input.images.length > 0) {
+    for (const image of input.images) {
+      contents.push({
+        inlineData: {
+          mimeType: image.mimeType,
+          data: image.base64,
+        },
+      });
+    }
+  }
+
+  // Add text prompt
+  contents.push({ text: input.prompt });
+
+  const response = await client.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: contents,
+    config: {
+      responseMimeType: "application/json",
+    },
+  });
+
+  // Type the response structure
+  const typedResponse = response as {
+    candidates?: Array<{
+      content?: {
+        parts?: Array<{
+          text?: string;
+        }>;
+      };
+    }>;
+  };
+
+  const parts = typedResponse.candidates?.[0]?.content?.parts;
+
+  if (!parts || parts.length === 0) {
+    throw new Error("No content in Gemini response");
+  }
+
+  const text = parts[0]?.text;
+  if (!text) {
+    throw new Error("No text in Gemini response");
+  }
+
+  return text;
+}
+
 /**
  * Extract image data from Gemini response
  */

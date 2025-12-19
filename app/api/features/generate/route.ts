@@ -3,12 +3,14 @@
  *
  * POST /api/features/generate
  *
- * This endpoint uses Claude to analyze a user's app idea and generate
- * a list of suggested features with recommendations.
+ * This endpoint uses Gemini 2.5 Flash to analyze a user's app idea and generate
+ * a list of suggested features with recommendations. Uses Flash model for
+ * fast response times.
  *
  * Request body:
  * - projectId: string - Project ID to associate features with
  * - appIdea: string - User's description of their app idea
+ * - imageKeys: string[] - Optional R2 keys for reference images
  *
  * Response:
  * - features: Array<{title, description, is_recommended}>
@@ -16,13 +18,9 @@
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { buildFeatureGenerationPrompt } from "@/lib/agent/prompts";
 import { downloadFile } from "@/lib/r2-client";
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+import { generateFeaturesWithGemini } from "@/lib/ai/gemini-client";
 
 interface GeneratedFeature {
   title: string;
@@ -69,13 +67,16 @@ export async function POST(request: Request) {
     console.log(`[API] App idea length: ${appIdea.length} chars`);
     console.log(`[API] Image keys: ${validatedImageKeys.length}`);
 
-    // Fetch images from R2 as base64 for Claude Vision API
-    const imageContents: Anthropic.ImageBlockParam[] = [];
+    // Fetch images from R2 as base64 for Gemini Vision API
+    const images: Array<{
+      base64: string;
+      mimeType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+    }> = [];
     for (const key of validatedImageKeys) {
       try {
         const buffer = await downloadFile(key);
         const ext = key.split(".").pop()?.toLowerCase();
-        const mediaType: "image/png" | "image/gif" | "image/webp" | "image/jpeg" =
+        const mimeType: "image/png" | "image/gif" | "image/webp" | "image/jpeg" =
           ext === "png"
             ? "image/png"
             : ext === "gif"
@@ -83,13 +84,9 @@ export async function POST(request: Request) {
               : ext === "webp"
                 ? "image/webp"
                 : "image/jpeg";
-        imageContents.push({
-          type: "image",
-          source: {
-            type: "base64",
-            media_type: mediaType,
-            data: buffer.toString("base64"),
-          },
+        images.push({
+          base64: buffer.toString("base64"),
+          mimeType,
         });
         console.log(`[API] ✓ Loaded image: ${key}`);
       } catch (error) {
@@ -98,43 +95,27 @@ export async function POST(request: Request) {
       }
     }
 
-    // Build prompt and multimodal content for Claude
-    const hasImages = imageContents.length > 0;
+    // Build prompt for Gemini
+    const hasImages = images.length > 0;
     const prompt = buildFeatureGenerationPrompt({ appIdea, hasImages });
 
-    // Build content array: images first, then text (per Claude Vision docs)
-    const content: Anthropic.ContentBlockParam[] = [
-      ...imageContents,
-      { type: "text", text: prompt },
-    ];
-
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 2048,
-      messages: [{ role: "user", content }],
+    // Call Gemini 2.5 Flash for fast feature generation
+    const responseText = await generateFeaturesWithGemini({
+      prompt,
+      images: hasImages ? images : undefined,
     });
-
-    // Extract text content from response
-    const textBlock = response.content.find((block) => block.type === "text");
-    if (!textBlock || textBlock.type !== "text") {
-      console.error("[API] No text content in Claude response");
-      return NextResponse.json(
-        { error: "Failed to generate features" },
-        { status: 500 }
-      );
-    }
 
     // Parse JSON response
     let parsed: FeatureGenerationResponse;
     try {
       // Remove potential markdown code blocks if present
-      let jsonText = textBlock.text.trim();
+      let jsonText = responseText.trim();
       if (jsonText.startsWith("```")) {
         jsonText = jsonText.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
       }
       parsed = JSON.parse(jsonText);
     } catch (parseError) {
-      console.error("[API] Failed to parse Claude response:", textBlock.text);
+      console.error("[API] Failed to parse Gemini response:", responseText);
       console.error("[API] Parse error:", parseError);
       return NextResponse.json(
         { error: "Failed to parse feature suggestions" },
