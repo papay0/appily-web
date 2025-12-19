@@ -167,6 +167,52 @@ export async function editImageWithPrompt(
 }
 
 /**
+ * Generate streaming text using Gemini Pro 3
+ * Used for streaming HTML design generation
+ *
+ * @param prompt - The user prompt
+ * @param systemPrompt - System instructions for the model
+ * @yields Text chunks as they are generated
+ */
+export async function* generateDesignStreamingWithGemini(
+  prompt: string,
+  systemPrompt: string
+): AsyncGenerator<string, void, unknown> {
+  console.log("[Gemini Streaming] Starting streaming generation...");
+  console.log("[Gemini Streaming] Prompt length:", prompt.length);
+
+  const client = getGeminiClient();
+  console.log("[Gemini Streaming] Got client, calling generateContentStream...");
+
+  try {
+    const response = await client.models.generateContentStream({
+      model: "gemini-3-pro-preview",
+      contents: prompt,
+      config: {
+        systemInstruction: systemPrompt,
+      },
+    });
+
+    console.log("[Gemini Streaming] Got response iterator, starting to yield chunks...");
+
+    let chunkIndex = 0;
+    for await (const chunk of response) {
+      chunkIndex++;
+      const text = chunk.text;
+      console.log(`[Gemini Streaming] Chunk ${chunkIndex}: ${text ? text.substring(0, 30) + '...' : '(empty)'}`);
+      if (text) {
+        yield text;
+      }
+    }
+
+    console.log(`[Gemini Streaming] Finished streaming, total chunks: ${chunkIndex}`);
+  } catch (error) {
+    console.error("[Gemini Streaming] Error:", error);
+    throw error;
+  }
+}
+
+/**
  * Generate text/JSON using Gemini Pro 3
  * Used for design generation with structured output
  *

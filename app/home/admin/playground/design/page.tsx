@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Sparkles, Palette, AlertCircle, Code, Copy, Check, Send, User, Bot } from "lucide-react";
+import { ArrowLeft, Loader2, Sparkles, Palette, AlertCircle, Code, Copy, Check, Send, User, Bot, Zap } from "lucide-react";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -10,10 +10,20 @@ import {
 } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { DesignCanvas } from "@/components/design-generator/design-canvas";
+import type { ParsedScreen } from "@/components/design-generator/streaming-screen-preview";
 import type { DesignGenerationResult } from "@/lib/ai/types";
+
+type GenerationMode = "react" | "html";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -43,6 +53,12 @@ export default function DesignPlaygroundPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // Streaming mode state
+  const [generationMode, setGenerationMode] = useState<GenerationMode>("react");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingPrompt, setStreamingPrompt] = useState("");
+  const [streamedScreens, setStreamedScreens] = useState<ParsedScreen[] | null>(null);
+
   // Auto-scroll to bottom of messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -58,7 +74,7 @@ export default function DesignPlaygroundPage() {
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
 
-    if (!inputValue.trim() || isLoading) return;
+    if (!inputValue.trim() || isLoading || isStreaming) return;
 
     const userMessage = inputValue.trim();
     setInputValue("");
@@ -74,64 +90,125 @@ export default function DesignPlaygroundPage() {
     };
     setMessages(prev => [...prev, newUserMessage]);
 
-    setIsLoading(true);
     setError("");
 
-    try {
-      const isFollowUp = result !== null;
+    // Handle based on generation mode
+    if (generationMode === "html") {
+      // HTML Streaming Mode
+      setIsStreaming(true);
+      setStreamingPrompt(userMessage);
+      setStreamedScreens(null);
 
-      const res = await fetch("/api/ai/generate-design", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: userMessage,
-          // Send current design for follow-ups
-          currentDesign: isFollowUp ? result : undefined,
-          // Send conversation history for context
-          conversationHistory: messages.map(m => ({
-            role: m.role,
-            content: m.content,
-          })),
-        }),
-      });
+      // Add assistant message indicating streaming started
+      const streamingMessage: ChatMessage = {
+        role: "assistant",
+        content: "Generating your HTML design in real-time...",
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, streamingMessage]);
+    } else {
+      // React Mode (original behavior)
+      setIsLoading(true);
 
-      const data: DesignResponse = await res.json();
+      try {
+        const isFollowUp = result !== null;
 
-      if (data.success && data.data) {
-        setResult(data.data.design);
+        const res = await fetch("/api/ai/generate-design", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: userMessage,
+            // Send current design for follow-ups
+            currentDesign: isFollowUp ? result : undefined,
+            // Send conversation history for context
+            conversationHistory: messages.map(m => ({
+              role: m.role,
+              content: m.content,
+            })),
+          }),
+        });
 
-        // Add assistant message
-        const screensUpdated = data.data.design.screens.length;
-        const assistantMessage: ChatMessage = {
-          role: "assistant",
-          content: isFollowUp
-            ? `Updated the design. ${screensUpdated} screens are now ready.`
-            : `Created "${data.data.design.appName}" with ${screensUpdated} screens: ${data.data.design.screens.map(s => s.name).join(", ")}.`,
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, assistantMessage]);
-      } else {
-        setError(data.error?.message || "Failed to generate design");
-        // Add error as assistant message
+        const data: DesignResponse = await res.json();
+
+        if (data.success && data.data) {
+          setResult(data.data.design);
+
+          // Add assistant message
+          const screensUpdated = data.data.design.screens.length;
+          const assistantMessage: ChatMessage = {
+            role: "assistant",
+            content: isFollowUp
+              ? `Updated the design. ${screensUpdated} screens are now ready.`
+              : `Created "${data.data.design.appName}" with ${screensUpdated} screens: ${data.data.design.screens.map(s => s.name).join(", ")}.`,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, assistantMessage]);
+        } else {
+          setError(data.error?.message || "Failed to generate design");
+          // Add error as assistant message
+          const errorMessage: ChatMessage = {
+            role: "assistant",
+            content: `Sorry, I encountered an error: ${data.error?.message || "Failed to generate design"}`,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, errorMessage]);
+        }
+      } catch (err) {
+        console.error("Design generation error:", err);
+        setError("Failed to generate design. Please try again.");
         const errorMessage: ChatMessage = {
           role: "assistant",
-          content: `Sorry, I encountered an error: ${data.error?.message || "Failed to generate design"}`,
+          content: "Sorry, something went wrong. Please try again.",
           timestamp: new Date(),
         };
         setMessages(prev => [...prev, errorMessage]);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      console.error("Design generation error:", err);
-      setError("Failed to generate design. Please try again.");
-      const errorMessage: ChatMessage = {
-        role: "assistant",
-        content: "Sorry, something went wrong. Please try again.",
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
     }
+  };
+
+  // Handle HTML streaming completion
+  const handleStreamComplete = (screens: ParsedScreen[]) => {
+    setIsStreaming(false);
+    setStreamedScreens(screens);
+    setStreamingPrompt("");
+
+    // Update the last assistant message
+    setMessages(prev => {
+      const newMessages = [...prev];
+      const lastIndex = newMessages.length - 1;
+      if (lastIndex >= 0 && newMessages[lastIndex].role === "assistant") {
+        const screenNames = screens.map(s => s.name).join(", ");
+        newMessages[lastIndex] = {
+          ...newMessages[lastIndex],
+          content: screens.length === 1
+            ? `HTML design generated! The "${screens[0].name}" screen is now displayed on the canvas.`
+            : `HTML design generated! ${screens.length} screens created: ${screenNames}.`,
+        };
+      }
+      return newMessages;
+    });
+  };
+
+  // Handle streaming error
+  const handleStreamError = (errorMsg: string) => {
+    setIsStreaming(false);
+    setStreamingPrompt("");
+    setError(errorMsg);
+
+    // Update the last assistant message
+    setMessages(prev => {
+      const newMessages = [...prev];
+      const lastIndex = newMessages.length - 1;
+      if (lastIndex >= 0 && newMessages[lastIndex].role === "assistant") {
+        newMessages[lastIndex] = {
+          ...newMessages[lastIndex],
+          content: `Sorry, streaming failed: ${errorMsg}`,
+        };
+      }
+      return newMessages;
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -156,6 +233,10 @@ export default function DesignPlaygroundPage() {
     setResult(null);
     setError("");
     setSelectedScreenIndex(0);
+    // Reset streaming state
+    setIsStreaming(false);
+    setStreamingPrompt("");
+    setStreamedScreens(null);
   };
 
   const selectedScreen = result?.screens[selectedScreenIndex];
@@ -187,6 +268,34 @@ export default function DesignPlaygroundPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Generation Mode Toggle */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 font-medium">Mode:</span>
+            <Select
+              value={generationMode}
+              onValueChange={(value: GenerationMode) => setGenerationMode(value)}
+              disabled={isLoading || isStreaming}
+            >
+              <SelectTrigger className="w-[160px] h-8 text-sm border-gray-200 rounded-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="react">
+                  <div className="flex items-center gap-2">
+                    <Code className="size-3.5 text-gray-500" />
+                    <span>React</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="html">
+                  <div className="flex items-center gap-2">
+                    <Zap className="size-3.5 text-blue-500" />
+                    <span>HTML (Streaming)</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Theme colors preview */}
           {result && (
             <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-full border border-gray-100">
@@ -216,6 +325,7 @@ export default function DesignPlaygroundPage() {
               size="sm"
               onClick={handleNewChat}
               className="text-sm border-gray-200 text-gray-600 hover:text-[#1A2B48] hover:border-[#1A2B48] rounded-full px-4"
+              disabled={isStreaming}
             >
               New Chat
             </Button>
@@ -351,6 +461,13 @@ export default function DesignPlaygroundPage() {
 
                   {/* Input Area */}
                   <div className="flex-shrink-0 border-t border-gray-100 p-4 bg-white">
+                    {/* Mode indicator */}
+                    {generationMode === "html" && (
+                      <div className="flex items-center gap-2 mb-3 text-xs text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full w-fit">
+                        <Zap className="size-3" />
+                        <span>HTML streaming: UI builds in real-time</span>
+                      </div>
+                    )}
                     <form onSubmit={handleSubmit} className="flex gap-3">
                       <div className="flex-1 relative">
                         <textarea
@@ -358,18 +475,24 @@ export default function DesignPlaygroundPage() {
                           value={inputValue}
                           onChange={handleInputChange}
                           onKeyDown={handleKeyDown}
-                          placeholder={result ? "Ask for changes..." : "Describe your app..."}
+                          placeholder={
+                            generationMode === "html"
+                              ? "Describe your app to generate..."
+                              : result
+                                ? "Ask for changes..."
+                                : "Describe your app..."
+                          }
                           rows={1}
                           className="w-full resize-none bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A2B48]/20 focus:border-[#1A2B48] transition-all"
-                          disabled={isLoading}
+                          disabled={isLoading || isStreaming}
                         />
                       </div>
                       <Button
                         type="submit"
-                        disabled={isLoading || !inputValue.trim()}
+                        disabled={isLoading || isStreaming || !inputValue.trim()}
                         className="bg-[#1A2B48] hover:bg-[#1A2B48]/90 text-white rounded-xl px-4 shadow-sm disabled:opacity-50"
                       >
-                        {isLoading ? (
+                        {isLoading || isStreaming ? (
                           <Loader2 className="size-4 animate-spin" />
                         ) : (
                           <Send className="size-4" />
@@ -431,7 +554,26 @@ export default function DesignPlaygroundPage() {
 
           {/* Right Panel - Canvas */}
           <ResizablePanel defaultSize={72}>
-            {result ? (
+            {/* HTML Streaming mode canvas */}
+            {generationMode === "html" && (isStreaming || streamedScreens) ? (
+              <DesignCanvas
+                screens={[]}
+                theme={{
+                  primary: "#6366f1",
+                  secondary: "#818cf8",
+                  background: "#ffffff",
+                  foreground: "#1f2937",
+                  accent: "#8b5cf6",
+                  cssVariables: ":root { --primary: #6366f1; --secondary: #818cf8; --background: #ffffff; --foreground: #1f2937; --accent: #8b5cf6; }",
+                }}
+                isStreaming={isStreaming}
+                streamingPrompt={streamingPrompt}
+                streamingScreenName="Preview"
+                streamedScreens={streamedScreens}
+                onStreamComplete={handleStreamComplete}
+                onStreamError={handleStreamError}
+              />
+            ) : result ? (
               <DesignCanvas screens={result.screens} theme={result.theme} />
             ) : isLoading ? (
               <div className="h-full flex items-center justify-center bg-gray-50 relative">
