@@ -146,7 +146,12 @@ IMPORTANT:
 - Each screen must have both SCREEN_START and SCREEN_END comments
 - Make the designs BEAUTIFUL - this is the most important requirement
 - Include realistic placeholder content (user names, numbers, text)
-- Auto-determine the most relevant screens based on the app description and features`;
+- Auto-determine the most relevant screens based on the app description and features
+
+SUMMARY - REQUIRED AT THE END:
+After all screens are complete, include a brief summary comment:
+<!-- SUMMARY: [Brief 1-2 sentence description of the screens you created] -->
+Example: <!-- SUMMARY: Created 5 screens for a fitness tracking app: Home with workout stats, Exercise Library with categorized exercises, Workout Session with timer and reps, Progress charts, and Profile with settings. -->`;
 
   return basePrompt + featuresContext + outputFormat;
 }
@@ -264,7 +269,16 @@ If user says "change the title on Home and Profile":
 ...modified Profile...
 <!-- SCREEN_END -->
 
-Now respond to the user's request. Remember: use SCREEN_EDIT for existing screens, SCREEN_START for new screens.`;
+SUMMARY - REQUIRED AT THE END:
+After all screen HTML is complete, you MUST include a brief summary comment explaining what you did:
+<!-- SUMMARY: [Your explanation here in 1-2 sentences] -->
+
+Examples:
+- <!-- SUMMARY: Changed the header title from "Home" to "Dashboard" and updated the navigation bar color to match. -->
+- <!-- SUMMARY: Added a new Settings screen with profile preferences, notification toggles, and a logout button. -->
+- <!-- SUMMARY: Updated the Home and Profile screens to use a dark blue color scheme with improved contrast. -->
+
+Now respond to the user's request. Remember: use SCREEN_EDIT for existing screens, SCREEN_START for new screens, and always end with a SUMMARY comment.`;
     } else if (screenName) {
       userPrompt = `Create a beautiful mobile app screen for "${screenName}" with the following description:\n\n${prompt}\n\nMake it visually stunning with a modern mobile app design.`;
     } else {

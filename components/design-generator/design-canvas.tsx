@@ -50,6 +50,8 @@ interface DesignCanvasProps {
   onScreenNewStart?: (screenName: string) => void;
   /** Callback when streaming errors */
   onStreamError?: (error: string) => void;
+  /** Callback when AI summary is received */
+  onSummaryReceived?: (summary: string) => void;
 }
 
 function PhoneMockup({ screen, theme }: { screen: GeneratedScreen; theme: GeneratedTheme }) {
@@ -113,6 +115,7 @@ interface StreamingPhoneMockupProps {
   onScreenEditStart?: (screenName: string) => void;
   onScreenNewStart?: (screenName: string) => void;
   onStreamError?: (error: string) => void;
+  onSummaryReceived?: (summary: string) => void;
 }
 
 /** Component to display a single completed streamed HTML screen */
@@ -275,6 +278,7 @@ function StreamingPhoneMockup({
   onScreenEditStart,
   onScreenNewStart,
   onStreamError,
+  onSummaryReceived,
 }: StreamingPhoneMockupProps) {
   const [contentHeight, setContentHeight] = useState(MIN_PHONE_HEIGHT);
 
@@ -336,6 +340,7 @@ function StreamingPhoneMockup({
               onScreenEditStart={onScreenEditStart}
               onScreenNewStart={onScreenNewStart}
               onStreamError={onStreamError}
+              onSummaryReceived={onSummaryReceived}
             />
           </div>
         </div>
@@ -403,6 +408,7 @@ export function DesignCanvas({
   onScreenEditStart,
   onScreenNewStart,
   onStreamError,
+  onSummaryReceived,
 }: DesignCanvasProps) {
   const [scale, setScale] = useState(0.99);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -526,6 +532,7 @@ export function DesignCanvas({
                   onScreenEditStart={onScreenEditStart}
                   onScreenNewStart={onScreenNewStart}
                   onStreamError={onStreamError}
+                  onSummaryReceived={onSummaryReceived}
                 />
               </div>
             )}

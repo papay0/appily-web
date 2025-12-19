@@ -89,7 +89,12 @@ IMPORTANT:
 - Each screen must have both SCREEN_START and SCREEN_END comments
 - Make the designs BEAUTIFUL - this is the most important requirement
 - Include realistic placeholder content (user names, numbers, text)
-- Auto-determine the most relevant screens based on the app description`;
+- Auto-determine the most relevant screens based on the app description
+
+SUMMARY - REQUIRED AT THE END:
+After all screens are complete, include a brief summary comment:
+<!-- SUMMARY: [Brief 1-2 sentence description of the screens you created] -->
+Example: <!-- SUMMARY: Created 5 screens for a fitness tracking app: Home with workout stats, Exercise Library with categorized exercises, Workout Session with timer and reps, Progress charts, and Profile with settings. -->`;
 
 export async function POST(request: Request): Promise<Response> {
   console.log("[Design Stream] POST request received");

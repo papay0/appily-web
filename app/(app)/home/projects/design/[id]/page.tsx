@@ -97,6 +97,7 @@ export default function DesignPage({
   const [completedScreens, setCompletedScreens] = useState<ParsedScreen[]>([]);
   const [editingScreenNames, setEditingScreenNames] = useState<Set<string>>(new Set());
   const [hasNewScreenInProgress, setHasNewScreenInProgress] = useState(false);
+  const aiSummaryRef = useRef<string | null>(null);
   const hasAutoStarted = useRef(false);
   const [copiedAll, setCopiedAll] = useState(false);
   const [hasLoadedFromDb, setHasLoadedFromDb] = useState(false);
@@ -214,6 +215,7 @@ export default function DesignPage({
   const startDesignGeneration = async (prompt: string, isAutoStart = false) => {
     setIsStreaming(true);
     setStreamingPrompt(prompt);
+    aiSummaryRef.current = null; // Reset AI summary for new generation
     // Only clear screens for initial generation, not for follow-ups
     if (isAutoStart) {
       setStreamedScreens(null);
@@ -261,13 +263,13 @@ export default function DesignPage({
   // Save a single screen to database as it completes
   const saveScreenToDatabase = useCallback(async (screen: ParsedScreen, sortOrder: number) => {
     try {
-      // Check if screen already exists for this project
+      // Check if screen already exists for this project (use maybeSingle to avoid error when not found)
       const { data: existing } = await supabase
         .from("project_designs")
         .select("id")
         .eq("project_id", projectId)
         .eq("screen_name", screen.name)
-        .single();
+        .maybeSingle();
 
       if (existing) {
         // Update existing screen
@@ -299,6 +301,12 @@ export default function DesignPage({
   // Handle when a NEW screen starts (to show streaming preview)
   const handleScreenNewStart = useCallback((screenName: string) => {
     setHasNewScreenInProgress(true);
+  }, []);
+
+  // Handle when AI summary is received
+  const handleSummaryReceived = useCallback((summary: string) => {
+    console.log("[DesignPage] Summary received:", summary);
+    aiSummaryRef.current = summary;
   }, []);
 
   // Handle when a single screen completes during streaming
@@ -359,21 +367,27 @@ export default function DesignPage({
       return merged;
     });
 
-    // Build the final assistant message
-    const editedScreens = screens.filter((s) => s.isEdit);
-    const newScreens = screens.filter((s) => !s.isEdit);
-
+    // Use AI summary if available, otherwise build a generic message
     let finalContent: string;
-    if (editedScreens.length > 0 && newScreens.length > 0) {
-      finalContent = `Updated ${editedScreens.map((s) => s.name).join(", ")} and added ${newScreens.map((s) => s.name).join(", ")}.`;
-    } else if (editedScreens.length > 0) {
-      finalContent = editedScreens.length === 1
-        ? `Updated the "${editedScreens[0].name}" screen.`
-        : `Updated ${editedScreens.length} screens: ${editedScreens.map((s) => s.name).join(", ")}.`;
+    console.log("[DesignPage] handleStreamComplete - aiSummaryRef.current:", aiSummaryRef.current);
+    if (aiSummaryRef.current) {
+      finalContent = aiSummaryRef.current;
     } else {
-      finalContent = screens.length === 1
-        ? `Design generated! The "${screens[0].name}" screen is now displayed.`
-        : `Design generated! ${screens.length} screens created: ${screens.map((s) => s.name).join(", ")}.`;
+      // Fallback: build a generic message
+      const editedScreens = screens.filter((s) => s.isEdit);
+      const newScreens = screens.filter((s) => !s.isEdit);
+
+      if (editedScreens.length > 0 && newScreens.length > 0) {
+        finalContent = `Updated ${editedScreens.map((s) => s.name).join(", ")} and added ${newScreens.map((s) => s.name).join(", ")}.`;
+      } else if (editedScreens.length > 0) {
+        finalContent = editedScreens.length === 1
+          ? `Updated the "${editedScreens[0].name}" screen.`
+          : `Updated ${editedScreens.length} screens: ${editedScreens.map((s) => s.name).join(", ")}.`;
+      } else {
+        finalContent = screens.length === 1
+          ? `Design generated! The "${screens[0].name}" screen is now displayed.`
+          : `Design generated! ${screens.length} screens created: ${screens.map((s) => s.name).join(", ")}.`;
+      }
     }
 
     // Update the last assistant message
@@ -823,6 +837,7 @@ export default function DesignPage({
                 onScreenEditStart={handleScreenEditStart}
                 onScreenNewStart={handleScreenNewStart}
                 onStreamError={handleStreamError}
+                onSummaryReceived={handleSummaryReceived}
               />
             </div>
           </ResizablePanel>

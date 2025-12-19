@@ -61,6 +61,8 @@ interface StreamingScreenPreviewProps {
   onScreenNewStart?: (screenName: string) => void;
   /** Callback when an error occurs */
   onStreamError?: (error: string) => void;
+  /** Callback when AI summary is received */
+  onSummaryReceived?: (summary: string) => void;
 }
 
 // Mobile viewport dimensions (iPhone 14 Pro)
@@ -86,6 +88,7 @@ export function StreamingScreenPreview({
   onScreenEditStart,
   onScreenNewStart,
   onStreamError,
+  onSummaryReceived,
 }: StreamingScreenPreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [contentHeight, setContentHeight] = useState(MIN_MOBILE_HEIGHT);
@@ -204,6 +207,7 @@ export function StreamingScreenPreview({
     let currentHtml = "";
     let currentIsEdit = false; // Track if current screen is an edit vs new
     let rawBuffer = ""; // Buffer for unparsed content
+    let summaryExtracted = false; // Track if we've already extracted the summary
 
     // Helper to reinitialize iframe for a new screen
     const reinitializeIframe = () => {
@@ -387,6 +391,17 @@ export function StreamingScreenPreview({
                     // Remove processed content from buffer
                     rawBuffer = rawBuffer.substring(endIndex + endMatch[0].length);
 
+                    // Check if summary is in the remaining buffer
+                    if (!summaryExtracted) {
+                      const summaryMatch = rawBuffer.match(/<!-- SUMMARY: ([\s\S]+?) -->/);
+                      console.log("[StreamingPreview] After SCREEN_END, checking for summary. Buffer length:", rawBuffer.length);
+                      if (summaryMatch) {
+                        console.log("[StreamingPreview] Found summary after SCREEN_END:", summaryMatch[1]);
+                        onSummaryReceived?.(summaryMatch[1].trim());
+                        summaryExtracted = true;
+                      }
+                    }
+
                     // Reinitialize iframe for next screen
                     const newDoc = reinitializeIframe();
                     if (newDoc) {
@@ -418,6 +433,9 @@ export function StreamingScreenPreview({
               }
 
               if (data.done) {
+                console.log("[StreamingPreview] Stream done. rawBuffer length:", rawBuffer.length);
+                console.log("[StreamingPreview] rawBuffer content (last 500 chars):", rawBuffer.slice(-500));
+
                 // Write any remaining buffer content
                 if (rawBuffer.trim() && currentName) {
                   currentHtml += rawBuffer;
@@ -431,6 +449,16 @@ export function StreamingScreenPreview({
                   };
                   completedScreens.push(finalScreen);
                   onScreenComplete?.(finalScreen);
+                }
+
+                // Try to extract summary from remaining buffer if not already done
+                if (!summaryExtracted) {
+                  const summaryMatch = rawBuffer.match(/<!-- SUMMARY: ([\s\S]+?) -->/);
+                  console.log("[StreamingPreview] Summary match result:", summaryMatch ? summaryMatch[1] : "NO MATCH");
+                  if (summaryMatch) {
+                    onSummaryReceived?.(summaryMatch[1].trim());
+                    summaryExtracted = true;
+                  }
                 }
 
                 // Close the document
