@@ -16,6 +16,18 @@ export interface DesignFeature {
   is_included: boolean;
 }
 
+/** Current screen for follow-up context */
+export interface CurrentScreen {
+  name: string;
+  html: string;
+}
+
+/** Conversation message for context */
+export interface ConversationMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 interface StreamingScreenPreviewProps {
   /** CSS variables string for theming */
   cssVariables?: string;
@@ -33,6 +45,10 @@ interface StreamingScreenPreviewProps {
   screenName?: string;
   /** Features from planning phase for context-aware design */
   features?: DesignFeature[];
+  /** Current screens for follow-up context */
+  currentScreens?: CurrentScreen[];
+  /** Conversation history for context */
+  conversationHistory?: ConversationMessage[];
   /** Callback when streaming completes with all screens */
   onStreamComplete?: (screens: ParsedScreen[]) => void;
   /** Callback when a single screen completes during streaming */
@@ -57,6 +73,8 @@ export function StreamingScreenPreview({
   prompt,
   screenName,
   features,
+  currentScreens,
+  conversationHistory,
   onStreamComplete,
   onScreenComplete,
   onStreamError,
@@ -216,15 +234,22 @@ export function StreamingScreenPreview({
     };
 
     try {
-      // Use feature-aware endpoint when features are provided
-      const apiEndpoint = features && features.length > 0
+      // Use feature-aware endpoint when features are provided or when we have current screens (follow-up)
+      const hasContext = (features && features.length > 0) || (currentScreens && currentScreens.length > 0);
+      const apiEndpoint = hasContext
         ? "/api/ai/generate-design-with-features"
         : "/api/ai/generate-design-stream";
 
       const response = await fetch(apiEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, screenName, features }),
+        body: JSON.stringify({
+          prompt,
+          screenName,
+          features,
+          currentScreens,
+          conversationHistory,
+        }),
         signal: abortControllerRef.current.signal,
       });
 

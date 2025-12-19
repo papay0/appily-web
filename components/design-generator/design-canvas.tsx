@@ -5,7 +5,13 @@ import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pa
 import { ZoomIn, ZoomOut, RotateCcw, Loader2, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScreenPreview } from "./screen-preview";
-import { StreamingScreenPreview, type ParsedScreen, type DesignFeature } from "./streaming-screen-preview";
+import {
+  StreamingScreenPreview,
+  type ParsedScreen,
+  type DesignFeature,
+  type CurrentScreen,
+  type ConversationMessage,
+} from "./streaming-screen-preview";
 import type { GeneratedScreen, GeneratedTheme } from "@/lib/ai/types";
 
 // iPhone 14 Pro dimensions
@@ -24,6 +30,10 @@ interface DesignCanvasProps {
   streamingScreenName?: string;
   /** Features from planning phase for context-aware design */
   features?: DesignFeature[];
+  /** Current screens for follow-up context */
+  currentScreens?: CurrentScreen[];
+  /** Conversation history for context */
+  conversationHistory?: ConversationMessage[];
   /** Completed streamed HTML screens to display after streaming ends */
   streamedScreens?: ParsedScreen[] | null;
   /** Callback when all HTML streaming completes */
@@ -88,6 +98,8 @@ interface StreamingPhoneMockupProps {
   prompt: string;
   screenName?: string;
   features?: DesignFeature[];
+  currentScreens?: CurrentScreen[];
+  conversationHistory?: ConversationMessage[];
   onStreamComplete?: (screens: ParsedScreen[]) => void;
   onScreenComplete?: (screen: ParsedScreen) => void;
   onStreamError?: (error: string) => void;
@@ -232,6 +244,8 @@ function StreamingPhoneMockup({
   prompt,
   screenName,
   features,
+  currentScreens,
+  conversationHistory,
   onStreamComplete,
   onScreenComplete,
   onStreamError,
@@ -288,6 +302,8 @@ function StreamingPhoneMockup({
               prompt={prompt}
               screenName={screenName}
               features={features}
+              currentScreens={currentScreens}
+              conversationHistory={conversationHistory}
               onHeightChange={setContentHeight}
               onStreamComplete={onStreamComplete}
               onScreenComplete={onScreenComplete}
@@ -349,6 +365,8 @@ export function DesignCanvas({
   streamingPrompt,
   streamingScreenName,
   features,
+  currentScreens,
+  conversationHistory,
   streamedScreens,
   onStreamComplete,
   onScreenComplete,
@@ -452,6 +470,8 @@ export function DesignCanvas({
                 prompt={streamingPrompt}
                 screenName={streamingScreenName}
                 features={features}
+                currentScreens={currentScreens}
+                conversationHistory={conversationHistory}
                 onStreamComplete={onStreamComplete}
                 onScreenComplete={handleScreenComplete}
                 onStreamError={onStreamError}

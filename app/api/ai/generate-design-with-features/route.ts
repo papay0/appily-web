@@ -18,18 +18,35 @@ interface FeatureInput {
   is_included: boolean;
 }
 
+interface CurrentScreen {
+  name: string;
+  html: string;
+}
+
+interface ConversationMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 interface RequestBody {
   prompt: string;
   projectId?: string;
   features?: FeatureInput[];
   screenName?: string;
+  /** Current screens for follow-up context */
+  currentScreens?: CurrentScreen[];
+  /** Conversation history for context */
+  conversationHistory?: ConversationMessage[];
 }
 
 /**
  * Build the system prompt for design generation
  * Includes features context when available for better designs
  */
-function buildDesignSystemPrompt(features?: FeatureInput[]): string {
+function buildDesignSystemPrompt(
+  features?: FeatureInput[],
+  isFollowUp?: boolean
+): string {
   const basePrompt = `You are an expert mobile app UI designer. Your task is to generate beautiful, production-quality HTML designs for mobile apps using Tailwind CSS.
 
 CRITICAL OUTPUT RULES:
@@ -152,7 +169,7 @@ export async function POST(request: Request): Promise<Response> {
       )
     );
 
-    const { prompt, features, screenName } = body;
+    const { prompt, features, screenName, currentScreens, conversationHistory } = body;
 
     // Validate prompt
     if (!prompt || typeof prompt !== "string" || prompt.trim().length === 0) {
@@ -163,20 +180,67 @@ export async function POST(request: Request): Promise<Response> {
       });
     }
 
+    // Detect if this is a follow-up request (has existing screens)
+    const isFollowUp = currentScreens && currentScreens.length > 0;
+
     console.log(
       `[Design Stream + Features] Starting stream for: ${prompt.substring(0, 100)}...`
     );
     console.log(
       `[Design Stream + Features] Features context: ${features?.length || 0} features`
     );
+    console.log(
+      `[Design Stream + Features] Is follow-up: ${isFollowUp}, current screens: ${currentScreens?.length || 0}`
+    );
 
     // Build the system prompt with features context
-    const systemPrompt = buildDesignSystemPrompt(features);
+    const systemPrompt = buildDesignSystemPrompt(features, isFollowUp);
 
-    // Build the user prompt
-    const userPrompt = screenName
-      ? `Create a beautiful mobile app screen for "${screenName}" with the following description:\n\n${prompt}\n\nMake it visually stunning with a modern mobile app design.`
-      : `Create beautiful mobile app screens for the following app idea:\n\n${prompt}\n\nGenerate screens that represent the core functionality of this app.`;
+    // Build the user prompt - include current design context for follow-ups
+    let userPrompt: string;
+
+    if (isFollowUp && currentScreens) {
+      // Build context from existing screens
+      const screensSummary = currentScreens
+        .map((s, i) => `${i + 1}. ${s.name}`)
+        .join("\n");
+
+      // Build conversation context if available
+      const conversationContext = conversationHistory && conversationHistory.length > 0
+        ? `\nConversation so far:\n${conversationHistory
+            .slice(-6) // Keep last 6 messages for context
+            .map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+            .join("\n")}\n`
+        : "";
+
+      // Include the full HTML of existing screens so Gemini can modify them
+      const screensCode = currentScreens
+        .map(s => `\n=== ${s.name} ===\n${s.html}`)
+        .join("\n");
+
+      userPrompt = `You are updating an existing mobile app design.
+${conversationContext}
+Current screens:
+${screensSummary}
+
+Here is the complete current HTML code for each screen:
+${screensCode}
+
+User's request: "${prompt}"
+
+IMPORTANT INSTRUCTIONS FOR MODIFICATIONS:
+- Carefully analyze the user's request to understand what changes they want
+- If they want to modify existing screens, output the MODIFIED versions of those screens
+- Keep the same screen names unless the user explicitly asks to rename them
+- Preserve the overall design style and color scheme unless asked to change it
+- If adding new screens, make them consistent with the existing design
+- Output ONLY the screens that need changes or new screens requested
+- Each screen must still use <!-- SCREEN_START: Name --> and <!-- SCREEN_END --> delimiters`;
+    } else if (screenName) {
+      userPrompt = `Create a beautiful mobile app screen for "${screenName}" with the following description:\n\n${prompt}\n\nMake it visually stunning with a modern mobile app design.`;
+    } else {
+      userPrompt = `Create beautiful mobile app screens for the following app idea:\n\n${prompt}\n\nGenerate screens that represent the core functionality of this app.`;
+    }
 
     console.log("[Design Stream + Features] Creating ReadableStream...");
 

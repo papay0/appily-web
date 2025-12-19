@@ -76,3 +76,23 @@ export interface DesignGenerationResponse {
     html: string;
   }>;
 }
+
+/**
+ * A design chat message from the database
+ */
+export interface DesignMessage {
+  id: string;
+  project_id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+}
+
+/**
+ * Design message data for creating a new message (without DB-generated fields)
+ */
+export interface DesignMessageInsert {
+  project_id: string;
+  role: "user" | "assistant";
+  content: string;
+}

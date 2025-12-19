@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 import { DesignCanvas } from "@/components/design-generator/design-canvas";
 import type { ParsedScreen } from "@/components/design-generator/streaming-screen-preview";
 import type { Feature } from "@/lib/types/features";
-import type { ProjectDesign, DesignInsert } from "@/lib/types/designs";
+import type { ProjectDesign, DesignInsert, DesignMessage, DesignMessageInsert } from "@/lib/types/designs";
 
 interface Project {
   id: string;
@@ -165,12 +165,30 @@ export default function DesignPage({
           setStreamedScreens(screens);
           setCompletedScreens(screens);
           setHasLoadedFromDb(true);
-          // Add a message showing designs were loaded
-          setMessages([{
-            role: "assistant",
-            content: `Welcome back! Your ${screens.length} design${screens.length !== 1 ? "s" : ""} ${screens.length !== 1 ? "are" : "is"} ready: ${screens.map(s => s.name).join(", ")}.`,
-            timestamp: new Date(),
-          }]);
+
+          // Load conversation history from database
+          const { data: savedMessages } = await supabase
+            .from("design_messages")
+            .select("*")
+            .eq("project_id", projectId)
+            .order("created_at", { ascending: true });
+
+          if (savedMessages && savedMessages.length > 0) {
+            // Convert database messages to ChatMessage format
+            const chatMessages: ChatMessage[] = savedMessages.map((m: DesignMessage) => ({
+              role: m.role,
+              content: m.content,
+              timestamp: new Date(m.created_at),
+            }));
+            setMessages(chatMessages);
+          } else {
+            // Fallback: show a welcome back message if no messages were saved
+            setMessages([{
+              role: "assistant",
+              content: `Welcome back! Your ${screens.length} design${screens.length !== 1 ? "s" : ""} ${screens.length !== 1 ? "are" : "is"} ready: ${screens.map(s => s.name).join(", ")}.`,
+              timestamp: new Date(),
+            }]);
+          }
         }
 
         setLoading(false);
@@ -206,16 +224,34 @@ export default function DesignPage({
         timestamp: new Date(),
       };
       setMessages([appIdeaMessage]);
+      // Save to database
+      saveMessageToDatabase("user", prompt);
     }
 
-    // Add assistant message indicating streaming started
+    // Add assistant message indicating streaming started (placeholder, will be updated when complete)
     const streamingMessage: ChatMessage = {
       role: "assistant",
       content: "Generating your app design...",
       timestamp: new Date(),
     };
     setMessages((prev) => [...prev, streamingMessage]);
+    // Note: We don't save this placeholder message - we'll save the final message when streaming completes
   };
+
+  // Save a message to the database
+  const saveMessageToDatabase = useCallback(async (role: "user" | "assistant", content: string) => {
+    try {
+      await supabase
+        .from("design_messages")
+        .insert({
+          project_id: projectId,
+          role,
+          content,
+        } as DesignMessageInsert);
+    } catch (error) {
+      console.error("Error saving message to database:", error);
+    }
+  }, [supabase, projectId]);
 
   // Save a single screen to database as it completes
   const saveScreenToDatabase = useCallback(async (screen: ParsedScreen, sortOrder: number) => {
@@ -267,28 +303,35 @@ export default function DesignPage({
     setStreamingPrompt("");
     // Note: screens are already added via handleScreenComplete, so we don't add again
 
+    // Build the final assistant message
+    const screenNames = screens.map((s) => s.name).join(", ");
+    const finalContent = screens.length === 1
+      ? `Design generated! The "${screens[0].name}" screen is now displayed.`
+      : `Design generated! ${screens.length} screens created: ${screenNames}.`;
+
     // Update the last assistant message
     setMessages((prev) => {
       const newMessages = [...prev];
       const lastIndex = newMessages.length - 1;
       if (lastIndex >= 0 && newMessages[lastIndex].role === "assistant") {
-        const screenNames = screens.map((s) => s.name).join(", ");
         newMessages[lastIndex] = {
           ...newMessages[lastIndex],
-          content:
-            screens.length === 1
-              ? `Design generated! The "${screens[0].name}" screen is now displayed.`
-              : `Design generated! ${screens.length} screens created: ${screenNames}.`,
+          content: finalContent,
         };
       }
       return newMessages;
     });
-  }, []);
+
+    // Save the final assistant message to the database
+    saveMessageToDatabase("assistant", finalContent);
+  }, [saveMessageToDatabase]);
 
   const handleStreamError = useCallback((errorMsg: string) => {
     setIsStreaming(false);
     setStreamingPrompt("");
 
+    const errorContent = `Sorry, something went wrong: ${errorMsg}. Please try again.`;
+
     // Update the last assistant message
     setMessages((prev) => {
       const newMessages = [...prev];
@@ -296,12 +339,15 @@ export default function DesignPage({
       if (lastIndex >= 0 && newMessages[lastIndex].role === "assistant") {
         newMessages[lastIndex] = {
           ...newMessages[lastIndex],
-          content: `Sorry, something went wrong: ${errorMsg}. Please try again.`,
+          content: errorContent,
         };
       }
       return newMessages;
     });
-  }, []);
+
+    // Save the error message to the database
+    saveMessageToDatabase("assistant", errorContent);
+  }, [saveMessageToDatabase]);
 
   // Memoize theme to prevent re-renders (must be before early returns)
   const theme = useMemo(() => ({
@@ -354,6 +400,9 @@ export default function DesignPage({
       timestamp: new Date(),
     };
     setMessages((prev) => [...prev, newUserMessage]);
+
+    // Save user message to database
+    saveMessageToDatabase("user", userMessage);
 
     // Start streaming for the new request
     startDesignGeneration(userMessage);
@@ -697,6 +746,8 @@ export default function DesignPage({
                 streamingPrompt={streamingPrompt}
                 streamingScreenName="Preview"
                 features={featuresForDesign}
+                currentScreens={completedScreens}
+                conversationHistory={messages}
                 streamedScreens={streamedScreens}
                 onStreamComplete={handleStreamComplete}
                 onScreenComplete={handleScreenComplete}
