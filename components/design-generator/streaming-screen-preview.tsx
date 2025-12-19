@@ -7,6 +7,8 @@ import { Loader2 } from "lucide-react";
 export interface ParsedScreen {
   name: string;
   html: string;
+  /** Whether this is an edit to an existing screen (vs a new screen) */
+  isEdit?: boolean;
 }
 
 /** Feature input for context-aware design generation */
@@ -53,6 +55,10 @@ interface StreamingScreenPreviewProps {
   onStreamComplete?: (screens: ParsedScreen[]) => void;
   /** Callback when a single screen completes during streaming */
   onScreenComplete?: (screen: ParsedScreen) => void;
+  /** Callback when a screen edit starts (before it completes) */
+  onScreenEditStart?: (screenName: string) => void;
+  /** Callback when a NEW screen starts (not an edit) */
+  onScreenNewStart?: (screenName: string) => void;
   /** Callback when an error occurs */
   onStreamError?: (error: string) => void;
 }
@@ -77,6 +83,8 @@ export function StreamingScreenPreview({
   conversationHistory,
   onStreamComplete,
   onScreenComplete,
+  onScreenEditStart,
+  onScreenNewStart,
   onStreamError,
 }: StreamingScreenPreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -194,6 +202,7 @@ export function StreamingScreenPreview({
     const completedScreens: ParsedScreen[] = [];
     let currentName: string | null = null;
     let currentHtml = "";
+    let currentIsEdit = false; // Track if current screen is an edit vs new
     let rawBuffer = ""; // Buffer for unparsed content
 
     // Helper to reinitialize iframe for a new screen
@@ -289,14 +298,36 @@ export function StreamingScreenPreview({
 
                 // Parse screen delimiters from the buffer
                 while (true) {
-                  // Look for SCREEN_START
+                  // Look for SCREEN_START (new screen) or SCREEN_EDIT (update existing)
                   const startMatch = rawBuffer.match(/<!-- SCREEN_START: (.+?) -->/);
+                  const editMatch = rawBuffer.match(/<!-- SCREEN_EDIT: (.+?) -->/);
                   const endMatch = rawBuffer.match(/<!-- SCREEN_END -->/);
 
-                  if (startMatch && (!currentName || startMatch.index === 0)) {
-                    // Found a new screen start
-                    const startIndex = startMatch.index!;
-                    const startTagEnd = startIndex + startMatch[0].length;
+                  // Determine which delimiter comes first (if both exist)
+                  let activeMatch: RegExpMatchArray | null = null;
+                  let isEdit = false;
+
+                  if (startMatch && editMatch) {
+                    // Both exist, use whichever comes first
+                    if ((startMatch.index ?? Infinity) < (editMatch.index ?? Infinity)) {
+                      activeMatch = startMatch;
+                      isEdit = false;
+                    } else {
+                      activeMatch = editMatch;
+                      isEdit = true;
+                    }
+                  } else if (editMatch) {
+                    activeMatch = editMatch;
+                    isEdit = true;
+                  } else if (startMatch) {
+                    activeMatch = startMatch;
+                    isEdit = false;
+                  }
+
+                  if (activeMatch && (!currentName || activeMatch.index === 0)) {
+                    // Found a screen start/edit
+                    const startIndex = activeMatch.index!;
+                    const startTagEnd = startIndex + activeMatch[0].length;
 
                     // If there's content before the start tag, write it
                     if (startIndex > 0 && currentName) {
@@ -305,9 +336,17 @@ export function StreamingScreenPreview({
                       doc.write(beforeContent);
                     }
 
-                    // Start new screen
-                    currentName = startMatch[1];
+                    // Start new/edit screen
+                    currentName = activeMatch[1];
+                    currentIsEdit = isEdit;
                     setCurrentScreenName(currentName);
+
+                    // Notify when an edit or new screen starts
+                    if (isEdit) {
+                      onScreenEditStart?.(currentName);
+                    } else {
+                      onScreenNewStart?.(currentName);
+                    }
 
                     // Remove processed content from buffer
                     rawBuffer = rawBuffer.substring(startTagEnd);
@@ -327,6 +366,7 @@ export function StreamingScreenPreview({
                     const completedScreen: ParsedScreen = {
                       name: currentName,
                       html: currentHtml.trim(),
+                      isEdit: currentIsEdit,
                     };
                     completedScreens.push(completedScreen);
 
@@ -341,6 +381,7 @@ export function StreamingScreenPreview({
                     // Reset for next screen
                     currentName = null;
                     currentHtml = "";
+                    currentIsEdit = false;
                     setCurrentScreenHtml("");
 
                     // Remove processed content from buffer
@@ -386,6 +427,7 @@ export function StreamingScreenPreview({
                   const finalScreen: ParsedScreen = {
                     name: currentName,
                     html: currentHtml.trim(),
+                    isEdit: currentIsEdit,
                   };
                   completedScreens.push(finalScreen);
                   onScreenComplete?.(finalScreen);
@@ -417,6 +459,7 @@ export function StreamingScreenPreview({
         const finalScreen: ParsedScreen = {
           name: currentName,
           html: currentHtml.trim(),
+          isEdit: currentIsEdit,
         };
         completedScreens.push(finalScreen);
         onScreenComplete?.(finalScreen);

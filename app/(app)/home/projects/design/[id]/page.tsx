@@ -95,6 +95,8 @@ export default function DesignPage({
   const [streamingPrompt, setStreamingPrompt] = useState("");
   const [streamedScreens, setStreamedScreens] = useState<ParsedScreen[] | null>(null);
   const [completedScreens, setCompletedScreens] = useState<ParsedScreen[]>([]);
+  const [editingScreenNames, setEditingScreenNames] = useState<Set<string>>(new Set());
+  const [hasNewScreenInProgress, setHasNewScreenInProgress] = useState(false);
   const hasAutoStarted = useRef(false);
   const [copiedAll, setCopiedAll] = useState(false);
   const [hasLoadedFromDb, setHasLoadedFromDb] = useState(false);
@@ -212,8 +214,11 @@ export default function DesignPage({
   const startDesignGeneration = async (prompt: string, isAutoStart = false) => {
     setIsStreaming(true);
     setStreamingPrompt(prompt);
-    setStreamedScreens(null);
-    // Reset screen count for new generation
+    // Only clear screens for initial generation, not for follow-ups
+    if (isAutoStart) {
+      setStreamedScreens(null);
+    }
+    // Keep screen count for new screens (edits will replace existing)
     screenCountRef.current = completedScreens.length;
 
     // For auto-start, show the app idea as a "user" message first
@@ -286,28 +291,90 @@ export default function DesignPage({
     }
   }, [supabase, projectId]);
 
+  // Handle when a screen edit starts (for pulsing border)
+  const handleScreenEditStart = useCallback((screenName: string) => {
+    setEditingScreenNames((prev) => new Set(prev).add(screenName));
+  }, []);
+
+  // Handle when a NEW screen starts (to show streaming preview)
+  const handleScreenNewStart = useCallback((screenName: string) => {
+    setHasNewScreenInProgress(true);
+  }, []);
+
   // Handle when a single screen completes during streaming
   const handleScreenComplete = useCallback(async (screen: ParsedScreen) => {
-    // Use ref for sort order to avoid stale closure
-    const sortOrder = screenCountRef.current;
-    screenCountRef.current += 1;
-    // Save to database
-    await saveScreenToDatabase(screen, sortOrder);
-    // Update state
-    setCompletedScreens((prev) => [...prev, screen]);
+    if (screen.isEdit) {
+      // Remove from editing set (edit is complete)
+      setEditingScreenNames((prev) => {
+        const next = new Set(prev);
+        next.delete(screen.name);
+        return next;
+      });
+      // For edits, replace the existing screen with the same name in both states
+      const updateScreenInList = (prev: ParsedScreen[]) => {
+        const existingIndex = prev.findIndex((s) => s.name === screen.name);
+        if (existingIndex !== -1) {
+          const updated = [...prev];
+          updated[existingIndex] = screen;
+          return updated;
+        }
+        return [...prev, screen];
+      };
+      setCompletedScreens(updateScreenInList);
+      setStreamedScreens((prev) => prev ? updateScreenInList(prev) : [screen]);
+      // Save to database (upsert based on screen name)
+      await saveScreenToDatabase(screen, -1); // sortOrder doesn't matter for edits
+    } else {
+      // For new screens, add to the list
+      const sortOrder = screenCountRef.current;
+      screenCountRef.current += 1;
+      // Save to database
+      await saveScreenToDatabase(screen, sortOrder);
+      // Update state
+      setCompletedScreens((prev) => [...prev, screen]);
+    }
   }, [saveScreenToDatabase]);
 
   const handleStreamComplete = useCallback((screens: ParsedScreen[]) => {
     setIsStreaming(false);
-    setStreamedScreens(screens);
     setStreamingPrompt("");
-    // Note: screens are already added via handleScreenComplete, so we don't add again
+    // Clear any remaining editing indicators and new screen flag
+    setEditingScreenNames(new Set());
+    setHasNewScreenInProgress(false);
+    // Note: screens are already added/updated via handleScreenComplete
+
+    // Update streamedScreens to reflect current state
+    setStreamedScreens((prev) => {
+      if (!prev) return screens;
+      // Merge: replace edited screens, add new ones
+      const merged = [...prev];
+      for (const screen of screens) {
+        const existingIndex = merged.findIndex((s) => s.name === screen.name);
+        if (existingIndex !== -1) {
+          merged[existingIndex] = screen;
+        } else {
+          merged.push(screen);
+        }
+      }
+      return merged;
+    });
 
     // Build the final assistant message
-    const screenNames = screens.map((s) => s.name).join(", ");
-    const finalContent = screens.length === 1
-      ? `Design generated! The "${screens[0].name}" screen is now displayed.`
-      : `Design generated! ${screens.length} screens created: ${screenNames}.`;
+    const editedScreens = screens.filter((s) => s.isEdit);
+    const newScreens = screens.filter((s) => !s.isEdit);
+
+    let finalContent: string;
+    if (editedScreens.length > 0 && newScreens.length > 0) {
+      finalContent = `Updated ${editedScreens.map((s) => s.name).join(", ")} and added ${newScreens.map((s) => s.name).join(", ")}.`;
+    } else if (editedScreens.length > 0) {
+      finalContent = editedScreens.length === 1
+        ? `Updated the "${editedScreens[0].name}" screen.`
+        : `Updated ${editedScreens.length} screens: ${editedScreens.map((s) => s.name).join(", ")}.`;
+    } else {
+      finalContent = screens.length === 1
+        ? `Design generated! The "${screens[0].name}" screen is now displayed.`
+        : `Design generated! ${screens.length} screens created: ${screens.map((s) => s.name).join(", ")}.`;
+    }
 
     // Update the last assistant message
     setMessages((prev) => {
@@ -748,9 +815,13 @@ export default function DesignPage({
                 features={featuresForDesign}
                 currentScreens={completedScreens}
                 conversationHistory={messages}
+                editingScreenNames={editingScreenNames}
+                hasNewScreenInProgress={hasNewScreenInProgress}
                 streamedScreens={streamedScreens}
                 onStreamComplete={handleStreamComplete}
                 onScreenComplete={handleScreenComplete}
+                onScreenEditStart={handleScreenEditStart}
+                onScreenNewStart={handleScreenNewStart}
                 onStreamError={handleStreamError}
               />
             </div>

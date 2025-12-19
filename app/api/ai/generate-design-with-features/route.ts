@@ -228,14 +228,43 @@ ${screensCode}
 
 User's request: "${prompt}"
 
-IMPORTANT INSTRUCTIONS FOR MODIFICATIONS:
+CRITICAL INSTRUCTIONS FOR MODIFICATIONS:
 - Carefully analyze the user's request to understand what changes they want
-- If they want to modify existing screens, output the MODIFIED versions of those screens
-- Keep the same screen names unless the user explicitly asks to rename them
+- Output ONLY the screens that need changes - do NOT output unchanged screens
 - Preserve the overall design style and color scheme unless asked to change it
-- If adding new screens, make them consistent with the existing design
-- Output ONLY the screens that need changes or new screens requested
-- Each screen must still use <!-- SCREEN_START: Name --> and <!-- SCREEN_END --> delimiters`;
+
+DELIMITER RULES - THIS IS VERY IMPORTANT:
+- For EDITING an existing screen, use: <!-- SCREEN_EDIT: ExactScreenName --> and <!-- SCREEN_END -->
+- For adding a NEW screen, use: <!-- SCREEN_START: NewScreenName --> and <!-- SCREEN_END -->
+- The screen name in SCREEN_EDIT must EXACTLY match one of the existing screen names listed above
+- Do NOT include screens that don't need changes
+
+EXAMPLES:
+If user says "change the Home title to Dashboard":
+<!-- SCREEN_EDIT: Home -->
+<div class="min-h-screen...">
+  <h1>Dashboard</h1>
+  ...rest of modified Home screen...
+</div>
+<!-- SCREEN_END -->
+
+If user says "add a Settings screen":
+<!-- SCREEN_START: Settings -->
+<div class="min-h-screen...">
+  ...new Settings screen...
+</div>
+<!-- SCREEN_END -->
+
+If user says "change the title on Home and Profile":
+<!-- SCREEN_EDIT: Home -->
+...modified Home...
+<!-- SCREEN_END -->
+
+<!-- SCREEN_EDIT: Profile -->
+...modified Profile...
+<!-- SCREEN_END -->
+
+Now respond to the user's request. Remember: use SCREEN_EDIT for existing screens, SCREEN_START for new screens.`;
     } else if (screenName) {
       userPrompt = `Create a beautiful mobile app screen for "${screenName}" with the following description:\n\n${prompt}\n\nMake it visually stunning with a modern mobile app design.`;
     } else {

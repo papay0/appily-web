@@ -34,12 +34,20 @@ interface DesignCanvasProps {
   currentScreens?: CurrentScreen[];
   /** Conversation history for context */
   conversationHistory?: ConversationMessage[];
+  /** Names of screens currently being edited (for pulsing border) */
+  editingScreenNames?: Set<string>;
+  /** Whether new screens are being generated (show streaming preview) */
+  hasNewScreenInProgress?: boolean;
   /** Completed streamed HTML screens to display after streaming ends */
   streamedScreens?: ParsedScreen[] | null;
   /** Callback when all HTML streaming completes */
   onStreamComplete?: (screens: ParsedScreen[]) => void;
   /** Callback when a single HTML screen completes during streaming */
   onScreenComplete?: (screen: ParsedScreen) => void;
+  /** Callback when a screen edit starts */
+  onScreenEditStart?: (screenName: string) => void;
+  /** Callback when a NEW screen starts (not edit) */
+  onScreenNewStart?: (screenName: string) => void;
   /** Callback when streaming errors */
   onStreamError?: (error: string) => void;
 }
@@ -102,6 +110,8 @@ interface StreamingPhoneMockupProps {
   conversationHistory?: ConversationMessage[];
   onStreamComplete?: (screens: ParsedScreen[]) => void;
   onScreenComplete?: (screen: ParsedScreen) => void;
+  onScreenEditStart?: (screenName: string) => void;
+  onScreenNewStart?: (screenName: string) => void;
   onStreamError?: (error: string) => void;
 }
 
@@ -109,9 +119,11 @@ interface StreamingPhoneMockupProps {
 const CompletedHtmlScreenPreview = React.memo(function CompletedHtmlScreenPreview({
   screen,
   theme,
+  isEditing = false,
 }: {
   screen: ParsedScreen;
   theme: GeneratedTheme;
+  isEditing?: boolean;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [contentHeight, setContentHeight] = useState(MIN_PHONE_HEIGHT);
@@ -179,11 +191,19 @@ ${screen.html}
   return (
     <div className="flex flex-col items-start group">
       <div className="mb-4 flex items-center gap-2">
-        <div className="w-2 h-2 rounded-full bg-green-500" />
+        {isEditing ? (
+          <Loader2 className="w-3 h-3 text-blue-400 animate-spin" />
+        ) : (
+          <div className="w-2 h-2 rounded-full bg-green-500" />
+        )}
         <h3 className="text-white font-medium text-sm">
           {screen.name}
         </h3>
-        <span className="text-xs text-green-400 ml-2">Complete</span>
+        {isEditing ? (
+          <span className="text-xs text-blue-400 ml-2">Updating...</span>
+        ) : (
+          <span className="text-xs text-green-400 ml-2">Complete</span>
+        )}
         <Button
           variant="ghost"
           size="sm"
@@ -200,7 +220,11 @@ ${screen.html}
       </div>
 
       <div
-        className="relative bg-black rounded-[44px] p-3 shadow-2xl ring-2 ring-green-500/30 ring-offset-2 ring-offset-[#1a1a1a]"
+        className={`relative bg-black rounded-[44px] p-3 shadow-2xl ring-2 ring-offset-2 ring-offset-[#1a1a1a] transition-all duration-300 ${
+          isEditing
+            ? "ring-blue-500/50 animate-pulse"
+            : "ring-green-500/30"
+        }`}
         style={{ width: PHONE_WIDTH * PHONE_SCALE + 24 }}
       >
         <div
@@ -248,6 +272,8 @@ function StreamingPhoneMockup({
   conversationHistory,
   onStreamComplete,
   onScreenComplete,
+  onScreenEditStart,
+  onScreenNewStart,
   onStreamError,
 }: StreamingPhoneMockupProps) {
   const [contentHeight, setContentHeight] = useState(MIN_PHONE_HEIGHT);
@@ -307,6 +333,8 @@ function StreamingPhoneMockup({
               onHeightChange={setContentHeight}
               onStreamComplete={onStreamComplete}
               onScreenComplete={onScreenComplete}
+              onScreenEditStart={onScreenEditStart}
+              onScreenNewStart={onScreenNewStart}
               onStreamError={onStreamError}
             />
           </div>
@@ -367,27 +395,34 @@ export function DesignCanvas({
   features,
   currentScreens,
   conversationHistory,
+  editingScreenNames,
+  hasNewScreenInProgress,
   streamedScreens,
   onStreamComplete,
   onScreenComplete,
+  onScreenEditStart,
+  onScreenNewStart,
   onStreamError,
 }: DesignCanvasProps) {
   const [scale, setScale] = useState(0.99);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Track completed HTML screens during streaming
-  const [completedDuringStreaming, setCompletedDuringStreaming] = useState<ParsedScreen[]>([]);
+  // Track NEW screens that complete during streaming (not edits)
+  const [newScreensDuringStreaming, setNewScreensDuringStreaming] = useState<ParsedScreen[]>([]);
 
-  // Reset completed screens when HTML streaming starts
+  // Reset new screens list when streaming starts
   useEffect(() => {
     if (isStreaming) {
-      setCompletedDuringStreaming([]);
+      setNewScreensDuringStreaming([]);
     }
   }, [isStreaming]);
 
   // Handle when a single HTML screen completes during streaming
   const handleScreenComplete = (screen: ParsedScreen) => {
-    setCompletedDuringStreaming(prev => [...prev, screen]);
+    // Only add to newScreensDuringStreaming if it's a NEW screen (not an edit)
+    if (!screen.isEdit) {
+      setNewScreensDuringStreaming(prev => [...prev, screen]);
+    }
     onScreenComplete?.(screen);
   };
 
@@ -453,40 +488,46 @@ export function DesignCanvas({
             }}
           >
             {/* === HTML STREAMING === */}
-            {/* Show completed HTML screens during streaming (appear as they finish) */}
-            {isStreaming && completedDuringStreaming.map((screen, index) => (
-              <CompletedHtmlScreenPreview
-                key={`streaming-${index}-${screen.name}`}
-                screen={screen}
-                theme={theme}
-              />
-            ))}
-
-            {/* Show HTML streaming preview when streaming (current screen being generated) */}
-            {isStreaming && streamingPrompt && (
-              <StreamingPhoneMockup
-                theme={theme}
-                isStreaming={isStreaming}
-                prompt={streamingPrompt}
-                screenName={streamingScreenName}
-                features={features}
-                currentScreens={currentScreens}
-                conversationHistory={conversationHistory}
-                onStreamComplete={onStreamComplete}
-                onScreenComplete={handleScreenComplete}
-                onStreamError={onStreamError}
-              />
-            )}
-
-            {/* Show all completed streamed HTML screens when streaming is done */}
-            {!isStreaming && streamedScreens && streamedScreens.length > 0 && (
+            {/* Always show existing completed screens (with editing indicator when applicable) */}
+            {streamedScreens && streamedScreens.length > 0 && (
               streamedScreens.map((screen, index) => (
                 <CompletedHtmlScreenPreview
                   key={`completed-${index}-${screen.name}`}
                   screen={screen}
                   theme={theme}
+                  isEditing={editingScreenNames?.has(screen.name) ?? false}
                 />
               ))
+            )}
+
+            {/* Show NEW screens that complete during streaming (not edits) */}
+            {isStreaming && newScreensDuringStreaming.map((screen, index) => (
+              <CompletedHtmlScreenPreview
+                key={`new-streaming-${index}-${screen.name}`}
+                screen={screen}
+                theme={theme}
+              />
+            ))}
+
+            {/* Always render StreamingPhoneMockup when streaming (it handles the API call),
+                but only show it visually when generating new screens */}
+            {isStreaming && streamingPrompt && (
+              <div className={hasNewScreenInProgress || !streamedScreens || streamedScreens.length === 0 ? "" : "hidden"}>
+                <StreamingPhoneMockup
+                  theme={theme}
+                  isStreaming={isStreaming}
+                  prompt={streamingPrompt}
+                  screenName={streamingScreenName}
+                  features={features}
+                  currentScreens={currentScreens}
+                  conversationHistory={conversationHistory}
+                  onStreamComplete={onStreamComplete}
+                  onScreenComplete={handleScreenComplete}
+                  onScreenEditStart={onScreenEditStart}
+                  onScreenNewStart={onScreenNewStart}
+                  onStreamError={onStreamError}
+                />
+              </div>
             )}
 
             {/* === DEFAULT SCREENS === */}
