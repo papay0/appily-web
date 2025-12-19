@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import { cn } from "@/lib/utils";
 import {
   User,
@@ -114,7 +114,7 @@ function UserMessageWithLightbox({ message, hasImages }: { message: Message; has
   );
 }
 
-export function ChatMessage({ message, onFixError, showCostTracking }: ChatMessageProps) {
+export const ChatMessage = memo(function ChatMessage({ message, onFixError, showCostTracking }: ChatMessageProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isToolContextExpanded, setIsToolContextExpanded] = useState(false);
 
@@ -467,4 +467,12 @@ export function ChatMessage({ message, onFixError, showCostTracking }: ChatMessa
   }
 
   return null;
-}
+}, (prevProps, nextProps) => {
+  // Custom comparison: only re-render if message or showCostTracking changes
+  // Ignore onFixError since it's a callback that doesn't affect rendering
+  return (
+    prevProps.message.id === nextProps.message.id &&
+    prevProps.message.content === nextProps.message.content &&
+    prevProps.showCostTracking === nextProps.showCostTracking
+  );
+});

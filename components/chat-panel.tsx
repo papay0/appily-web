@@ -214,12 +214,16 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
     const threshold = 100; // pixels from bottom to consider "near bottom"
 
     const nearBottom = distanceFromBottom <= threshold;
-    setIsNearBottom(nearBottom);
 
-    // Reset unread count when user scrolls to bottom
-    if (nearBottom) {
-      setUnreadCount(0);
-    }
+    // Only update state if the value changed to avoid unnecessary re-renders
+    // This prevents text selection from being lost when scrolling
+    setIsNearBottom(prev => {
+      if (prev === nearBottom) return prev; // No change, no re-render
+      if (nearBottom) {
+        setUnreadCount(0); // Reset unread count when scrolling to bottom
+      }
+      return nearBottom;
+    });
   }, []);
 
   // Scroll to bottom helper
