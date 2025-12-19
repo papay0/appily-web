@@ -19,7 +19,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { buildFeatureGenerationPrompt } from "@/lib/agent/prompts";
-import { downloadFile } from "@/lib/r2-client";
+import { downloadImageFile } from "@/lib/r2-client";
 import { generateFeaturesWithGemini } from "@/lib/ai/gemini-client";
 
 interface GeneratedFeature {
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
     }> = [];
     for (const key of validatedImageKeys) {
       try {
-        const buffer = await downloadFile(key);
+        const buffer = await downloadImageFile(key);
         const ext = key.split(".").pop()?.toLowerCase();
         const mimeType: "image/png" | "image/gif" | "image/webp" | "image/jpeg" =
           ext === "png"
