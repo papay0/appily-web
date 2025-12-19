@@ -7,6 +7,7 @@ import { useSupabaseClient } from "@/lib/supabase-client";
 import { ProjectHeader } from "@/components/project-header";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import Image from "next/image";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -486,8 +487,14 @@ export default function DesignPage({
                         )}
                       >
                         {message.role === "assistant" && (
-                          <div className="flex-shrink-0 w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-md shadow-violet-500/20">
-                            <Sparkles className="h-4 w-4 text-white" />
+                          <div className="flex-shrink-0 w-8 h-8 rounded-xl overflow-hidden shadow-md">
+                            <Image
+                              src="/appily-logo.svg"
+                              alt="Appily"
+                              width={32}
+                              height={32}
+                              className="w-full h-full object-cover"
+                            />
                           </div>
                         )}
                         <div
@@ -501,16 +508,32 @@ export default function DesignPage({
                           <p className="text-sm leading-relaxed">{message.content}</p>
                         </div>
                         {message.role === "user" && (
-                          <div className="flex-shrink-0 w-8 h-8 rounded-xl bg-muted flex items-center justify-center">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                          </div>
+                          user?.imageUrl ? (
+                            <Image
+                              src={user.imageUrl}
+                              alt="You"
+                              width={32}
+                              height={32}
+                              className="flex-shrink-0 w-8 h-8 rounded-xl object-cover ring-2 ring-primary/20"
+                            />
+                          ) : (
+                            <div className="flex-shrink-0 w-8 h-8 rounded-xl bg-muted flex items-center justify-center">
+                              <User className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                          )
                         )}
                       </div>
                     ))}
                     {isStreaming && (
                       <div className="flex gap-3 justify-start">
-                        <div className="flex-shrink-0 w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-md shadow-violet-500/20">
-                          <Sparkles className="h-4 w-4 text-white" />
+                        <div className="flex-shrink-0 w-8 h-8 rounded-xl overflow-hidden shadow-md">
+                          <Image
+                            src="/appily-logo.svg"
+                            alt="Appily"
+                            width={32}
+                            height={32}
+                            className="w-full h-full object-cover"
+                          />
                         </div>
                         <div className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-2xl px-4 py-3 shadow-sm">
                           <div className="flex gap-1.5">
