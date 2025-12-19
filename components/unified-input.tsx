@@ -3,8 +3,12 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Send,
   Loader2,
@@ -14,12 +18,40 @@ import {
   ListPlus,
   Mic,
   MicOff,
+  ChevronDown,
+  Wand2,
+  Palette,
+  Rocket,
 } from "lucide-react";
 import { ImagePreviewGrid } from "@/components/image-preview-grid";
 import { useImageUpload, type UploadedImage } from "@/hooks/use-image-upload";
 import { cn } from "@/lib/utils";
 import { ACCEPTED_IMAGE_EXTENSIONS } from "@/lib/image-utils";
 import { AIProviderSelector, type AIProvider } from "@/components/ai-provider-selector";
+
+/** Starting mode for project creation */
+export type StartMode = "plan" | "design" | "build";
+
+const START_MODE_CONFIG: Record<StartMode, { label: string; shortLabel: string; icon: typeof Wand2; description: string }> = {
+  plan: {
+    label: "Create & Plan",
+    shortLabel: "Plan",
+    icon: Wand2,
+    description: "Plan features, design screens, then build",
+  },
+  design: {
+    label: "Start with Design",
+    shortLabel: "Design",
+    icon: Palette,
+    description: "Design screens first, then build",
+  },
+  build: {
+    label: "Build Directly",
+    shortLabel: "Build",
+    icon: Rocket,
+    description: "Skip to building immediately",
+  },
+};
 
 type SpeechRecognitionEventLike = {
   readonly resultIndex?: number;
@@ -69,12 +101,12 @@ export interface UnifiedInputProps {
   variant: "home" | "build";
 
   // Home-specific props
-  /** Show the plan features checkbox (Home page) */
-  showPlanCheckbox?: boolean;
-  /** Current state of plan features checkbox */
-  planFeatures?: boolean;
-  /** Callback when plan features checkbox changes */
-  onPlanFeaturesChange?: (checked: boolean) => void;
+  /** Show the start mode selector (Home page) */
+  showStartModeSelector?: boolean;
+  /** Current start mode */
+  startMode?: StartMode;
+  /** Callback when start mode changes */
+  onStartModeChange?: (mode: StartMode) => void;
 
   // Image context for R2 storage
   /** Project ID - if provided, images stored under project */
@@ -113,9 +145,9 @@ export function UnifiedInput({
   isLoading,
   placeholder,
   variant,
-  showPlanCheckbox = false,
-  planFeatures = false,
-  onPlanFeaturesChange,
+  showStartModeSelector = false,
+  startMode = "plan",
+  onStartModeChange,
   projectId,
   tempUploadId,
   maxImages = 5,
@@ -259,7 +291,7 @@ export function UnifiedInput({
   }, []);
 
   // Default minimum text length based on variant
-  const effectiveMinLength = minTextLength ?? (variant === "home" ? 10 : 1);
+  const effectiveMinLength = minTextLength ?? 1;
 
   // Default placeholder based on variant
   const effectivePlaceholder =
@@ -600,52 +632,151 @@ export function UnifiedInput({
                       {voiceInputButton}
                     </div>
                   )}
-
-                  {showPlanCheckbox && (
-                    <div className="flex items-center gap-3">
-                      <Checkbox
-                        id="plan-features"
-                        checked={planFeatures}
-                        onCheckedChange={(checked) =>
-                          onPlanFeaturesChange?.(checked === true)
-                        }
-                        disabled={isLoading}
-                        className={cn(
-                          "transition-all duration-300",
-                          planFeatures &&
-                            "border-primary data-[state=checked]:bg-primary"
-                        )}
-                      />
-                      <Label
-                        htmlFor="plan-features"
-                        className="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                      >
-                        Plan features first
-                      </Label>
-                    </div>
-                  )}
                 </div>
 
-                <button
-                  onClick={handleSubmit}
-                  disabled={!canSubmit}
-                  className={cn(
-                    "bg-primary text-primary-foreground px-6 py-3 rounded-full text-sm font-semibold",
-                    "hover:bg-primary/90 transition-all shadow-lg",
-                    "hover:scale-[1.02] active:scale-[0.98]",
-                    "flex items-center gap-2 cursor-pointer",
-                    "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                  )}
-                >
-                  {isLoading || isUploading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <Send className="h-4 w-4" />
-                      {showPlanCheckbox && planFeatures ? "Create & Plan" : "Create"}
-                    </>
-                  )}
-                </button>
+                {/* Split button with dropdown */}
+                {showStartModeSelector ? (
+                  <div className="group/btn relative">
+                    {/* Glow effect on hover */}
+                    <div className={cn(
+                      "absolute -inset-1 rounded-full opacity-0 blur-lg transition-all duration-500 pointer-events-none",
+                      "bg-gradient-to-r from-primary/60 via-primary/40 to-primary/60",
+                      "group-hover/btn:opacity-70",
+                      !canSubmit && "hidden"
+                    )} />
+
+                    {/* Button container */}
+                    <div className={cn(
+                      "relative flex items-center rounded-full",
+                      "bg-gradient-to-b from-primary to-primary/90",
+                      "shadow-[0_2px_8px_-2px_rgba(0,0,0,0.2),inset_0_1px_0_0_rgba(255,255,255,0.1)]",
+                      "hover:shadow-[0_4px_16px_-4px_rgba(0,0,0,0.25),inset_0_1px_0_0_rgba(255,255,255,0.15)]",
+                      "transition-all duration-300 ease-out",
+                      "hover:translate-y-[-1px]",
+                      "active:translate-y-[0px] active:shadow-[0_1px_4px_-1px_rgba(0,0,0,0.2)]",
+                      !canSubmit && "opacity-50 pointer-events-none"
+                    )}>
+                      {/* Main submit button */}
+                      <button
+                        onClick={handleSubmit}
+                        disabled={!canSubmit}
+                        className={cn(
+                          "relative text-primary-foreground pl-5 pr-4 py-2.5 text-sm font-semibold",
+                          "flex items-center gap-2.5 cursor-pointer",
+                          "transition-all duration-200",
+                          "disabled:cursor-not-allowed"
+                        )}
+                      >
+                        {isLoading || isUploading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Send className="h-4 w-4" />
+                            <span className="tracking-[-0.01em]">{START_MODE_CONFIG[startMode].label}</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* Subtle divider */}
+                      <div className="w-px h-5 bg-primary-foreground/20" />
+
+                      {/* Dropdown trigger */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            disabled={isLoading}
+                            className={cn(
+                              "relative text-primary-foreground pl-2.5 pr-3.5 py-2.5",
+                              "flex items-center cursor-pointer",
+                              "transition-all duration-200",
+                              "hover:bg-white/10 rounded-r-full",
+                              "disabled:cursor-not-allowed"
+                            )}
+                          >
+                            <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]/btn:rotate-180" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          sideOffset={8}
+                          className={cn(
+                            "w-64 p-1.5 rounded-xl",
+                            "bg-card/95 backdrop-blur-xl",
+                            "border border-border/50",
+                            "shadow-[0_8px_32px_-8px_rgba(0,0,0,0.2)]"
+                          )}
+                        >
+                          {(Object.keys(START_MODE_CONFIG) as StartMode[]).map((mode) => {
+                            const config = START_MODE_CONFIG[mode];
+                            const Icon = config.icon;
+                            const isSelected = startMode === mode;
+                            return (
+                              <DropdownMenuItem
+                                key={mode}
+                                onClick={() => onStartModeChange?.(mode)}
+                                className={cn(
+                                  "flex items-start gap-3 p-3 rounded-lg cursor-pointer",
+                                  "transition-all duration-200",
+                                  "focus:bg-primary/5 focus:outline-none",
+                                  isSelected
+                                    ? "bg-primary/10 border border-primary/20"
+                                    : "hover:bg-muted/50 border border-transparent"
+                                )}
+                              >
+                                <div className={cn(
+                                  "flex items-center justify-center w-8 h-8 rounded-lg shrink-0",
+                                  "transition-all duration-200",
+                                  isSelected
+                                    ? "bg-primary/15 text-primary"
+                                    : "bg-muted text-muted-foreground"
+                                )}>
+                                  <Icon className="h-4 w-4" />
+                                </div>
+                                <div className="flex flex-col gap-0.5 pt-0.5">
+                                  <span className={cn(
+                                    "text-sm font-medium leading-none",
+                                    isSelected && "text-primary"
+                                  )}>
+                                    {config.label}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground leading-snug mt-1">
+                                    {config.description}
+                                  </span>
+                                </div>
+                                {isSelected && (
+                                  <div className="ml-auto self-center">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                                  </div>
+                                )}
+                              </DropdownMenuItem>
+                            );
+                          })}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleSubmit}
+                    disabled={!canSubmit}
+                    className={cn(
+                      "bg-primary text-primary-foreground px-6 py-3 rounded-full text-sm font-semibold",
+                      "hover:bg-primary/90 transition-all shadow-lg",
+                      "hover:scale-[1.02] active:scale-[0.98]",
+                      "flex items-center gap-2 cursor-pointer",
+                      "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    )}
+                  >
+                    {isLoading || isUploading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4" />
+                        Create
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           </div>

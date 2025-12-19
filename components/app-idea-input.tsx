@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback } from "react";
-import { UnifiedInput } from "@/components/unified-input";
+import { UnifiedInput, type StartMode } from "@/components/unified-input";
 import type { AIProvider } from "@/components/ai-provider-selector";
 
 interface AppIdeaInputProps {
-  onSubmit: (idea: string, planFeatures: boolean, imageKeys: string[], tempUploadId: string) => void;
+  onSubmit: (idea: string, startMode: StartMode, imageKeys: string[], tempUploadId: string) => void;
   isLoading: boolean;
-  planFeatures: boolean;
-  onPlanFeaturesChange: (checked: boolean) => void;
+  startMode: StartMode;
+  onStartModeChange: (mode: StartMode) => void;
   tempUploadId: string;
   onTempUploadIdReady: (id: string) => void;
   aiProvider: AIProvider;
@@ -18,8 +18,8 @@ interface AppIdeaInputProps {
 export function AppIdeaInput({
   onSubmit,
   isLoading,
-  planFeatures,
-  onPlanFeaturesChange,
+  startMode,
+  onStartModeChange,
   tempUploadId,
   onTempUploadIdReady,
   aiProvider,
@@ -27,9 +27,9 @@ export function AppIdeaInput({
 }: AppIdeaInputProps) {
   const handleSubmit = useCallback(
     (text: string, imageKeys: string[]) => {
-      onSubmit(text, planFeatures, imageKeys, tempUploadId);
+      onSubmit(text, startMode, imageKeys, tempUploadId);
     },
-    [planFeatures, tempUploadId, onSubmit]
+    [startMode, tempUploadId, onSubmit]
   );
 
   return (
@@ -37,9 +37,9 @@ export function AppIdeaInput({
       variant="home"
       onSubmit={handleSubmit}
       isLoading={isLoading}
-      showPlanCheckbox
-      planFeatures={planFeatures}
-      onPlanFeaturesChange={onPlanFeaturesChange}
+      showStartModeSelector
+      startMode={startMode}
+      onStartModeChange={onStartModeChange}
       onTempUploadIdReady={onTempUploadIdReady}
       aiProvider={aiProvider}
       onAIProviderChange={onAIProviderChange}

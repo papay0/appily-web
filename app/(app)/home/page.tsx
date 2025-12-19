@@ -7,6 +7,7 @@ import { useSupabaseClient } from "@/lib/supabase-client";
 import { AppIdeaInput } from "@/components/app-idea-input";
 import { RecentProjectsSection } from "@/components/recent-projects-section";
 import type { AIProvider } from "@/components/ai-provider-selector";
+import type { StartMode } from "@/components/unified-input";
 
 interface Project {
   id: string;
@@ -29,7 +30,7 @@ export default function HomePage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
-  const [planFeatures, setPlanFeatures] = useState(true);
+  const [startMode, setStartMode] = useState<StartMode>("plan");
   const [tempUploadId, setTempUploadId] = useState<string>("");
   const [aiProvider, setAIProvider] = useState<AIProvider>("claude-sdk");
   const [supabaseUserId, setSupabaseUserId] = useState<string | null>(null);
@@ -101,7 +102,7 @@ export default function HomePage() {
 
   const handleCreateProject = async (
     appIdea: string,
-    planFeatures: boolean,
+    selectedStartMode: StartMode,
     imageKeys: string[],
     tempUploadId: string
   ) => {
@@ -118,24 +119,36 @@ export default function HomePage() {
 
       if (!userData) throw new Error("User not found");
 
-      // 2. Create minimal project (name will be generated later on build page)
+      // 2. Determine which timestamps to set based on start mode
+      const now = new Date().toISOString();
+      const timestamps: { planning_completed_at?: string; design_completed_at?: string } = {};
+
+      if (selectedStartMode === "design") {
+        // Skip planning, go to design
+        timestamps.planning_completed_at = now;
+      } else if (selectedStartMode === "build") {
+        // Skip both planning and design
+        timestamps.planning_completed_at = now;
+        timestamps.design_completed_at = now;
+      }
+      // For "plan" mode, no timestamps are set
+
+      // 3. Create project with appropriate timestamps
       const { data: project, error } = await supabase
         .from("projects")
         .insert({
           name: "New Project", // Placeholder - will be generated async on build page
           user_id: userData.id,
           app_idea: appIdea,
-          ai_provider: aiProvider, // Save selected AI provider
-          // planning_completed_at is NOT set if planFeatures is true
-          ...(planFeatures ? {} : { planning_completed_at: new Date().toISOString() }),
+          ai_provider: aiProvider,
+          ...timestamps,
         })
         .select()
         .single();
 
       if (error) throw error;
 
-      // 3. Link temp images to project (if any)
-      let linkedImageKeys: string[] = [];
+      // 4. Link temp images to project (if any)
       if (imageKeys.length > 0 && tempUploadId) {
         try {
           const linkResponse = await fetch("/api/images/link", {
@@ -149,8 +162,7 @@ export default function HomePage() {
 
           if (linkResponse.ok) {
             const linkData = await linkResponse.json();
-            linkedImageKeys = linkData.newKeys || [];
-            console.log(`Linked ${linkedImageKeys.length} images to project ${project.id}`);
+            console.log(`Linked ${linkData.newKeys?.length || 0} images to project ${project.id}`);
           }
         } catch (linkError) {
           console.error("Failed to link images:", linkError);
@@ -158,13 +170,17 @@ export default function HomePage() {
         }
       }
 
-      // 4. Navigate to appropriate page (image keys are now stored in DB by /api/images/link)
-      if (planFeatures) {
-        // Go to plan page to generate and review features
-        router.push(`/home/projects/plan/${project.id}`);
-      } else {
-        // Skip planning, go directly to build
-        router.push(`/home/projects/build/${project.id}`);
+      // 5. Navigate to appropriate page based on start mode
+      switch (selectedStartMode) {
+        case "plan":
+          router.push(`/home/projects/plan/${project.id}`);
+          break;
+        case "design":
+          router.push(`/home/projects/design/${project.id}`);
+          break;
+        case "build":
+          router.push(`/home/projects/build/${project.id}`);
+          break;
       }
     } catch (error) {
       console.error("Error creating project:", error);
@@ -228,8 +244,8 @@ export default function HomePage() {
           <AppIdeaInput
             onSubmit={handleCreateProject}
             isLoading={isCreating}
-            planFeatures={planFeatures}
-            onPlanFeaturesChange={setPlanFeatures}
+            startMode={startMode}
+            onStartModeChange={setStartMode}
             tempUploadId={tempUploadId}
             onTempUploadIdReady={setTempUploadId}
             aiProvider={aiProvider}
