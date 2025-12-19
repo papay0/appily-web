@@ -252,7 +252,6 @@ export default function DesignPage({
 
   // Handle when a single screen completes during streaming
   const handleScreenComplete = useCallback(async (screen: ParsedScreen) => {
-    console.log("[DesignPage] Screen completed, saving to DB:", screen.name);
     // Use ref for sort order to avoid stale closure
     const sortOrder = screenCountRef.current;
     screenCountRef.current += 1;

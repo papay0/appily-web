@@ -75,17 +75,13 @@ export function StreamingScreenPreview({
   const iframeCallbackRef = useCallback((node: HTMLIFrameElement | null) => {
     if (node !== null) {
       (iframeRef as React.MutableRefObject<HTMLIFrameElement | null>).current = node;
-      console.log("[StreamingPreview] Iframe ref set via callback");
       setIframeReady(true);
     }
   }, []);
 
   // Initialize the iframe document when streaming starts and iframe is ready
   useEffect(() => {
-    console.log("[StreamingPreview] useEffect triggered", { isStreaming, isInitialized, iframeReady, hasIframe: !!iframeRef.current, prompt });
-
     if (!isStreaming || !iframeRef.current || !iframeReady || isInitialized) {
-      console.log("[StreamingPreview] Skipping initialization:", { isStreaming, isInitialized, iframeReady, hasIframe: !!iframeRef.current });
       return;
     }
 
@@ -95,24 +91,15 @@ export function StreamingScreenPreview({
     let doc: Document | null = null;
     try {
       doc = iframe.contentDocument;
-      console.log("[StreamingPreview] contentDocument access:", {
-        hasDoc: !!doc,
-        readyState: doc?.readyState,
-        docType: doc?.doctype?.name
-      });
     } catch (err) {
-      console.error("[StreamingPreview] Error accessing contentDocument:", err);
       onStreamError?.("Cannot access iframe content. Check sandbox settings.");
       return;
     }
 
     if (!doc) {
-      console.log("[StreamingPreview] No iframe document available");
       onStreamError?.("Iframe document not available");
       return;
     }
-
-    console.log("[StreamingPreview] Initializing iframe document...");
 
     // Open the document and write the initial HTML structure
     try {
@@ -160,31 +147,22 @@ export function StreamingScreenPreview({
 </head>
 <body>
 `);
-      console.log("[StreamingPreview] Wrote initial HTML to iframe document");
     } catch (err) {
-      console.error("[StreamingPreview] Error writing to document:", err);
       onStreamError?.("Failed to write to iframe document");
       return;
     }
 
-    console.log("[StreamingPreview] Iframe document initialized, setting isInitialized=true");
     setIsInitialized(true);
 
     // Start fetching the stream
     if (prompt) {
-      console.log("[StreamingPreview] Starting streaming with prompt...");
       startStreaming(doc);
-    } else {
-      console.log("[StreamingPreview] No prompt available, not starting stream");
     }
   }, [isStreaming, cssVariables, backgroundColor, isInitialized, iframeReady, prompt]);
 
   // Function to start streaming from the API
   const startStreaming = async (doc: Document) => {
-    console.log("[StreamingPreview] startStreaming called with prompt:", prompt?.substring(0, 50));
-
     if (!prompt) {
-      console.log("[StreamingPreview] No prompt provided, returning");
       return;
     }
 
@@ -243,16 +221,12 @@ export function StreamingScreenPreview({
         ? "/api/ai/generate-design-with-features"
         : "/api/ai/generate-design-stream";
 
-      console.log(`[StreamingPreview] Fetching ${apiEndpoint}...`);
-
       const response = await fetch(apiEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt, screenName, features }),
         signal: abortControllerRef.current.signal,
       });
-
-      console.log("[StreamingPreview] Fetch response status:", response.status);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -263,8 +237,6 @@ export function StreamingScreenPreview({
         throw new Error("No reader available");
       }
 
-      console.log("[StreamingPreview] Got reader, starting to read stream...");
-
       const decoder = new TextDecoder();
       let sseBuffer = "";
       let chunkCount = 0;
@@ -272,7 +244,6 @@ export function StreamingScreenPreview({
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
-          console.log("[StreamingPreview] Stream read complete");
           break;
         }
 
@@ -312,7 +283,6 @@ export function StreamingScreenPreview({
                     // Start new screen
                     currentName = startMatch[1];
                     setCurrentScreenName(currentName);
-                    console.log(`[StreamingPreview] Screen started: ${currentName}`);
 
                     // Remove processed content from buffer
                     rawBuffer = rawBuffer.substring(startTagEnd);
@@ -334,7 +304,6 @@ export function StreamingScreenPreview({
                       html: currentHtml.trim(),
                     };
                     completedScreens.push(completedScreen);
-                    console.log(`[StreamingPreview] Screen completed: ${currentName} (${currentHtml.length} chars)`);
 
                     // Notify about completed screen
                     onScreenComplete?.(completedScreen);
@@ -383,8 +352,6 @@ export function StreamingScreenPreview({
               }
 
               if (data.done) {
-                console.log("[StreamingPreview] Stream done signal received");
-
                 // Write any remaining buffer content
                 if (rawBuffer.trim() && currentName) {
                   currentHtml += rawBuffer;
@@ -405,7 +372,6 @@ export function StreamingScreenPreview({
                 setIsInitialized(false);
                 measureHeight();
 
-                console.log(`[StreamingPreview] Streaming complete. Total screens: ${completedScreens.length}`);
                 onStreamComplete?.(completedScreens);
                 return;
               }
@@ -437,11 +403,8 @@ export function StreamingScreenPreview({
       onStreamComplete?.(completedScreens);
     } catch (error) {
       if ((error as Error).name === "AbortError") {
-        console.log("Stream aborted");
         return;
       }
-
-      console.error("Streaming error:", error);
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
       // Write error message to the document

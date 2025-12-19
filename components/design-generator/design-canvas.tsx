@@ -238,8 +238,6 @@ function StreamingPhoneMockup({
 }: StreamingPhoneMockupProps) {
   const [contentHeight, setContentHeight] = useState(MIN_PHONE_HEIGHT);
 
-  console.log("[StreamingPhoneMockup] Rendering with:", { isStreaming, promptLength: prompt?.length, screenName, featuresCount: features?.length });
-
   return (
     <div className="flex flex-col items-start">
       {/* Screen Title */}
@@ -371,19 +369,9 @@ export function DesignCanvas({
 
   // Handle when a single HTML screen completes during streaming
   const handleScreenComplete = (screen: ParsedScreen) => {
-    console.log("[DesignCanvas] HTML Screen completed:", screen.name);
     setCompletedDuringStreaming(prev => [...prev, screen]);
     onScreenComplete?.(screen);
   };
-
-  console.log("[DesignCanvas] Rendering with:", {
-    screensCount: screens.length,
-    isStreaming,
-    streamingPromptLength: streamingPrompt?.length,
-    streamingScreenName,
-    completedDuringStreamingCount: completedDuringStreaming.length,
-    streamedScreensCount: streamedScreens?.length,
-  });
 
   // Prevent browser zoom when wheeling over the canvas
   useEffect(() => {
