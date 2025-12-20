@@ -73,6 +73,7 @@ export default function ProjectBuildPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingName, setIsGeneratingName] = useState(false);
   const [qrSheetOpen, setQrSheetOpen] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // Health status state (from health hook)
   const [healthStatus, setHealthStatus] = useState<HealthStatus | null>(null);
@@ -420,6 +421,43 @@ export default function ProjectBuildPage() {
     }
   };
 
+  const handleDownloadZip = async () => {
+    if (!project?.id) return;
+
+    setIsDownloading(true);
+    try {
+      const response = await fetch(`/api/projects/${project.id}/download`);
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Download failed");
+      }
+
+      // Get filename from Content-Disposition header or use project name
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = `${project.name}.zip`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="(.+)"/);
+        if (match) filename = match[1];
+      }
+
+      // Create blob and trigger download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("[ProjectPage] Download failed:", error);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const handleStopSandbox = async () => {
     if (!project || !project.e2b_sandbox_id) return;
 
@@ -581,6 +619,8 @@ export default function ProjectBuildPage() {
         onRestartMetro={handleRestartMetro}
         onRecreateSandbox={handleStartSandbox}
         hasConvex={project.convex_project?.status === "connected"}
+        onDownloadZip={handleDownloadZip}
+        isDownloading={isDownloading}
       />
 
       {/* Conditionally render Mobile OR Desktop - never both */}

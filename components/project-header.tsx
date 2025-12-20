@@ -6,7 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { AppBreadcrumbs } from "@/components/app-breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Pencil, Check, X, QrCode, Eye, Code2, RefreshCw, ChevronDown, RotateCcw, Database } from "lucide-react";
+import { Loader2, Pencil, Check, X, QrCode, Eye, Code2, RefreshCw, ChevronDown, RotateCcw, Database, Download } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,6 +37,10 @@ interface ProjectHeaderProps {
 
   // Convex backend (shows Database tab if connected)
   hasConvex?: boolean;
+
+  // Download zip
+  onDownloadZip?: () => void;
+  isDownloading?: boolean;
 }
 
 export function ProjectHeader({
@@ -50,6 +54,8 @@ export function ProjectHeader({
   onRestartMetro,
   onRecreateSandbox,
   hasConvex,
+  onDownloadZip,
+  isDownloading,
 }: ProjectHeaderProps) {
   const supabase = useSupabaseClient();
   const [isEditing, setIsEditing] = useState(false);
@@ -296,6 +302,28 @@ export function ProjectHeader({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+
+          {/* Download Button */}
+          {onDownloadZip && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onDownloadZip}
+              disabled={isDownloading}
+              className={cn(
+                "gap-1.5 rounded-lg",
+                "glass-morphism border-border/50",
+                "hover:border-primary/50 hover:bg-primary/5"
+              )}
+            >
+              {isDownloading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="h-3.5 w-3.5" />
+              )}
+              Download
+            </Button>
+          )}
         </div>
       )}
 
