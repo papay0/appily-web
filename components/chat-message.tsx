@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
-import { calculateCost, type TokenUsage } from "@/lib/utils/cost-calculator";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -36,13 +35,11 @@ interface Message {
   avatarUrl?: string;
   imageUrls?: string[]; // Preview URLs for attached images
   eventData?: Record<string, unknown>; // Full event_data for operational logs
-  usage?: TokenUsage; // Token usage for cost tracking (assistant messages)
 }
 
 interface ChatMessageProps {
   message: Message;
   onFixError?: (errorMessage: string, fullError?: FullError) => void;
-  showCostTracking?: boolean;
 }
 
 // Separate component for user messages to handle lightbox state
@@ -114,7 +111,7 @@ function UserMessageWithLightbox({ message, hasImages }: { message: Message; has
   );
 }
 
-export const ChatMessage = memo(function ChatMessage({ message, onFixError, showCostTracking }: ChatMessageProps) {
+export const ChatMessage = memo(function ChatMessage({ message, onFixError }: ChatMessageProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isToolContextExpanded, setIsToolContextExpanded] = useState(false);
 
@@ -255,22 +252,6 @@ export const ChatMessage = memo(function ChatMessage({ message, onFixError, show
             </div>
           </div>
         </div>
-        {/* Per-message cost tracking */}
-        {showCostTracking && message.usage && (
-          <div className="text-[10px] text-muted-foreground/50 ml-9 font-mono">
-            {(() => {
-              const u = message.usage;
-              const totalIn = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
-              const cacheHitPercent = totalIn > 0 ? Math.round(((u.cache_read_input_tokens || 0) / totalIn) * 100) : 0;
-              return (
-                <>
-                  {totalIn.toLocaleString()} in ({cacheHitPercent}% cached) / {(u.output_tokens || 0).toLocaleString()} out
-                  {" "}(${calculateCost(u).toFixed(4)})
-                </>
-              );
-            })()}
-          </div>
-        )}
       </div>
     );
   }
@@ -468,11 +449,10 @@ export const ChatMessage = memo(function ChatMessage({ message, onFixError, show
 
   return null;
 }, (prevProps, nextProps) => {
-  // Custom comparison: only re-render if message or showCostTracking changes
+  // Custom comparison: only re-render if message changes
   // Ignore onFixError since it's a callback that doesn't affect rendering
   return (
     prevProps.message.id === nextProps.message.id &&
-    prevProps.message.content === nextProps.message.content &&
-    prevProps.showCostTracking === nextProps.showCostTracking
+    prevProps.message.content === nextProps.message.content
   );
 });

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { Sparkles, Terminal, ChevronDown, DollarSign } from "lucide-react";
 import { Toggle } from "@/components/ui/toggle";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useSession, useUser } from "@clerk/nextjs";
 import { useSupabaseClient } from "@/lib/supabase-client";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
@@ -31,6 +32,14 @@ interface TokenUsage {
   cache_read_input_tokens?: number;
 }
 
+// Cost per generation (each user message → agent response cycle)
+interface GenerationCost {
+  generationNumber: number;
+  usage: TokenUsage;
+  cost: number;
+  timestamp: Date;
+}
+
 interface Message {
   id: string;
   role: "user" | "assistant" | "system";
@@ -43,7 +52,6 @@ interface Message {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   toolInput?: any; // Stores the input data from tool use (e.g., todos for TodoWrite)
   eventData?: Record<string, unknown>; // Full event_data for operational logs
-  usage?: TokenUsage; // Token usage for cost tracking (assistant messages)
 }
 
 interface AssistantContentBlock {
@@ -162,12 +170,8 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
   const [isStopping, setIsStopping] = useState(false);
   const [showSystemLogs, setShowSystemLogs] = useState(false);
   const [showCostTracking, setShowCostTracking] = useState(false);
-  const [costSummary, setCostSummary] = useState({
-    totalInputTokens: 0,
-    totalOutputTokens: 0,
-    totalCacheReadTokens: 0,
-    totalCost: 0,
-  });
+  // Track costs per generation (each user message → agent response cycle)
+  const [generations, setGenerations] = useState<GenerationCost[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
@@ -182,18 +186,15 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
   const didInitialFetchRef = useRef(false);
   const pendingUserMessageIds = useRef<Set<string>>(new Set());
   const didAutoStartRef = useRef(false);
-  const processedUsageIds = useRef<Set<string>>(new Set());
   // const savedEvents = useRef<Set<string>>(new Set()); // No longer needed - saves are backend-triggered
 
   // Reset local caches when switching projects
   useEffect(() => {
     seenEventIds.current = { order: [], set: new Set() };
-    // savedEvents.current = new Set(); // No longer needed - saves are backend-triggered
     lastTimestampRef.current = null;
     didInitialFetchRef.current = false;
     didAutoStartRef.current = false;
     pendingUserMessageIds.current.clear();
-    processedUsageIds.current.clear();
     prevMessagesCountRef.current = 0;
     setMessages([]);
     setInitialLoadComplete(false);
@@ -201,8 +202,26 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
     setIsStopping(false);
     setIsNearBottom(true);
     setUnreadCount(0);
-    setCostSummary({ totalInputTokens: 0, totalOutputTokens: 0, totalCacheReadTokens: 0, totalCost: 0 });
+    setGenerations([]);
   }, [projectId]);
+
+  // Calculate total cost from all generations
+  const costSummary = useMemo(() => {
+    const totals = generations.reduce(
+      (acc, gen) => ({
+        totalInputTokens:
+          acc.totalInputTokens +
+          (gen.usage.input_tokens || 0) +
+          (gen.usage.cache_creation_input_tokens || 0) +
+          (gen.usage.cache_read_input_tokens || 0),
+        totalOutputTokens: acc.totalOutputTokens + (gen.usage.output_tokens || 0),
+        totalCacheReadTokens: acc.totalCacheReadTokens + (gen.usage.cache_read_input_tokens || 0),
+        totalCost: acc.totalCost + gen.cost,
+      }),
+      { totalInputTokens: 0, totalOutputTokens: 0, totalCacheReadTokens: 0, totalCost: 0 }
+    );
+    return totals;
+  }, [generations]);
 
   // Handle scroll events to track if user is near bottom
   const handleScroll = useCallback(() => {
@@ -339,26 +358,6 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
       const content =
         (event.event_data?.message?.content as AssistantContentBlock[] | undefined) || [];
 
-      // Extract usage from message (SDK provides it at message.usage)
-      const usage = event.event_data?.message?.usage as TokenUsage | undefined;
-      const messageId = event.event_data?.message?.id as string | undefined;
-
-      // Update cost summary (deduplicate by message ID for parallel tool uses)
-      if (usage && messageId && !processedUsageIds.current.has(messageId)) {
-        processedUsageIds.current.add(messageId);
-        const cost = calculateCost(usage);
-        // Total input includes non-cached + cache creation + cache read
-        const totalIn = (usage.input_tokens || 0) +
-                       (usage.cache_creation_input_tokens || 0) +
-                       (usage.cache_read_input_tokens || 0);
-        setCostSummary((prev) => ({
-          totalInputTokens: prev.totalInputTokens + totalIn,
-          totalOutputTokens: prev.totalOutputTokens + (usage.output_tokens || 0),
-          totalCacheReadTokens: prev.totalCacheReadTokens + (usage.cache_read_input_tokens || 0),
-          totalCost: prev.totalCost + cost,
-        }));
-      }
-
       for (const block of content) {
         if (isTextBlock(block)) {
           const text = block.text;
@@ -367,7 +366,6 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
             role: "assistant",
             content: text,
             timestamp: new Date(event.created_at),
-            usage, // Include usage for per-message display
           }]);
         } else if (block.type === "tool_use") {
           let toolContext = "";
@@ -419,22 +417,22 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
       setIsLoading(false);
       setIsStopping(false);
 
-      // Check for usage in result event (cumulative usage from SDK)
+      // Check for usage in result event (cumulative usage from SDK for this generation)
       const resultUsage = event.event_data?.usage as TokenUsage | undefined;
       const totalCostUsd = event.event_data?.total_cost_usd as number | undefined;
 
+      // Add this generation's cost to the list
       if (resultUsage) {
         const cost = totalCostUsd ?? calculateCost(resultUsage);
-        // Total input includes non-cached + cache creation + cache read
-        const totalIn = (resultUsage.input_tokens || 0) +
-                       (resultUsage.cache_creation_input_tokens || 0) +
-                       (resultUsage.cache_read_input_tokens || 0);
-        setCostSummary({
-          totalInputTokens: totalIn,
-          totalOutputTokens: resultUsage.output_tokens || 0,
-          totalCacheReadTokens: resultUsage.cache_read_input_tokens || 0,
-          totalCost: cost,
-        });
+        setGenerations((prev) => [
+          ...prev,
+          {
+            generationNumber: prev.length + 1,
+            usage: resultUsage,
+            cost,
+            timestamp: new Date(event.created_at),
+          },
+        ]);
       }
 
       if (event.event_data.subtype === "success") {
@@ -906,7 +904,7 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
 
                   return (
                     <div key={message.id} className="w-full max-w-full overflow-hidden">
-                      <ChatMessage message={message} onFixError={handleFixError} showCostTracking={showCostTracking} />
+                      <ChatMessage message={message} onFixError={handleFixError} />
                       {/* Show feature context after first user message */}
                       {showFeatureContext && (
                         <div className="mt-1.5 ml-auto max-w-[85%]">
@@ -1018,12 +1016,59 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
                       </span>
                     )}
                     {" / "}{costSummary.totalOutputTokens.toLocaleString()} out
+                    {" "}({generations.length} {generations.length === 1 ? "generation" : "generations"})
                   </>
                 ) : (
                   <span className="text-muted-foreground/50">Waiting for usage data from SDK...</span>
                 )}
               </span>
-              <span className="font-mono font-medium">${costSummary.totalCost.toFixed(4)}</span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button className="font-mono font-medium hover:underline cursor-pointer">
+                    ${costSummary.totalCost.toFixed(4)}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-80 p-3">
+                  <div className="space-y-2">
+                    <div className="font-medium text-sm border-b pb-2 mb-2">Cost Breakdown</div>
+                    {generations.length === 0 ? (
+                      <div className="text-muted-foreground text-xs">No generations yet</div>
+                    ) : (
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                        {generations.map((gen) => {
+                          const totalIn = (gen.usage.input_tokens || 0) +
+                            (gen.usage.cache_creation_input_tokens || 0) +
+                            (gen.usage.cache_read_input_tokens || 0);
+                          const cachePercent = totalIn > 0
+                            ? Math.round(((gen.usage.cache_read_input_tokens || 0) / totalIn) * 100)
+                            : 0;
+                          return (
+                            <div key={gen.generationNumber} className="flex justify-between items-start text-xs border-b border-border/30 pb-1.5">
+                              <div>
+                                <span className="font-medium">Gen {gen.generationNumber}</span>
+                                <div className="text-muted-foreground/70">
+                                  {totalIn.toLocaleString()} in
+                                  {cachePercent > 0 && (
+                                    <span className="text-green-600 dark:text-green-400">
+                                      {" "}({cachePercent}% cached)
+                                    </span>
+                                  )}
+                                  {" / "}{(gen.usage.output_tokens || 0).toLocaleString()} out
+                                </div>
+                              </div>
+                              <span className="font-mono">${gen.cost.toFixed(4)}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center pt-2 border-t font-medium">
+                      <span>Total</span>
+                      <span className="font-mono">${costSummary.totalCost.toFixed(4)}</span>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         )}
