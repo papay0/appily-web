@@ -51,7 +51,7 @@ function buildDesignSystemPrompt(
 
 CRITICAL OUTPUT RULES:
 1. Output ONLY raw HTML - NO markdown code blocks, NO backticks, NO explanations, NO preamble
-2. Generate 3-5 screens that would be essential for the app
+2. Generate all the screens that would be essential for the app
 3. Separate each screen with delimiters: <!-- SCREEN_START: Screen Name --> and <!-- SCREEN_END -->
 4. The HTML will be streamed chunk by chunk and rendered in real-time
 
@@ -117,7 +117,7 @@ Generate screens that cover these features comprehensively. Each feature should 
 
   const outputFormat = `
 
-OUTPUT FORMAT - Generate 3-5 screens like this:
+OUTPUT FORMAT - Generate screens like this:
 <!-- SCREEN_START: Home -->
 <div class="min-h-screen bg-gray-50">
   <header class="bg-white px-4 py-3 shadow-sm">

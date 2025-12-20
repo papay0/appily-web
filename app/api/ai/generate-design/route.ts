@@ -30,7 +30,7 @@ CRITICAL RULES:
 4. Use Solar icon set primarily (e.g., "solar:heart-bold", "solar:user-bold", "solar:settings-bold")
 5. Generate self-contained components that render static, beautiful UI
 6. Each screen should be visually polished and app-store ready
-7. Auto-determine the most relevant screens based on the app description (typically 3-5 screens)
+7. Auto-determine the most relevant screens based on the app description (as many screens as the app requires)
 
 IMAGES - CRITICAL:
 - For ALL images, ONLY use picsum.photos URLs which always work
@@ -155,7 +155,7 @@ IMPORTANT INSTRUCTIONS:
 7. Make sure to return valid JSON with the exact same structure`;
     } else {
       // Initial design request
-      userPrompt = `Create a beautiful mobile app design for the following app idea:\n\n${prompt}\n\nGenerate 3-5 screens that would be essential for this app. Make them visually stunning and cohesive.`;
+      userPrompt = `Create a beautiful mobile app design for the following app idea:\n\n${prompt}\n\nGenerate all the screens that would be essential for this app. Make them visually stunning and cohesive.`;
     }
 
     // Call Gemini Pro 3 with design system prompt
