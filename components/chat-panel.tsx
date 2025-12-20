@@ -546,7 +546,9 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
 
     // Check if this is the first message and we have feature context
     const isFirstMessage = messages.filter(m => m.role === "user").length === 0;
-    const shouldIncludeContext = isFirstMessage && featureContext && featureContext.features.length > 0;
+    const hasFeatures = featureContext && featureContext.features.length > 0;
+    const hasDesigns = featureContext && featureContext.designs && featureContext.designs.length > 0;
+    const shouldIncludeContext = isFirstMessage && featureContext && (hasFeatures || hasDesigns);
 
     // Build the prompt - include feature context for first message
     let promptContent = messageText;
