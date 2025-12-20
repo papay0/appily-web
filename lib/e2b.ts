@@ -32,16 +32,16 @@ export async function createSandbox(): Promise<{
   }
 
   try {
-    console.log(`[createSandbox] Creating E2B sandbox with template ${templateId} (8GB RAM, 8 vCPUs, 1 hour timeout)...`);
+    console.log(`[createSandbox] Creating E2B sandbox with template ${templateId} (8GB RAM, 8 vCPUs, 20 minute timeout)...`);
     const sandbox = await Sandbox.create(
       templateId, // Template ID from E2B_TEMPLATE_ID env var (8 vCPUs, 8GB RAM)
       {
         apiKey,
-        timeoutMs: 3600000, // 1 hour = 60 minutes * 60 seconds * 1000 milliseconds
+        timeoutMs: 1200000, // 20 minutes = 20 * 60 * 1000 milliseconds
       }
     );
 
-    console.log(`[createSandbox] ✓ Sandbox created: ${sandbox.sandboxId} (timeout: 1 hour)`);
+    console.log(`[createSandbox] ✓ Sandbox created: ${sandbox.sandboxId} (timeout: 20 minutes)`);
 
     return {
       sandbox,
