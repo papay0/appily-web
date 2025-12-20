@@ -1,10 +1,10 @@
 /**
- * API Route: Generate a project name from an app idea
+ * API Route: Generate a project name and emoji from an app idea
  *
  * POST /api/projects/generate-name
  *
  * This endpoint uses Claude to generate a short, memorable project name
- * based on the user's app idea and optional feature list.
+ * and a representative emoji based on the user's app idea and optional feature list.
  *
  * Request body:
  * - appIdea: string - User's description of their app idea
@@ -12,6 +12,7 @@
  *
  * Response:
  * - name: string - Generated project name (2-4 words, Title Case)
+ * - emoji: string - Single emoji representing the app's purpose
  */
 
 import { NextResponse } from "next/server";
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log(`[API] Generating project name for app idea: ${appIdea.substring(0, 50)}...`);
+    console.log(`[API] Generating project name and emoji for app idea: ${appIdea.substring(0, 50)}...`);
 
     // Build prompt and call Claude
     const prompt = buildProjectNamePrompt({ appIdea, features });
@@ -81,8 +82,12 @@ export async function POST(request: Request) {
       );
     }
 
-    // Clean up the response - remove quotes, extra whitespace, etc.
-    let name = textBlock.text
+    // Parse the response - expected format: "Name|Emoji"
+    const rawResponse = textBlock.text.trim();
+    const parts = rawResponse.split("|");
+
+    // Extract name (first part)
+    let name = (parts[0] || "")
       .trim()
       .replace(/^["']|["']$/g, "") // Remove surrounding quotes
       .replace(/[.!?]$/, "") // Remove trailing punctuation
@@ -95,9 +100,18 @@ export async function POST(request: Request) {
       name = name.split(/\s+/).slice(0, 4).join(" ");
     }
 
-    console.log(`[API] Generated project name: "${name}"`);
+    // Extract emoji (second part) or use default
+    let emoji = (parts[1] || "📱").trim();
 
-    return NextResponse.json({ name });
+    // Validate emoji - if it's not a valid single emoji, use default
+    // A simple check: emoji should be 1-4 characters (to handle multi-codepoint emojis)
+    if (emoji.length === 0 || emoji.length > 8) {
+      emoji = "📱";
+    }
+
+    console.log(`[API] Generated project name: "${name}", emoji: "${emoji}"`);
+
+    return NextResponse.json({ name, emoji });
   } catch (error) {
     console.error("[API] Project name generation error:", error);
     return NextResponse.json(

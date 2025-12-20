@@ -13,14 +13,22 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 import { useSupabaseClient } from "@/lib/supabase-client";
 import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
 
 type ViewMode = "preview" | "code" | "database";
 
 interface ProjectHeaderProps {
   projectId?: string;
   projectName?: string;
+  projectEmoji?: string;
 
   // Optional view controls (for project pages, desktop only)
   viewMode?: ViewMode;
@@ -43,9 +51,12 @@ interface ProjectHeaderProps {
   isDownloading?: boolean;
 }
 
+const DEFAULT_EMOJI = "📱";
+
 export function ProjectHeader({
   projectId,
   projectName,
+  projectEmoji,
   viewMode,
   onViewModeChange,
   hasQrCode,
@@ -58,10 +69,14 @@ export function ProjectHeader({
   isDownloading,
 }: ProjectHeaderProps) {
   const supabase = useSupabaseClient();
+  const { resolvedTheme } = useTheme();
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState(projectName || "");
   const [isSavingName, setIsSavingName] = useState(false);
   const [displayName, setDisplayName] = useState(projectName || "");
+  const [displayEmoji, setDisplayEmoji] = useState(projectEmoji || DEFAULT_EMOJI);
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const [isSavingEmoji, setIsSavingEmoji] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const showControls = viewMode && onViewModeChange;
@@ -73,6 +88,34 @@ export function ProjectHeader({
     setDisplayName(projectName || "");
     setEditedName(projectName || "");
   }, [projectName]);
+
+  // Update display emoji when projectEmoji prop changes
+  useEffect(() => {
+    setDisplayEmoji(projectEmoji || DEFAULT_EMOJI);
+  }, [projectEmoji]);
+
+  const handleEmojiSelect = async (emojiData: EmojiClickData) => {
+    if (!projectId) return;
+
+    setIsSavingEmoji(true);
+    const newEmoji = emojiData.emoji;
+
+    try {
+      const { error } = await supabase
+        .from("projects")
+        .update({ emoji: newEmoji })
+        .eq("id", projectId);
+
+      if (error) throw error;
+
+      setDisplayEmoji(newEmoji);
+      setIsEmojiPickerOpen(false);
+    } catch (error) {
+      console.error("Error updating project emoji:", error);
+    } finally {
+      setIsSavingEmoji(false);
+    }
+  };
 
   // Focus input when editing starts
   useEffect(() => {
@@ -133,9 +176,38 @@ export function ProjectHeader({
         <SidebarTrigger className="h-8 w-8 rounded-lg hover:bg-foreground/5 transition-colors" />
         <Separator orientation="vertical" className="h-5 bg-border/50" />
 
-        {/* Project name with inline editing */}
+        {/* Project emoji and name with inline editing */}
         {projectId && projectName ? (
-          <div className="flex items-center gap-1.5 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            {/* Emoji picker */}
+            <Popover open={isEmojiPickerOpen} onOpenChange={setIsEmojiPickerOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  className={cn(
+                    "flex items-center justify-center w-8 h-8 rounded-lg",
+                    "bg-foreground/5 hover:bg-foreground/10 transition-colors",
+                    "text-lg cursor-pointer",
+                    isSavingEmoji && "opacity-50 cursor-not-allowed"
+                  )}
+                  disabled={isSavingEmoji}
+                >
+                  {isSavingEmoji ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  ) : (
+                    displayEmoji
+                  )}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0 border-none" align="start">
+                <EmojiPicker
+                  onEmojiClick={handleEmojiSelect}
+                  theme={resolvedTheme === "dark" ? Theme.DARK : Theme.LIGHT}
+                  width={320}
+                  height={400}
+                />
+              </PopoverContent>
+            </Popover>
+
             {isEditing ? (
               <div className="flex items-center gap-1.5">
                 <Input

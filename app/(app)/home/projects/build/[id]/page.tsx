@@ -31,6 +31,7 @@ type ConvexProject = {
 type Project = {
   id: string;
   name: string;
+  emoji: string | null;
   user_id: string;
   e2b_sandbox_id: string | null;
   e2b_sandbox_status: "idle" | "starting" | "ready" | "error" | null;
@@ -317,12 +318,12 @@ export default function ProjectBuildPage() {
     }
   }, [projectChannelStatus, fetchProjectData, isLoaded]);
 
-  // Async name generation: Generate project name if it's still "New Project"
+  // Async name generation: Generate project name and emoji if it's still "New Project"
   useEffect(() => {
     if (!project || isGeneratingName) return;
     if (project.name !== "New Project" || !project.app_idea) return;
 
-    const generateProjectName = async () => {
+    const generateProjectNameAndEmoji = async () => {
       setIsGeneratingName(true);
       try {
         const response = await fetch("/api/projects/generate-name", {
@@ -332,33 +333,33 @@ export default function ProjectBuildPage() {
         });
 
         if (!response.ok) {
-          console.error("Failed to generate project name");
+          console.error("Failed to generate project name and emoji");
           return;
         }
 
-        const { name } = await response.json();
+        const { name, emoji } = await response.json();
 
-        // Update in database
+        // Update in database (name and emoji)
         const { error } = await supabase
           .from("projects")
-          .update({ name })
+          .update({ name, emoji })
           .eq("id", project.id);
 
         if (error) {
-          console.error("Failed to update project name:", error);
+          console.error("Failed to update project name and emoji:", error);
           return;
         }
 
         // Update local state
-        setProject((prev) => prev ? { ...prev, name } : null);
+        setProject((prev) => prev ? { ...prev, name, emoji } : null);
       } catch (error) {
-        console.error("Error generating project name:", error);
+        console.error("Error generating project name and emoji:", error);
       } finally {
         setIsGeneratingName(false);
       }
     };
 
-    generateProjectName();
+    generateProjectNameAndEmoji();
   }, [project, isGeneratingName, supabase]);
 
   const handleStartSandbox = async () => {
@@ -611,6 +612,7 @@ export default function ProjectBuildPage() {
       <ProjectHeader
         projectId={projectId}
         projectName={project.name}
+        projectEmoji={project.emoji || undefined}
         viewMode={viewMode}
         onViewModeChange={(mode) => setViewMode(mode)}
         hasQrCode={!!qrCode}

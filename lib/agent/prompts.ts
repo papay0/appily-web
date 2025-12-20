@@ -2461,15 +2461,16 @@ export interface ProjectNameOptions {
 }
 
 /**
- * Build the prompt for generating a project name
+ * Build the prompt for generating a project name and emoji
  *
  * This prompt configures Claude to:
  * 1. Analyze the app idea (and optional features)
  * 2. Generate a short, memorable project name
- * 3. Return just the name, no explanation
+ * 3. Generate a single emoji that represents the app
+ * 4. Return both in a parseable format
  *
  * @param options - Configuration for the prompt
- * @returns Complete prompt string for name generation
+ * @returns Complete prompt string for name and emoji generation
  */
 export function buildProjectNamePrompt(options: ProjectNameOptions): string {
   const featuresList = options.features
@@ -2480,19 +2481,24 @@ export function buildProjectNamePrompt(options: ProjectNameOptions): string {
     ? `\n\n**Planned Features:**\n${featuresList}`
     : "";
 
-  return `Generate a short, memorable project name for this mobile app idea.
+  return `Generate a short, memorable project name AND a single emoji for this mobile app idea.
 
 **App Idea:**
 ${options.appIdea}${featuresSection}
 
-**Requirements:**
+**Name Requirements:**
 - 2-4 words maximum
 - Title Case (e.g., "Grocery Buddy", "Task Flow Pro", "Quick Notes")
 - Descriptive of the app's core purpose
 - Easy to remember and type
-- No special characters, numbers, or emojis
+- No special characters, numbers, or emojis in the name
 - Should sound like a real app name
 
-**Response:**
-Return ONLY the project name, nothing else. No quotes, no explanation, no punctuation.`;
+**Emoji Requirements:**
+- Single emoji that best represents the app's purpose
+- Should be recognizable and relevant (e.g., 🛒 for shopping, 📝 for notes, 💪 for fitness)
+
+**Response Format:**
+Return ONLY the name and emoji separated by a pipe character, nothing else.
+Example: Grocery Buddy|🛒`;
 }
