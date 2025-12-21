@@ -181,11 +181,10 @@ export default function ProjectBuildPage() {
         }
 
         // Check if project has any snapshots (for download button)
-        const { count: snapshotCount, error: snapshotError } = await supabase
+        const { count: snapshotCount } = await supabase
           .from("project_snapshots")
           .select("*", { count: "exact", head: true })
           .eq("project_id", projectId);
-        console.log("[ProjectPage] Snapshot count query:", { snapshotCount, snapshotError, projectId });
         setHasSnapshots((snapshotCount ?? 0) > 0);
 
         // Set initial Expo URL and QR code from database
