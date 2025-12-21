@@ -17,6 +17,7 @@ import {
 interface Project {
   id: string;
   name: string;
+  emoji?: string;
   created_at: string;
   updated_at: string;
 }
@@ -63,7 +64,11 @@ function ProjectCard({
       <div className="relative">
         {/* Icon */}
         <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform duration-300">
-          <Smartphone className="w-6 h-6 text-primary" />
+          {project.emoji ? (
+            <span className="text-2xl">{project.emoji}</span>
+          ) : (
+            <Smartphone className="w-6 h-6 text-primary" />
+          )}
         </div>
 
         {/* Title */}

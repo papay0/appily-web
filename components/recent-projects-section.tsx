@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 interface Project {
   id: string;
   name: string;
+  emoji?: string;
   created_at: string;
   updated_at: string;
 }
@@ -41,7 +42,11 @@ function ProjectCard({ project, index }: { project: Project; index: number }) {
       <div className="flex items-start gap-3">
         {/* App icon */}
         <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 text-primary">
-          <Smartphone className="h-5 w-5" />
+          {project.emoji ? (
+            <span className="text-xl">{project.emoji}</span>
+          ) : (
+            <Smartphone className="h-5 w-5" />
+          )}
         </div>
 
         {/* Project info */}
@@ -195,7 +200,11 @@ export function RecentProjectsSection({
               >
                 <TableCell className="py-3 px-3 w-10">
                   <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <Smartphone className="h-4 w-4 text-primary" />
+                    {project.emoji ? (
+                      <span className="text-lg">{project.emoji}</span>
+                    ) : (
+                      <Smartphone className="h-4 w-4 text-primary" />
+                    )}
                   </div>
                 </TableCell>
                 <TableCell className="py-3 px-0 font-medium text-foreground">
