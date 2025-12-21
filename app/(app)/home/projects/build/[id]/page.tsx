@@ -75,6 +75,7 @@ export default function ProjectBuildPage() {
   const [isGeneratingName, setIsGeneratingName] = useState(false);
   const [qrSheetOpen, setQrSheetOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [hasSnapshots, setHasSnapshots] = useState(false);
 
   // Health status state (from health hook)
   const [healthStatus, setHealthStatus] = useState<HealthStatus | null>(null);

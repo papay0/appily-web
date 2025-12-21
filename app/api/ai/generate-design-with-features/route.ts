@@ -89,8 +89,9 @@ DESIGN PRINCIPLES:
 
 STRUCTURE FOR EACH SCREEN:
 - Start with a container div: <div class="min-h-screen bg-... p-4">
-- Include a status bar area at top if appropriate
-- Include navigation at bottom if appropriate
+- Do NOT include iOS status bar (time, battery, signal icons) - the real device already shows one!
+- Add appropriate top padding (pt-12 or pt-14) to account for the device's status bar
+- Include bottom navigation if appropriate
 - Use semantic HTML (header, main, nav, section, article)`;
 
   // Add features context if available

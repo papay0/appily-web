@@ -13,6 +13,7 @@ import type { FullError } from "./runtime-error-message";
 import { TodoList, type Todo } from "./todo-list";
 import { ToolUseGroup } from "./tool-use-group";
 import { FeatureContextCard } from "./feature-context-card";
+import { DesignContextCard } from "./design-context-card";
 import { UnifiedInput } from "./unified-input";
 import type { Feature } from "@/lib/types/features";
 import { buildEnhancedPrompt } from "@/lib/types/features";
@@ -901,18 +902,27 @@ export function ChatPanel({ projectId, sandboxId, featureContext, initialAiProvi
                   const isLatestTodoWrite = index === lastTodoWriteIndex;
                   const isFirstUserMessage = index === firstUserMessageIndex && message.role === "user";
                   const showFeatureContext = isFirstUserMessage && featureContext && featureContext.features.length > 0;
+                  const showDesignContext = isFirstUserMessage && featureContext && featureContext.designs && featureContext.designs.length > 0;
 
                   return (
                     <div key={message.id} className="w-full max-w-full overflow-hidden">
                       <ChatMessage message={message} onFixError={handleFixError} />
-                      {/* Show feature context after first user message */}
-                      {showFeatureContext && (
-                        <div className="mt-1.5 ml-auto max-w-[85%]">
-                          <FeatureContextCard
-                            appIdea={featureContext.appIdea}
-                            features={featureContext.features}
-                            defaultOpen={false}
-                          />
+                      {/* Show feature and design context after first user message */}
+                      {(showFeatureContext || showDesignContext) && (
+                        <div className="mt-1.5 ml-auto max-w-[85%] space-y-1.5">
+                          {showFeatureContext && (
+                            <FeatureContextCard
+                              appIdea={featureContext.appIdea}
+                              features={featureContext.features}
+                              defaultOpen={false}
+                            />
+                          )}
+                          {showDesignContext && (
+                            <DesignContextCard
+                              designs={featureContext.designs!}
+                              defaultOpen={false}
+                            />
+                          )}
                         </div>
                       )}
                       {/* Show todos after TodoWrite tool use */}
