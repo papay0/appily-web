@@ -134,6 +134,13 @@ export async function executeClaudeInE2B(
     await sandbox.files.write('/home/user/metro-control.js', metroControlContent);
     console.log(`[E2B] ✓ Metro-control module uploaded`);
 
+    // Step 2.4: Upload metro-log-pipe.js module (for real-time terminal log streaming)
+    const metroLogPipePath = join(process.cwd(), 'lib/agent/e2b-scripts/metro-log-pipe.js');
+    console.log(`[E2B] Reading metro-log-pipe module from: ${metroLogPipePath}`);
+    const metroLogPipeContent = readFileSync(metroLogPipePath, 'utf-8');
+    await sandbox.files.write('/home/user/metro-log-pipe.js', metroLogPipeContent);
+    console.log(`[E2B] ✓ Metro-log-pipe module uploaded`);
+
     // Step 3: Install dependencies if not already installed
     console.log(`[E2B] Installing dependencies (@supabase/supabase-js, @aws-sdk/client-s3)...`);
     const installResult = await sandbox.commands.run(
@@ -577,6 +584,13 @@ export async function executeClaudeSdkInE2B(
     await sandbox.files.write('/home/user/metro-control.js', metroControlContent);
     console.log(`[E2B] ✓ Metro-control module uploaded`);
 
+    // Step 2.4: Upload metro-log-pipe.js module (for real-time terminal log streaming)
+    const metroLogPipePath = join(process.cwd(), 'lib/agent/e2b-scripts/metro-log-pipe.js');
+    console.log(`[E2B] Reading metro-log-pipe module from: ${metroLogPipePath}`);
+    const metroLogPipeContent = readFileSync(metroLogPipePath, 'utf-8');
+    await sandbox.files.write('/home/user/metro-log-pipe.js', metroLogPipeContent);
+    console.log(`[E2B] ✓ Metro-log-pipe module uploaded`);
+
     // Step 3: Install dependencies (SDK should ideally be pre-installed in template)
     console.log(`[E2B] Installing dependencies (@supabase/supabase-js, @aws-sdk/client-s3, @anthropic-ai/claude-agent-sdk)...`);
     const installResult = await sandbox.commands.run(
@@ -793,6 +807,13 @@ export async function executeSetupInE2B(
     const loggerScriptContent = readFileSync(loggerScriptPath, 'utf-8');
     await sandbox.files.write('/home/user/e2b-logger.js', loggerScriptContent);
     console.log(`[E2B] ✓ E2B-Logger module uploaded`);
+
+    // Step 2.3: Upload metro-log-pipe.js (ALWAYS needed for real-time terminal log streaming)
+    const metroLogPipePath = join(process.cwd(), 'lib/agent/e2b-scripts/metro-log-pipe.js');
+    console.log(`[E2B] Reading metro-log-pipe module from: ${metroLogPipePath}`);
+    const metroLogPipeContent = readFileSync(metroLogPipePath, 'utf-8');
+    await sandbox.files.write('/home/user/metro-log-pipe.js', metroLogPipeContent);
+    console.log(`[E2B] ✓ Metro-log-pipe module uploaded`);
 
     // Step 2.5: Also upload stream-to-supabase.js (needed for AI agent)
     if (systemPrompt) {

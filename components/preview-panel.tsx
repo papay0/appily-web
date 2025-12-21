@@ -5,6 +5,7 @@ import { Loader2, QrCode, Sparkles, AlertTriangle, ExternalLink, RefreshCw } fro
 import { useState, useEffect } from "react";
 import { Iphone } from "@/components/ui/iphone";
 import { SandboxStatusOverlay } from "@/components/sandbox-status-overlay";
+import { TerminalLogViewer } from "@/components/terminal-log-viewer";
 import type { HealthStatus } from "@/app/api/sandbox/health/route";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,7 @@ export function PreviewPanel({
   onStartSandbox,
   expoUrl,
   qrCode,
+  projectId,
   healthStatus,
   healthMessage,
 }: PreviewPanelProps) {
@@ -54,12 +56,14 @@ export function PreviewPanel({
 
   return (
     <div className="flex flex-col h-full relative overflow-hidden">
-      {/* Ambient Background */}
-      <div className="absolute inset-0 -z-10">
-        <div className="absolute inset-0 bg-gradient-to-br from-background via-primary/5 to-[var(--magic-violet)]/5" />
-        <div className="absolute top-10 right-10 w-[300px] h-[300px] bg-primary/5 rounded-full blur-3xl animate-pulse-slow" />
-        <div className="absolute bottom-20 left-10 w-[250px] h-[250px] bg-[var(--magic-violet)]/5 rounded-full blur-3xl animate-pulse-slow animation-delay-2000" />
-      </div>
+      {/* Main content wrapper */}
+      <div className="flex-1 flex flex-col relative overflow-hidden">
+        {/* Ambient Background */}
+        <div className="absolute inset-0 -z-10">
+          <div className="absolute inset-0 bg-gradient-to-br from-background via-primary/5 to-[var(--magic-violet)]/5" />
+          <div className="absolute top-10 right-10 w-[300px] h-[300px] bg-primary/5 rounded-full blur-3xl animate-pulse-slow" />
+          <div className="absolute bottom-20 left-10 w-[250px] h-[250px] bg-[var(--magic-violet)]/5 rounded-full blur-3xl animate-pulse-slow animation-delay-2000" />
+        </div>
 
       {/* Health Status Overlay - shown when sandbox is sleeping/starting */}
       {showHealthOverlay && (
@@ -293,6 +297,12 @@ export function PreviewPanel({
           </div>
         )}
       </div>
+      </div>
+
+      {/* Terminal Log Viewer - collapsible at bottom */}
+      {projectId && (sandboxStatus === "ready" || sandboxStatus === "starting") && (
+        <TerminalLogViewer projectId={projectId} />
+      )}
     </div>
   );
 }
