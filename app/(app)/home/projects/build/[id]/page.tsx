@@ -180,6 +180,14 @@ export default function ProjectBuildPage() {
           }
         }
 
+        // Check if project has any snapshots (for download button)
+        const { count: snapshotCount, error: snapshotError } = await supabase
+          .from("project_snapshots")
+          .select("*", { count: "exact", head: true })
+          .eq("project_id", projectId);
+        console.log("[ProjectPage] Snapshot count query:", { snapshotCount, snapshotError, projectId });
+        setHasSnapshots((snapshotCount ?? 0) > 0);
+
         // Set initial Expo URL and QR code from database
         if (projectData.expo_url) {
           setExpoUrl(projectData.expo_url);
@@ -318,6 +326,21 @@ export default function ProjectBuildPage() {
       fetchProjectData();
     }
   }, [projectChannelStatus, fetchProjectData, isLoaded]);
+
+  // Subscribe to project_snapshots INSERT events to enable download button
+  const handleSnapshotInsert = useCallback(() => {
+    console.log("[ProjectPage] 📦 New snapshot detected, enabling download");
+    setHasSnapshots(true);
+  }, []);
+
+  useRealtimeSubscription({
+    channelKey: `snapshots:${projectId}`,
+    table: "project_snapshots",
+    event: "INSERT",
+    filter: `project_id=eq.${projectId}`,
+    onEvent: handleSnapshotInsert,
+    enabled: isLoaded,
+  });
 
   // Async name generation: Generate project name and emoji if it's still "New Project"
   useEffect(() => {
@@ -624,6 +647,7 @@ export default function ProjectBuildPage() {
         hasConvex={project.convex_project?.status === "connected"}
         onDownloadZip={handleDownloadZip}
         isDownloading={isDownloading}
+        isBundleAvailable={hasSnapshots}
       />
 
       {/* Conditionally render Mobile OR Desktop - never both */}

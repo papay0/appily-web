@@ -18,6 +18,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 import { useSupabaseClient } from "@/lib/supabase-client";
 import { cn } from "@/lib/utils";
@@ -49,6 +54,7 @@ interface ProjectHeaderProps {
   // Download zip
   onDownloadZip?: () => void;
   isDownloading?: boolean;
+  isBundleAvailable?: boolean;
 }
 
 const DEFAULT_EMOJI = "📱";
@@ -67,6 +73,7 @@ export function ProjectHeader({
   hasConvex,
   onDownloadZip,
   isDownloading,
+  isBundleAvailable,
 }: ProjectHeaderProps) {
   const supabase = useSupabaseClient();
   const { resolvedTheme } = useTheme();
@@ -377,24 +384,35 @@ export function ProjectHeader({
 
           {/* Download Button */}
           {onDownloadZip && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onDownloadZip}
-              disabled={isDownloading}
-              className={cn(
-                "gap-1.5 rounded-lg",
-                "glass-morphism border-border/50",
-                "hover:border-primary/50 hover:bg-primary/5"
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onDownloadZip}
+                    disabled={isDownloading || !isBundleAvailable}
+                    className={cn(
+                      "gap-1.5 rounded-lg",
+                      "glass-morphism border-border/50",
+                      "hover:border-primary/50 hover:bg-primary/5"
+                    )}
+                  >
+                    {isDownloading ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Download className="h-3.5 w-3.5" />
+                    )}
+                    Download
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {!isBundleAvailable && !isDownloading && (
+                <TooltipContent side="bottom">
+                  Generate code first to enable download
+                </TooltipContent>
               )}
-            >
-              {isDownloading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Download className="h-3.5 w-3.5" />
-              )}
-              Download
-            </Button>
+            </Tooltip>
           )}
         </div>
       )}
