@@ -202,21 +202,24 @@ export async function POST(request: Request) {
         })
         .eq("id", projectId);
 
-      // Auto-create Convex project for new projects
+      // Auto-create Convex project for new projects (if enabled)
       let convexConfig: ConvexConfig | undefined;
 
       // Check if Convex credentials are configured
       const hasConvexCredentials = process.env.CONVEX_TEAM_ACCESS_TOKEN && process.env.CONVEX_TEAM_ID;
 
-      if (hasConvexCredentials) {
-        try {
-          // Fetch project name and existing Convex config
-          const { data: newProjectData } = await supabaseAdmin
-            .from("projects")
-            .select("name, convex_project")
-            .eq("id", projectId)
-            .single();
+      // Fetch project data including use_convex flag
+      const { data: newProjectData } = await supabaseAdmin
+        .from("projects")
+        .select("name, convex_project, use_convex")
+        .eq("id", projectId)
+        .single();
 
+      // Only setup Convex if the project has it enabled
+      const shouldUseConvex = newProjectData?.use_convex === true;
+
+      if (hasConvexCredentials && shouldUseConvex) {
+        try {
           const existingConvex = newProjectData?.convex_project as ConvexProjectCredentials | null;
 
           // Check if Convex project already exists
@@ -263,6 +266,8 @@ export async function POST(request: Request) {
           console.error(`[API] ⚠️ Failed to create Convex project:`, convexError);
           // Continue without Convex - don't fail the whole request
         }
+      } else if (!shouldUseConvex) {
+        console.log(`[API] ℹ️ Convex disabled for this project (use_convex=false)`);
       } else {
         console.log(`[API] ℹ️ Convex credentials not configured, skipping auto-creation`);
       }
@@ -290,22 +295,26 @@ export async function POST(request: Request) {
     // EXISTING PROJECT FLOW: Start agent immediately
     console.log(`[API] Routing to EXISTING PROJECT flow`);
 
-    // Extract Convex config from project data if available
+    // Extract Convex config from project data if available (only if use_convex is enabled)
     let convexConfig: ConvexConfig | undefined;
     const { data: existingProjectData } = await supabaseAdmin
       .from("projects")
-      .select("convex_project")
+      .select("convex_project, use_convex")
       .eq("id", projectId)
       .single();
 
+    const shouldUseConvex = existingProjectData?.use_convex === true;
     const convexProject = existingProjectData?.convex_project as ConvexProjectCredentials | null;
-    if (convexProject?.status === "connected" && convexProject.deploymentUrl && convexProject.deployKey) {
+
+    if (shouldUseConvex && convexProject?.status === "connected" && convexProject.deploymentUrl && convexProject.deployKey) {
       convexConfig = {
         deploymentUrl: convexProject.deploymentUrl,
         deployKey: convexProject.deployKey,
         isInitialized: true, // Existing project, likely already deployed
       };
       console.log(`[API] ✓ Using existing Convex backend: ${convexProject.deploymentUrl}`);
+    } else if (!shouldUseConvex) {
+      console.log(`[API] ℹ️ Convex disabled for this project (use_convex=false)`);
     }
 
     // Create AI config - always enabled for all projects

@@ -45,6 +45,7 @@ type Project = {
   image_keys: string[] | null;
   ai_provider: "claude" | "gemini" | null;
   convex_project: ConvexProject | null;
+  use_convex: boolean | null;
 }
 
 export default function ProjectBuildPage() {
@@ -643,7 +644,7 @@ export default function ProjectBuildPage() {
         sandboxStatus={sandboxStatus}
         onRestartMetro={handleRestartMetro}
         onRecreateSandbox={handleStartSandbox}
-        hasConvex={project.convex_project?.status === "connected"}
+        hasConvex={project.use_convex === true && project.convex_project?.status === "connected"}
         onDownloadZip={handleDownloadZip}
         isDownloading={isDownloading}
         isBundleAvailable={hasSnapshots}
@@ -687,7 +688,7 @@ export default function ProjectBuildPage() {
           healthStatus={healthStatus}
           healthMessage={healthMessage}
           initialAiProvider={project.ai_provider || "claude"}
-          convexProject={project.convex_project}
+          convexProject={project.use_convex === true ? project.convex_project : null}
         />
       )}
 

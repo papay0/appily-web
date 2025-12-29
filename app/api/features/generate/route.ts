@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     }
 
     // Parse request body
-    const { projectId, appIdea, imageKeys } = await request.json();
+    const { projectId, appIdea, imageKeys, useConvex } = await request.json();
 
     if (!projectId || !appIdea) {
       return NextResponse.json(
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
 
     // Build prompt for Gemini
     const hasImages = images.length > 0;
-    const prompt = buildFeatureGenerationPrompt({ appIdea, hasImages });
+    const prompt = buildFeatureGenerationPrompt({ appIdea, hasImages, useConvex: useConvex === true });
 
     // Call Gemini 2.5 Flash for fast feature generation
     const responseText = await generateFeaturesWithGemini({

@@ -34,6 +34,7 @@ export default function HomePage() {
   const [tempUploadId, setTempUploadId] = useState<string>("");
   const [aiProvider, setAIProvider] = useState<AIProvider>("claude-sdk");
   const [supabaseUserId, setSupabaseUserId] = useState<string | null>(null);
+  const [useConvex, setUseConvex] = useState<boolean>(false);
   const greeting = getGreeting();
 
   useEffect(() => {
@@ -104,7 +105,8 @@ export default function HomePage() {
     appIdea: string,
     selectedStartMode: StartMode,
     imageKeys: string[],
-    tempUploadId: string
+    tempUploadId: string,
+    shouldUseConvex: boolean
   ) => {
     if (!user) return;
     setIsCreating(true);
@@ -141,6 +143,7 @@ export default function HomePage() {
           user_id: userData.id,
           app_idea: appIdea,
           ai_provider: aiProvider,
+          use_convex: shouldUseConvex,
           ...timestamps,
         })
         .select()
@@ -250,6 +253,8 @@ export default function HomePage() {
             onTempUploadIdReady={setTempUploadId}
             aiProvider={aiProvider}
             onAIProviderChange={handleAIProviderChange}
+            useConvex={useConvex}
+            onUseConvexChange={setUseConvex}
           />
         </div>
 

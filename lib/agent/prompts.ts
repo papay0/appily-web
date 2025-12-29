@@ -2318,6 +2318,12 @@ export interface FeatureGenerationOptions {
    * When true, the prompt will instruct Claude to analyze the images
    */
   hasImages?: boolean;
+
+  /**
+   * Whether Convex backend is enabled for this project
+   * When false, Convex-related features won't be suggested
+   */
+  useConvex?: boolean;
 }
 
 /**
@@ -2378,7 +2384,7 @@ These AI features are built-in and ready to use:
 - Image Analysis (GPT-5 mini Vision): Identify objects, describe photos, analyze content, detect breeds/plants/food, read text in images, understand scenes
 - Image Generation (Gemini Nano Banana Pro): Create images from text descriptions - avatars, artwork, illustrations, backgrounds, icons
 - Image Editing (Gemini Nano Banana Pro): Transform existing photos - add effects, change backgrounds, style transfer, virtual try-on, artistic filters
-
+${options.useConvex ? `
 **📊 Backend Capabilities (Powered by Convex - USE ONLY WHEN NECESSARY):**
 Real-time database and cloud storage. Only suggest Convex when the app TRULY NEEDS persistent/shared data:
 - Real-time Database: Persist data across sessions, automatic sync between devices
@@ -2390,7 +2396,16 @@ Real-time database and cloud storage. Only suggest Convex when the app TRULY NEE
 - Simple utility apps (calculator, timer, converter)
 - Single-session apps where data doesn't need to persist
 - Apps where AsyncStorage (local storage) is sufficient
-- Apps that only consume external APIs without storing user data
+- Apps that only consume external APIs without storing user data` : `
+**📊 Backend/Database:**
+This project does NOT have a backend database enabled. Do NOT suggest features requiring:
+- Persistent storage across sessions (use AsyncStorage for simple local data)
+- Cloud data sync or multi-device access
+- User accounts or authentication
+- Sharing data between users
+- Cloud file storage
+
+Keep all data local using AsyncStorage or in-memory state. Focus on standalone app functionality.`}
 
 **When to suggest AI features:**
 - Keywords: "smart", "AI", "intelligent", "analyze", "generate", "create content", "automatic"
@@ -2398,7 +2413,7 @@ Real-time database and cloud storage. Only suggest Convex when the app TRULY NEE
 - Creative apps → suggest text and/or image generation
 - Content apps → suggest text generation for descriptions, summaries
 - Educational apps → suggest AI explanations or analysis
-
+${options.useConvex ? `
 **When to suggest Convex backend (be conservative):**
 Only suggest Convex when the app genuinely requires it:
 - Multi-user/social features: chat, sharing, collaborative editing, social feeds
@@ -2406,7 +2421,7 @@ Only suggest Convex when the app genuinely requires it:
 - Leaderboards/scores: competitive features needing server-side storage
 - Cloud file storage: storing user-uploaded images/files that need to be accessed later or shared
 
-Prefer AsyncStorage (local) for: simple preferences, single-device data, temporary state
+Prefer AsyncStorage (local) for: simple preferences, single-device data, temporary state` : ''}
 
 NOT available (do NOT suggest features that require these):
 - Bluetooth/BLE

@@ -21,6 +21,7 @@ interface Project {
   planning_completed_at: string | null;
   design_completed_at: string | null;
   image_keys: string[] | null;
+  use_convex: boolean | null;
 }
 
 // Local feature type for planning (before saving to DB)
@@ -126,7 +127,7 @@ export default function PlanPage({
       try {
         const { data: projectData, error } = await supabase
           .from("projects")
-          .select("id, name, app_idea, planning_completed_at, design_completed_at, image_keys")
+          .select("id, name, app_idea, planning_completed_at, design_completed_at, image_keys, use_convex")
           .eq("id", projectId)
           .single();
 
@@ -171,7 +172,8 @@ export default function PlanPage({
           setGeneratingFeatures(true);
           // Use image_keys from database instead of URL params
           const imageKeys: string[] = projectData.image_keys || [];
-          await generateFeatures(projectData.app_idea, imageKeys);
+          const useConvex = projectData.use_convex === true;
+          await generateFeatures(projectData.app_idea, imageKeys, useConvex);
         }
       } catch (error) {
         console.error("Error:", error);
@@ -182,12 +184,12 @@ export default function PlanPage({
     loadProject();
   }, [user, projectId, supabase, router]);
 
-  const generateFeatures = async (appIdea: string, imageKeys: string[]) => {
+  const generateFeatures = async (appIdea: string, imageKeys: string[], useConvex: boolean) => {
     try {
       const response = await fetch("/api/features/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, appIdea, imageKeys }),
+        body: JSON.stringify({ projectId, appIdea, imageKeys, useConvex }),
       });
 
       if (!response.ok) throw new Error("Failed to generate features");

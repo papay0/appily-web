@@ -22,7 +22,10 @@ import {
   Wand2,
   Palette,
   Rocket,
+  Database,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { ImagePreviewGrid } from "@/components/image-preview-grid";
 import { useImageUpload, type UploadedImage } from "@/hooks/use-image-upload";
 import { cn } from "@/lib/utils";
@@ -138,6 +141,12 @@ export interface UnifiedInputProps {
   isStopping?: boolean;
   /** Number of messages currently queued */
   queuedCount?: number;
+
+  // Convex backend toggle (home variant only)
+  /** Whether to use Convex backend */
+  useConvex?: boolean;
+  /** Callback when Convex toggle changes */
+  onUseConvexChange?: (enabled: boolean) => void;
 }
 
 export function UnifiedInput({
@@ -159,6 +168,8 @@ export function UnifiedInput({
   onStop,
   isStopping = false,
   queuedCount = 0,
+  useConvex = false,
+  onUseConvexChange,
 }: UnifiedInputProps) {
   const [text, setText] = useState("");
   const [isFocused, setIsFocused] = useState(false);
@@ -603,7 +614,7 @@ export function UnifiedInput({
             {dropOverlay}
 
             <div className="relative">
-              {/* Top toolbar: AI Provider selector and Image upload */}
+              {/* Top toolbar: AI Provider selector, Convex toggle, and Image upload */}
               {onAIProviderChange && (
                 <div className="absolute top-0 left-0 right-0 p-4 flex items-center gap-2 z-10">
                   <AIProviderSelector
@@ -611,6 +622,25 @@ export function UnifiedInput({
                     onChange={onAIProviderChange}
                     disabled={isLoading}
                   />
+                  {/* Convex Backend Toggle - only shown on home page */}
+                  {onUseConvexChange && (
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary/50 border border-border/50">
+                      <Database className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Label
+                        htmlFor="convex-toggle"
+                        className="text-xs font-medium text-secondary-foreground/80 cursor-pointer"
+                      >
+                        Database
+                      </Label>
+                      <Switch
+                        id="convex-toggle"
+                        checked={useConvex}
+                        onCheckedChange={onUseConvexChange}
+                        disabled={isLoading}
+                        className="scale-75"
+                      />
+                    </div>
+                  )}
                   {imageUploadButton}
                   {voiceInputButton}
                 </div>
